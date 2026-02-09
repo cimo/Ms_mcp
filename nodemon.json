@@ -1,0 +1,6 @@
+{
+    "ext": "ts,tsx,js,jsx,scss",
+    "watch": ["src"],
+    "ignore": [],
+    "exec": "npm run build && node ./dist/src/Main.js"
+}

@@ -1,0 +1,4 @@
+{
+    "extends": "./tsconfig.json",
+    "include": ["eslint.customRule.ts", "global.d.ts", "src/Main.ts"]
+}

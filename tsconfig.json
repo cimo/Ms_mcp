@@ -1,0 +1,33 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "outDir": "./dist/",
+        "baseUrl": "./",
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "importHelpers": false,
+        "strict": true,
+        "noImplicitAny": true,
+        "strictNullChecks": true,
+        "noImplicitThis": true,
+        "alwaysStrict": true,
+        "experimentalDecorators": true,
+        "skipLibCheck": true,
+        "removeComments": true,
+        "sourceMap": true,
+        "noPropertyAccessFromIndexSignature": true,
+        "isolatedModules": true
+    },
+    "include": [
+        "eslint.customRule.ts",
+        "global.d.ts",
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "file/input/**/*.ts",
+        "file/input/**/*.tsx"
+    ],
+    "exclude": ["dist", "node_modules", "public", "src-tauri"]
+}

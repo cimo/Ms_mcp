@@ -1,0 +1,45 @@
+{
+    "name": "ms_mcp",
+    "version": "1.0.0",
+    "description": "Microservice mcp.",
+    "author": "cimo",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/cimo/Ms_mcp.git"
+    },
+    "type": "module",
+    "scripts": {
+        "preinstall": "npx -y npm-force-resolutions",
+        "remove_dist": "node -e \"const fs = require('fs'); try{ fs.rmdirSync('./dist/', { recursive: true }) } catch{}; process.exit(0);\"",
+        "check": "eslint --no-cache --config eslint.config.js",
+        "build_tsc": "npm run remove_dist && tsc --build tsconfig.tsc.json",
+        "build": "npm audit && npm run build_tsc && npm run check",
+        "execute": "nodemon --config nodemon.json"
+    },
+    "dependencies": {
+        "@cimo/environment": "1.0.21",
+        "@cimo/cronjob": "1.0.8",
+        "@cimo/request": "1.5.31",
+        "fastmcp": "3.31.0",
+        "zod": "4.3.6",
+        "tsx": "4.21.0",
+        "chrome-launcher": "1.2.1",
+        "@nut-tree-fork/nut-js": "4.2.6",
+        "sharp": "0.34.5"
+    },
+    "devDependencies": {
+        "typescript": "5.7.2",
+        "eslint": "9.31.0",
+        "@typescript-eslint/parser": "8.24.1",
+        "@typescript-eslint/eslint-plugin": "8.24.1",
+        "eslint-plugin-prettier": "5.2.1",
+        "prettier": "3.4.2",
+        "nodemon": "3.1.9",
+        "@types/node": "22.10.2"
+    },
+    "resolutions": {
+        "hono": "4.11.7",
+        "**/hono": "4.11.7"
+    }
+}

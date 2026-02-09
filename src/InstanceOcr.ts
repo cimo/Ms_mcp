@@ -1,0 +1,63 @@
+import { Cr } from "@cimo/request/dist/src/Main.js";
+
+// Source
+import * as helperSrc from "./HelperSrc.js";
+import * as model from "./model/Automate.js";
+
+export const api = new Cr(`${helperSrc.URL_MS_O || ""}`);
+
+let cookieObject: Record<string, string> = {};
+
+api.setRequestInterceptor((config: RequestInit) => {
+    return requestLogic(config);
+});
+
+api.setResponseInterceptor((response: Response) => {
+    return responseLogic(response);
+});
+
+const requestLogic = (config: RequestInit): RequestInit => {
+    let cookie = "";
+
+    if (config.headers) {
+        const header = config.headers as unknown as model.IresponseHeader;
+
+        cookie = cookieObject[header["X-Session-Id"]] || "";
+
+        if (header["X-Endpoint"] === "/login") {
+            cookieObject[header["X-Session-Id"]] = "";
+            cookie = "";
+        }
+    }
+
+    return {
+        ...config,
+        headers: {
+            ...config.headers,
+            Cookie: cookie
+        },
+        credentials: "include"
+    };
+};
+
+const responseLogic = (response: Response) => {
+    const setCookie = response.headers.get("set-cookie");
+    const sessionId = response.headers.get("X-Session-Id");
+    const endpoint = response.headers.get("X-Endpoint");
+
+    if (endpoint === "/login") {
+        if (sessionId && setCookie) {
+            cookieObject[sessionId] = setCookie;
+        }
+    } else if (endpoint === "/logout") {
+        if (sessionId) {
+            delete cookieObject[sessionId];
+        }
+    }
+
+    if (response.status === 403 || response.status === 500) {
+        helperSrc.writeLog("Instance.ts - responseLogic() - Error", response.status.toString());
+    }
+
+    return response;
+};

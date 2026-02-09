@@ -1,0 +1,37 @@
+{
+   "action": {
+      "default_icon": {
+         "128": "windows128.png",
+         "16": "windows16.png",
+         "48": "windows48.png"
+      },
+      "default_title": "Sign in to websites with accounts on Windows and macOS"
+   },
+   "background": {
+      "service_worker": "background.js"
+   },
+   "content_scripts": [ {
+      "all_frames": true,
+      "js": [ "content.js" ],
+      "matches": [ "https://*/*" ],
+      "run_at": "document_start"
+   } ],
+   "content_security_policy": {
+      "base-uri": "none",
+      "default-src": "none",
+      "form-action": "none",
+      "script-src": "self"
+   },
+   "description": "Sign in to supported websites with your Microsoft work or school accounts on Windows and macOS platforms.",
+   "icons": {
+      "128": "windows128.png",
+      "16": "windows16.png",
+      "48": "windows48.png"
+   },
+   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAi3iQDRjhZPFBKBhdtYmwnGuCdJFaL2ium4uGMsmm2pjZW8ZNSGMEiEOswJV5m+wWT/aOhW4pWWeAb8QVPWFaYUOQxUdYrjqGrAZYNcJNdvS8/xvmvOvabE81WozjGZkX0P7RLcBuqBVZNIRXHH6+wLosEFZ+Fk3kyb3iDnZeihAk7xZbZHe01qMqbP2lT8aSSnX102dDocrWzOyCpbwyRWHPAMKRuSj1HR4O07sBc19aObW2RsNTDu4oicdTk2CjmkOh49z07NyEWkyVi/Y5Fb31diwsirOoMFLTF5gy8o+1zLv2J7bRqI+I8t8o45OLBeWL8Gu69ji3NWLFUqw2uwIDAQAB",
+   "manifest_version": 3,
+   "name": "Microsoft Single Sign On",
+   "permissions": [ "nativeMessaging" ],
+   "update_url": "https://clients2.google.com/service/update2/crx",
+   "version": "1.0.11"
+}

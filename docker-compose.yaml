@@ -1,0 +1,24 @@
+services:
+  cimo_ms_mcp:
+    container_name: cimo-ms-mcp
+    env_file:
+      - ./env/local.env
+    build:
+      context: ./
+      dockerfile: ./docker/${DOCKERFILE}
+      args:
+        _ENV_NAME: ${ENV_NAME}
+        _DOMAIN: ${DOMAIN}
+        _TIME_ZONE: ${TIME_ZONE}
+        _LANG: ${LANG}
+        _SERVER_PORT: ${SERVER_PORT}
+        _PATH_ROOT: ${PATH_ROOT}
+    network_mode: "host"
+    volumes:
+      - ./:${PATH_ROOT}
+      - ms_cronjob-volume:${PATH_ROOT}.ms_cronjob-volume/:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+      - /mnt/wslg:/mnt/wslg
+volumes:
+  ms_cronjob-volume:
