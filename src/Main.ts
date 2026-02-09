@@ -22,9 +22,9 @@ const server = new FastMCP<Record<string, unknown>>({
 server.addTool(math.expression());
 server.addTool(automate.screenshot());
 server.addTool(automate.browserOpen());
-//server.addTool(toolAutomateOcr);
 //server.addTool(toolAutomateMouseMove);
 //server.addTool(toolAutomateMouseClick);
+//server.addTool(toolAutomateOcr);
 
 server.start({
     transportType: "httpStream",
