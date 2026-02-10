@@ -20,6 +20,16 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NOWARNINGS=yes
 ENV SUDO_FORCE_REMOVE=yes
 ENV NODE_OPTIONS=--use-openssl-ca
+ENV WAYLAND_DISPLAY=wayland-0
+ENV XDG_SESSION_TYPE=wayland
+ENV XDG_RUNTIME_DIR="/mnt/wslg/runtime-dir/"
+ENV ELECTRON_ENABLE_WAYLAND=1
+ENV ELECTRON_OZONE_PLATFORM_HINT=auto
+ENV OZONE_PLATFORM=wayland
+ENV EGL_PLATFORM=wayland
+ENV ANGLE_DEFAULT_PLATFORM=egl
+ENV DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}bus"
+ENV PULSE_SERVER="unix:/mnt/wslg/PulseServer"
 
 COPY ./.ms_cronjob-volume/certificate/* /usr/local/share/ca-certificates/
 COPY ./docker/NotoSansJP-Regular.ttf /usr/share/fonts/truetype/noto/
@@ -31,9 +41,11 @@ COPY ./ ${PATH_ROOT}
 RUN cd ~ \
     # No root
     && useradd -U node -d ${PATH_ROOT} -s /bin/bash \
-    && mkdir -p ${PATH_ROOT} \
-    && chown -R node:node ${PATH_ROOT} \
+    && uid="$(id -u node)" \
+    && mkdir -p ${PATH_ROOT} "/run/user/${uid}" \
+    && chown -R node:node ${PATH_ROOT} "/run/user/${uid}" \
     && chmod -R 775 ${PATH_ROOT} \
+    && chmod -R 700 "/run/user/${uid}" \
     # Update
     && VERSION_CODENAME=$(grep VERSION_CODENAME= /etc/os-release | cut -d= -f2) \
     && chmod -R 0644 /usr/local/share/ca-certificates/ \
@@ -66,6 +78,6 @@ CMD \
     # Dbus
     bash ${PATH_ROOT}script/dbus.sh \
     # Node
-    && node ${PATH_ROOT}dist/src/Main.js
+    && node ${PATH_ROOT}dist/src/controller/Server.js
 
 EXPOSE ${SERVER_PORT}

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Context } from "fastmcp";
+import type { Context, FastMCPSessionAuth } from "fastmcp";
 
 // Source
 import * as mathExpression from "./math/Expression.js";
@@ -19,7 +19,7 @@ export default class Math {
             name: "tool_math_expression",
             description: "Evaluate expression.",
             parameters: parameterObject,
-            execute: async (argument: unknown, context: Context<Record<string, unknown>>) => {
+            execute: async (argument: unknown, context: Context<FastMCPSessionAuth>) => {
                 let result = "";
 
                 const parameter = parameterObject.parse(argument);

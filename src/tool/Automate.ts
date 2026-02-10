@@ -1,17 +1,17 @@
 import { z } from "zod";
-import type { Context } from "fastmcp";
+import type { Context, FastMCPSessionAuth } from "fastmcp";
 import { exec } from "child_process";
 
 // Source
 import * as helperSrc from "../HelperSrc.js";
-import * as modelMain from "../model/Main.js";
+import * as modelServer from "../model/Server.js";
 
 export default class Automate {
     // Variable
-    private sessionObject: Record<string, modelMain.Isession>;
+    private sessionObject: Record<string, modelServer.Isession>;
 
     // Method
-    constructor(sessionObject: Record<string, modelMain.Isession>) {
+    constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
     }
 
@@ -22,7 +22,7 @@ export default class Automate {
             name: "tool_automate_screenshot",
             description: "Take display screenshot and return the image in base64.",
             parameters: parameterObject,
-            execute: async (argument: unknown, context: Context<Record<string, unknown>>) => {
+            execute: async (argument: unknown, context: Context<FastMCPSessionAuth>) => {
                 let result = "";
 
                 parameterObject.parse(argument);
@@ -60,7 +60,7 @@ export default class Automate {
             name: "tool_automate_browser",
             description: "Open the browser application.",
             parameters: parameterObject,
-            execute: async (argument: unknown, context: Context<Record<string, unknown>>) => {
+            execute: async (argument: unknown, context: Context<FastMCPSessionAuth>) => {
                 let result = "";
 
                 const parameter = parameterObject.parse(argument);

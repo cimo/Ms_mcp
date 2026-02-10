@@ -1,7 +1,7 @@
 import { launch } from "chrome-launcher";
 
 // Source
-import * as helperSrc from "./HelperSrc.js";
+import * as helperSrc from "../HelperSrc.js";
 
 const argumentList: string[] = process.argv.slice(2);
 
@@ -49,7 +49,7 @@ const execute = async (): Promise<void> => {
     }
 
     const request = {
-        id: 1234,
+        id: 1,
         method: "Extensions.loadUnpacked",
         params: { path: pathExtension }
     };

@@ -1,6 +1,6 @@
 export interface IresponseHeader {
-    "X-Endpoint": string;
-    "X-Session-Id": string;
+    "x-endpoint": string;
+    "x-session-id": string;
 }
 
 export interface IresponseBody {

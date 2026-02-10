@@ -1,8 +1,8 @@
 import { Cr } from "@cimo/request/dist/src/Main.js";
 
 // Source
-import * as helperSrc from "./HelperSrc.js";
-import * as model from "./model/Automate.js";
+import * as helperSrc from "../../HelperSrc.js";
+import * as model from "../model/Automate.js";
 
 export const api = new Cr(`${helperSrc.URL_MS_O || ""}`);
 
@@ -22,10 +22,10 @@ const requestLogic = (config: RequestInit): RequestInit => {
     if (config.headers) {
         const header = config.headers as unknown as model.IresponseHeader;
 
-        cookie = cookieObject[header["X-Session-Id"]] || "";
+        cookie = cookieObject[header["x-session-id"]] || "";
 
-        if (header["X-Endpoint"] === "/login") {
-            cookieObject[header["X-Session-Id"]] = "";
+        if (header["x-endpoint"] === "/login") {
+            cookieObject[header["x-session-id"]] = "";
             cookie = "";
         }
     }
@@ -42,8 +42,8 @@ const requestLogic = (config: RequestInit): RequestInit => {
 
 const responseLogic = (response: Response) => {
     const setCookie = response.headers.get("set-cookie");
-    const sessionId = response.headers.get("X-Session-Id");
-    const endpoint = response.headers.get("X-Endpoint");
+    const sessionId = response.headers.get("x-session-id");
+    const endpoint = response.headers.get("x-endpoint");
 
     if (endpoint === "/login") {
         if (sessionId && setCookie) {

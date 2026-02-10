@@ -18,9 +18,15 @@
         "execute": "nodemon --config nodemon.json"
     },
     "dependencies": {
+        "@cimo/authentication": "1.1.29",
         "@cimo/environment": "1.0.21",
         "@cimo/cronjob": "1.0.8",
-        "@cimo/request": "1.5.31",
+        "@cimo/request": "1.6.32",
+        "@cimo/queue": "1.0.1",
+        "express": "4.22.1",
+        "express-rate-limit": "7.5.0",
+        "cookie-parser": "1.4.7",
+        "cors": "2.8.5",
         "fastmcp": "3.31.0",
         "zod": "4.3.6",
         "tsx": "4.21.0",
@@ -36,9 +42,28 @@
         "eslint-plugin-prettier": "5.2.1",
         "prettier": "3.4.2",
         "nodemon": "3.1.9",
-        "@types/node": "22.10.2"
+        "@types/node": "22.10.2",
+        "@types/express": "5.0.0",
+        "@types/cookie-parser": "1.4.8",
+        "@types/cors": "2.8.17"
     },
     "resolutions": {
+        "node-fetch": "2.6.7",
+        "**/node-fetch": "2.6.7",
+        "crypto-js": "4.2.0",
+        "**/crypto-js": "4.2.0",
+        "path-to-regexp": "0.1.12",
+        "**/path-to-regexp": "0.1.12",
+        "send": "0.19.0",
+        "**/send": "0.19.0",
+        "serve-static": "1.16.0",
+        "**/serve-static": "1.16.0",
+        "body-parser": "1.20.3",
+        "**/body-parser": "1.20.3",
+        "cookie": "0.7.0",
+        "**/cookie": "0.7.0",
+        "brace-expansion": "2.0.2",
+        "**/brace-expansion": "2.0.2",
         "hono": "4.11.7",
         "**/hono": "4.11.7"
     }
