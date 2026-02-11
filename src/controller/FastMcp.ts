@@ -28,21 +28,21 @@ export default class FastMcp {
         this.limiter = limiter;
         this.sessionObject = sessionObject;
 
-        this.math = new Math();
+        this.math = new Math(this.sessionObject);
         this.automate = new Automate(this.sessionObject);
 
         this.server = new FastMCP({
             name: "Microservice mcp",
             version: "1.0.0",
             authenticate: async (request) => {
-                const endpoint = request.headers["x-request"];
+                const api = request.headers["x-api"];
                 const sessionId = request.headers["mcp-session-id"] as string;
 
                 // eslint-disable-next-line no-console
-                console.log("cimo", endpoint);
+                console.log("cimo", api, sessionId);
 
-                if (endpoint !== "login" && !this.sessionObject[sessionId]) {
-                    throw new Error("Unauthorized");
+                if (api !== "login" && sessionId && !this.sessionObject[sessionId]) {
+                    //throw new Error("Unauthorized");
                 }
 
                 return {};
@@ -77,7 +77,7 @@ export default class FastMcp {
                     headers: {
                         "Content-Type": "application/json",
                         Accept: "application/json, text/event-stream",
-                        "x-request": "login"
+                        "x-api": "login"
                     }
                 },
                 {
@@ -97,7 +97,7 @@ export default class FastMcp {
                 true
             )
             .then((result) => {
-                const sessionId = result.headers.get("mcp-session-id") || "";
+                const sessionId = result.headers.get("mcp-session-id") as string;
 
                 this.sessionObject[sessionId] = {
                     ...this.sessionObject[sessionId]
@@ -120,7 +120,7 @@ export default class FastMcp {
                     headers: {
                         "Content-Type": "application/json",
                         Accept: "application/json, text/event-stream",
-                        "x-request": "logout",
+                        "x-api": "logout",
                         "mcp-session-id": sessionId
                     }
                 },
@@ -146,7 +146,7 @@ export default class FastMcp {
                             headers: {
                                 "Content-Type": "application/json",
                                 Accept: "application/json, text/event-stream",
-                                "x-request": "/api/tool-call",
+                                "x-api": "tool-call",
                                 "mcp-session-id": sessionId
                             }
                         },

@@ -3,12 +3,16 @@ import type { Context, FastMCPSessionAuth } from "fastmcp";
 
 // Source
 import * as mathExpression from "./math/Expression.js";
+import * as modelServer from "../model/Server.js";
 
 export default class Math {
     // Variable
+    private sessionObject: Record<string, modelServer.Isession>;
 
     // Method
-    constructor() {}
+    constructor(sessionObject: Record<string, modelServer.Isession>) {
+        this.sessionObject = sessionObject;
+    }
 
     expression = () => {
         const parameterObject = z.object({
@@ -28,8 +32,10 @@ export default class Math {
 
                 await reportProgress({ progress: 0, total: 100 });
 
-                if (sessionId) {
+                if (sessionId && this.sessionObject[sessionId]) {
                     result = mathExpression.execute(parameter.input).toString();
+                } else {
+                    throw new Error("Unauthorized");
                 }
 
                 await reportProgress({ progress: 100, total: 100 });
