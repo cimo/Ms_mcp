@@ -4,7 +4,7 @@ import { Cr } from "@cimo/request/dist/src/Main.js";
 import * as helperSrc from "../../HelperSrc.js";
 import * as model from "../model/Automate.js";
 
-export const api = new Cr(`${helperSrc.URL_MS_O || ""}`);
+export const api = new Cr("http://localhost:1045");
 
 let cookieObject: Record<string, string> = {};
 

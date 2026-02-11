@@ -57,6 +57,34 @@ RUN cd ~ \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get update && apt-get install -y \
     nodejs \
+    # Wslg
+    && apt-get update && apt-get install -y \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libcairo2 \
+    libfontconfig1 \
+    libfreetype6 \
+    libnss3 \
+    libnspr4 \
+    libasound2 \
+    libgbm1 \
+    libegl1 \
+    libegl1-mesa \
+    libgl1-mesa-dri \
+    libdrm2 \
+    libwayland-client0 \
+    libwayland-egl1 \
+    libwayland-cursor0 \
+    libgomp1 \
+    xdg-utils \
+    # Chrome
+    && curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /home/chrome.deb \
+    && apt-get update && apt-get install -y /home/chrome.deb \
+    && rm /home/chrome.deb \
+    # Xvfb
+    && apt-get update && apt-get install -y \
+    xvfb \
+    libxtst-dev \
     # Clean
     && apt-get remove --purge -y sudo \
     && rm -rf /var/lib/apt/lists/* \

@@ -2,7 +2,7 @@ import Express, { Request, Response } from "express";
 import { RateLimitRequestHandler } from "express-rate-limit";
 import { FastMCP } from "fastmcp";
 import { Ca } from "@cimo/authentication/dist/src/Main.js";
-//import { Cu } from "@cimo/queue/dist/src/Main.js";
+//import { Cq } from "@cimo/queue/dist/src/Main.js";
 
 // Source
 import * as helperSrc from "../HelperSrc.js";
@@ -31,9 +31,22 @@ export default class FastMcp {
         this.math = new Math();
         this.automate = new Automate(this.sessionObject);
 
-        this.server = new FastMCP<Record<string, unknown>>({
+        this.server = new FastMCP({
             name: "Microservice mcp",
-            version: "1.0.0"
+            version: "1.0.0",
+            authenticate: async (request) => {
+                const endpoint = request.headers["x-request"];
+                const sessionId = request.headers["mcp-session-id"] as string;
+
+                // eslint-disable-next-line no-console
+                console.log("cimo", endpoint);
+
+                if (endpoint !== "login" && !this.sessionObject[sessionId]) {
+                    throw new Error("Unauthorized");
+                }
+
+                return {};
+            }
         });
 
         this.server.addTool(this.math.expression());
@@ -56,14 +69,15 @@ export default class FastMcp {
         });
     }
 
-    login = (): Promise<string> => {
+    login = async (): Promise<string> => {
         return instance.api
             .post(
                 "/main",
                 {
                     headers: {
                         "Content-Type": "application/json",
-                        Accept: "application/json, text/event-stream"
+                        Accept: "application/json, text/event-stream",
+                        "x-request": "login"
                     }
                 },
                 {
@@ -96,7 +110,7 @@ export default class FastMcp {
             });
     };
 
-    logout = (request: Request): Promise<string> => {
+    logout = async (request: Request): Promise<string> => {
         const sessionId = request.headers["mcp-session-id"] as string;
 
         return instance.api
@@ -106,13 +120,14 @@ export default class FastMcp {
                     headers: {
                         "Content-Type": "application/json",
                         Accept: "application/json, text/event-stream",
+                        "x-request": "logout",
                         "mcp-session-id": sessionId
                     }
                 },
                 {}
             )
             .then(() => {
-                return "ok";
+                return sessionId;
             })
             .catch((error: Error) => {
                 return error.toString();
@@ -124,9 +139,6 @@ export default class FastMcp {
             const sessionId = request.headers["mcp-session-id"] as string;
 
             if (sessionId) {
-                // eslint-disable-next-line no-console
-                console.log("cimo1", sessionId);
-
                 instance.api
                     .post<string>(
                         "/main",
@@ -134,6 +146,7 @@ export default class FastMcp {
                             headers: {
                                 "Content-Type": "application/json",
                                 Accept: "application/json, text/event-stream",
+                                "x-request": "/api/tool-call",
                                 "mcp-session-id": sessionId
                             }
                         },

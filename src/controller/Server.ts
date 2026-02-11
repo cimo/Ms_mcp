@@ -36,16 +36,7 @@ export default class Server {
             standardHeaders: true,
             legacyHeaders: false,
             keyGenerator: (request: Request) => {
-                let result = "";
-
-                const forwarded = request.headers["x-forwarded-for"];
-                const ip = typeof forwarded === "string" ? forwarded.split(",")[0] : request.ip;
-
-                if (ip) {
-                    result = ip.split(":").pop() || "";
-                }
-
-                return result;
+                return helperSrc.readClientIp(request).split(":").pop() || "";
             }
         });
 
@@ -71,10 +62,9 @@ export default class Server {
             response.setHeader("Pragma", "no-cache");
             response.setHeader("Expires", "0");
 
-            const headerForwarded = request.headers["x-forwarded-for"] ? request.headers["x-forwarded-for"][0] : "";
             const remoteAddress = request.socket.remoteAddress ? request.socket.remoteAddress : "";
 
-            request.clientIp = headerForwarded || remoteAddress;
+            request.clientIp = helperSrc.readClientIp(request) || remoteAddress;
 
             next();
         });
