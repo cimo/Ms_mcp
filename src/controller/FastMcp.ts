@@ -36,16 +36,16 @@ export default class FastMcp {
             version: "1.0.0",
             authenticate: async (request) => {
                 const api = request.headers["x-api"];
-                const sessionId = request.headers["mcp-session-id"] as string;
+                const sessionId = request.headers["x-mcp-session-id"] as string;
 
                 // eslint-disable-next-line no-console
                 console.log("cimo", api, sessionId);
 
                 if (api !== "login" && sessionId && !this.sessionObject[sessionId]) {
-                    //throw new Error("Unauthorized");
+                    throw new Error("Unauthorized");
                 }
 
-                return {};
+                return { sessionId };
             }
         });
 
@@ -64,14 +64,14 @@ export default class FastMcp {
                 host: hostname,
                 port: port as unknown as number,
                 endpoint: "/main",
-                stateless: false
+                stateless: true
             }
         });
     }
 
     login = async (): Promise<string> => {
         return instance.api
-            .post(
+            .post<{ sessionId: string }>(
                 "/main",
                 {
                     headers: {
@@ -97,7 +97,10 @@ export default class FastMcp {
                 true
             )
             .then((result) => {
-                const sessionId = result.headers.get("mcp-session-id") as string;
+                const sessionId = result.data.sessionId; //result.headers.get("mcp-session-id") as string;
+
+                // eslint-disable-next-line no-console
+                console.log("cimo", result);
 
                 this.sessionObject[sessionId] = {
                     ...this.sessionObject[sessionId]
@@ -111,7 +114,7 @@ export default class FastMcp {
     };
 
     logout = async (request: Request): Promise<string> => {
-        const sessionId = request.headers["mcp-session-id"] as string;
+        const sessionId = request.headers["x-mcp-session-id"] as string;
 
         return instance.api
             .delete(
@@ -120,8 +123,9 @@ export default class FastMcp {
                     headers: {
                         "Content-Type": "application/json",
                         Accept: "application/json, text/event-stream",
+                        "mcp-session-id": sessionId,
                         "x-api": "logout",
-                        "mcp-session-id": sessionId
+                        "x-mcp-session-id": sessionId
                     }
                 },
                 {}
@@ -136,7 +140,7 @@ export default class FastMcp {
 
     api = (): void => {
         this.app.post("/api/tool-call", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
-            const sessionId = request.headers["mcp-session-id"] as string;
+            const sessionId = request.headers["x-mcp-session-id"] as string;
 
             if (sessionId) {
                 instance.api
@@ -147,7 +151,7 @@ export default class FastMcp {
                                 "Content-Type": "application/json",
                                 Accept: "application/json, text/event-stream",
                                 "x-api": "tool-call",
-                                "mcp-session-id": sessionId
+                                "x-mcp-session-id": sessionId
                             }
                         },
                         request.body

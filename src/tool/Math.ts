@@ -28,15 +28,11 @@ export default class Math {
 
                 const parameter = parameterObject.parse(argument);
 
-                const { reportProgress, sessionId } = context;
+                const { reportProgress } = context;
 
                 await reportProgress({ progress: 0, total: 100 });
 
-                if (sessionId && this.sessionObject[sessionId]) {
-                    result = mathExpression.execute(parameter.input).toString();
-                } else {
-                    throw new Error("Unauthorized");
-                }
+                result = mathExpression.execute(parameter.input).toString();
 
                 await reportProgress({ progress: 100, total: 100 });
 
