@@ -1,9 +1,9 @@
 import { z } from "zod";
-import type { Context, FastMCPSessionAuth } from "fastmcp";
-import { exec } from "child_process";
+//import type { Context, FastMCPSessionAuth } from "fastmcp";
+//import { exec } from "child_process";
 
 // Source
-import * as helperSrc from "../HelperSrc.js";
+//import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 
 export default class Automate {
@@ -21,8 +21,8 @@ export default class Automate {
         return {
             name: "tool_automate_screenshot",
             description: "Take display screenshot and return the image in base64.",
-            parameters: parameterObject,
-            execute: async (argument: unknown, context: Context<FastMCPSessionAuth>) => {
+            parameters: parameterObject
+            /*execute: async (argument: unknown, context: Context<FastMCPSessionAuth>) => {
                 let result = "";
 
                 parameterObject.parse(argument);
@@ -49,7 +49,7 @@ export default class Automate {
                 await reportProgress({ progress: 100, total: 100 });
 
                 return result;
-            }
+            }*/
         };
     };
 
@@ -59,8 +59,8 @@ export default class Automate {
         return {
             name: "tool_automate_browser",
             description: "Open the browser application.",
-            parameters: parameterObject,
-            execute: async (argument: unknown, context: Context<FastMCPSessionAuth>) => {
+            parameters: parameterObject
+            /*execute: async (argument: unknown, context: Context<FastMCPSessionAuth>) => {
                 let result = "";
 
                 const parameter = parameterObject.parse(argument);
@@ -98,7 +98,7 @@ export default class Automate {
                 await reportProgress({ progress: 100, total: 100 });
 
                 return result;
-            }
+            }*/
         };
     };
 }

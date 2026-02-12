@@ -20,7 +20,6 @@ export const IS_DEBUG = Ce.checkVariable("MS_M_IS_DEBUG") || (process.env["MS_A_
 export const NODE_ENV = Ce.checkVariable("MS_M_NODE_ENV") || (process.env["MS_A_NODE_ENV"] as string);
 export const URL_ROOT = Ce.checkVariable("MS_M_URL_ROOT") || (process.env["MS_A_URL_ROOT"] as string);
 export const URL_CORS_ORIGIN = Ce.checkVariable("MS_M_URL_CORS_ORIGIN") || (process.env["MS_A_URL_CORS_ORIGIN"] as string);
-export const URL_ENGINE = Ce.checkVariable("MS_M_URL_ENGINE") || (process.env["MS_M_URL_ENGINE"] as string);
 export const PATH_CERTIFICATE_KEY = Ce.checkVariable("MS_M_PATH_CERTIFICATE_KEY");
 export const PATH_CERTIFICATE_CRT = Ce.checkVariable("MS_M_PATH_CERTIFICATE_CRT");
 export const PATH_FILE = Ce.checkVariable("MS_M_PATH_FILE");

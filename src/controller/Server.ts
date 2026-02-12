@@ -4,14 +4,14 @@ import CookieParser from "cookie-parser";
 import Cors from "cors";
 import * as Http from "http";
 import * as Https from "https";
-import Fs from "fs";
+//import Fs from "fs";
 import { Ca } from "@cimo/authentication/dist/src/Main.js";
 import { Cc } from "@cimo/cronjob/dist/src/Main.js";
 
 // Source
 import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
-import ControllerFastMcp from "./FastMcp.js";
+import ControllerMcp from "./Mcp.js";
 import ControllerXvfb from "./Xvfb.js";
 
 export default class Server {
@@ -75,7 +75,7 @@ export default class Server {
     createServer = (): void => {
         let creation: Http.Server | Https.Server;
 
-        if (helperSrc.localeFromEnvName() === "jp") {
+        /*if (helperSrc.localeFromEnvName() === "jp") {
             creation = Https.createServer(
                 {
                     key: Fs.readFileSync(helperSrc.PATH_CERTIFICATE_KEY),
@@ -83,15 +83,15 @@ export default class Server {
                 },
                 this.app
             );
-        } else {
-            creation = Http.createServer(this.app);
-        }
+        } else {*/
+        creation = Http.createServer(this.app);
+        //}
 
         const server = creation;
 
         server.listen(helperSrc.SERVER_PORT, () => {
-            const controllerFastMcp = new ControllerFastMcp(this.app, this.limiter, this.sessionObject);
-            controllerFastMcp.api();
+            const controllerMcp = new ControllerMcp(this.app, this.limiter, this.sessionObject);
+            controllerMcp.api();
 
             const controllerXvfb = new ControllerXvfb(this.sessionObject);
 
@@ -109,36 +109,26 @@ export default class Server {
                 helperSrc.responseBody(`Client ip: ${request.clientIp || ""}`, "", response, 200);
             });
 
-            this.app.get("/login", this.limiter, (_, response: Response) => {
+            this.app.get("/login", this.limiter, async (_, response: Response) => {
                 Ca.writeCookie(`${helperSrc.LABEL}_authentication`, response);
 
-                controllerFastMcp
-                    .login()
-                    .then((result) => {
-                        controllerXvfb.start(result);
+                const result = await controllerMcp.login(response);
 
-                        helperSrc.responseBody(result, "", response, 200);
-                    })
-                    .catch(() => {
-                        helperSrc.responseBody("", "ko", response, 500);
-                    });
+                controllerXvfb.start(result);
+
+                helperSrc.responseBody(result, "", response, 200);
             });
 
-            this.app.get("/logout", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
+            this.app.get("/logout", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+                const result = await controllerMcp.logout(request);
+
+                controllerXvfb.stop(result);
+
+                delete this.sessionObject[result];
+
                 Ca.removeCookie(`${helperSrc.LABEL}_authentication`, request, response);
 
-                controllerFastMcp
-                    .logout(request)
-                    .then((result) => {
-                        controllerXvfb.stop(result);
-
-                        delete this.sessionObject[result];
-
-                        helperSrc.responseBody("ok", "", response, 200);
-                    })
-                    .catch(() => {
-                        helperSrc.responseBody("", "ko", response, 500);
-                    });
+                helperSrc.responseBody(result, "", response, 200);
             });
         });
     };

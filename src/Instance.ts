@@ -1,9 +1,11 @@
 import { Cr } from "@cimo/request/dist/src/Main.js";
 
 // Source
-import * as HelperSrc from "./HelperSrc.js";
+import * as helperSrc from "./HelperSrc.js";
 
-export const api = new Cr(`${HelperSrc.URL_ENGINE || ""}`);
+//const protocol = helperSrc.localeFromEnvName() === "jp" ? `https` : "http";
+
+export const api = new Cr(`http://${helperSrc.DOMAIN}:${helperSrc.SERVER_PORT}`);
 
 api.setRequestInterceptor((config: RequestInit) => {
     return {
@@ -17,7 +19,7 @@ api.setRequestInterceptor((config: RequestInit) => {
 
 api.setResponseInterceptor((response: Response) => {
     if (response.status === 403 || response.status === 500) {
-        HelperSrc.writeLog("Instance.ts - responseLogic() - Error", response.status.toString());
+        helperSrc.writeLog("Instance.ts - responseLogic() - Error", response.status.toString());
     }
 
     return response;

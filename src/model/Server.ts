@@ -1,4 +1,5 @@
 import { Request } from "express";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 
 export interface Icors {
     originList: string[];
@@ -17,5 +18,6 @@ export interface Irequest extends Request {
 }
 
 export interface Isession {
+    transport: StreamableHTTPServerTransport;
     display: number;
 }
