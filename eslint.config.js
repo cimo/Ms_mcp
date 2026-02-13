@@ -9,7 +9,6 @@ const configIgnore = {
     ignores: [
         ".cache",
         ".config",
-        ".file_share",
         ".ipython",
         ".jupyter",
         ".lmstudio",
@@ -19,6 +18,7 @@ const configIgnore = {
         ".nv",
         ".paddlex",
         ".pki",
+        "certificate",
         "dist",
         "node_modules",
         "public",

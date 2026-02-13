@@ -4,7 +4,7 @@ Microservice mcp.
 
 Depend on "Ms_cronjob" (use "ms_cronjob-volume" to share the certificate).
 
-It's possible to use a custom certificate instead of "Ms_cronjob", just add it to the ".ms_cronjob-volume/certificate" folder before build the container.
+It's possible to use a custom certificate instead of "Ms_cronjob", just add it to the "certificate" folder before build the container.
 
 ## Info:
 
