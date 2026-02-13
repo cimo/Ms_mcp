@@ -9,14 +9,6 @@ export const api = new Cr("http://localhost:1045");
 let cookieObject: Record<string, string> = {};
 
 api.setRequestInterceptor((config: RequestInit) => {
-    return requestLogic(config);
-});
-
-api.setResponseInterceptor((response: Response) => {
-    return responseLogic(response);
-});
-
-const requestLogic = (config: RequestInit): RequestInit => {
     let cookie = "";
 
     if (config.headers) {
@@ -38,9 +30,9 @@ const requestLogic = (config: RequestInit): RequestInit => {
         },
         credentials: "include"
     };
-};
+});
 
-const responseLogic = (response: Response) => {
+api.setResponseInterceptor((response: Response) => {
     const setCookie = response.headers.get("set-cookie");
     const sessionId = response.headers.get("x-session-id");
     const endpoint = response.headers.get("x-endpoint");
@@ -60,4 +52,4 @@ const responseLogic = (response: Response) => {
     }
 
     return response;
-};
+});

@@ -124,6 +124,9 @@ export default class Mcp {
 
     api = (): void => {
         this.app.post("/rcp", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            // eslint-disable-next-line no-console
+            console.log("cimo", `request: ${JSON.stringify(request.headers)} response: ${JSON.stringify(response.getHeaders())}`);
+
             const sessionId = request.headers["mcp-session-id"] as string;
 
             if (!sessionId && request.body.method === "initialize") {

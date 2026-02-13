@@ -4,7 +4,7 @@ import CookieParser from "cookie-parser";
 import Cors from "cors";
 import * as Http from "http";
 import * as Https from "https";
-//import Fs from "fs";
+import Fs from "fs";
 import { Ca } from "@cimo/authentication/dist/src/Main.js";
 import { Cc } from "@cimo/cronjob/dist/src/Main.js";
 
@@ -43,6 +43,21 @@ export default class Server {
         this.sessionObject = {};
 
         this.app = Express();
+
+        /*this.app.use((req, res, next) => {
+            if (req.protocol === "https" && req.path === "/rcp") {
+                return res.redirect("http://" + req.headers.host + req.url);
+            }
+
+            next();
+        });*/
+
+        this.app.use((req, res, next) => {
+            // eslint-disable-next-line no-console
+            console.log("[REQUEST]", req.method, req.url, req.headers);
+
+            next();
+        });
     }
 
     createSetting = (): void => {
@@ -75,17 +90,18 @@ export default class Server {
     createServer = (): void => {
         let creation: Http.Server | Https.Server;
 
-        /*if (helperSrc.localeFromEnvName() === "jp") {
+        if (helperSrc.localeFromEnvName() === "jp") {
             creation = Https.createServer(
                 {
                     key: Fs.readFileSync(helperSrc.PATH_CERTIFICATE_KEY),
-                    cert: Fs.readFileSync(helperSrc.PATH_CERTIFICATE_CRT)
+                    cert: Fs.readFileSync(helperSrc.PATH_CERTIFICATE_CRT),
+                    ca: Fs.readFileSync(helperSrc.PATH_CERTIFICATE_PEM)
                 },
                 this.app
             );
-        } else {*/
-        creation = Http.createServer(this.app);
-        //}
+        } else {
+            creation = Http.createServer(this.app);
+        }
 
         const server = creation;
 
