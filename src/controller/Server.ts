@@ -43,21 +43,6 @@ export default class Server {
         this.sessionObject = {};
 
         this.app = Express();
-
-        /*this.app.use((req, res, next) => {
-            if (req.protocol === "https" && req.path === "/rcp") {
-                return res.redirect("http://" + req.headers.host + req.url);
-            }
-
-            next();
-        });*/
-
-        this.app.use((req, res, next) => {
-            // eslint-disable-next-line no-console
-            console.log("[REQUEST]", req.method, req.url, req.headers);
-
-            next();
-        });
     }
 
     createSetting = (): void => {
@@ -125,7 +110,7 @@ export default class Server {
                 helperSrc.responseBody(`Client ip: ${request.clientIp || ""}`, "", response, 200);
             });
 
-            this.app.get("/login", this.limiter, async (_, response: Response) => {
+            this.app.get("/login", this.limiter, async (request: Request, response: Response) => {
                 Ca.writeCookie(`${helperSrc.LABEL}_authentication`, response);
 
                 const result = await controllerMcp.login(response);

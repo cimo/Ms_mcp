@@ -13,6 +13,7 @@ services:
         _LANG: ${LANG}
         _SERVER_PORT: ${SERVER_PORT}
         _PATH_ROOT: ${PATH_ROOT}
+        _PATH_CERTIFICATE_PEM: ${MS_M_PATH_CERTIFICATE_PEM}
     network_mode: "host"
     volumes:
       - ./:${PATH_ROOT}

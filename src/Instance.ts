@@ -1,5 +1,3 @@
-import https from "https";
-import Fs from "fs";
 import { Cr } from "@cimo/request/dist/src/Main.js";
 
 // Source
@@ -15,8 +13,7 @@ api.setRequestInterceptor((config: RequestInit) => {
         headers: {
             ...config.headers
         },
-        credentials: "include",
-        agent: new https.Agent({ ca: Fs.readFileSync("/usr/local/share/ca-certificates/ca.pem") })
+        credentials: "include"
     };
 });
 
