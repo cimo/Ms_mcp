@@ -1,30 +1,32 @@
 #!/bin/bash
 
-if [ -n "${1}" ] && [ -n "${2}" ]
+p1=$(printf '%s' "${1}" | xargs)
+p2=$(printf '%s' "${2}" | xargs)
+
+if [ -z "${p1}" ] || [ -z "${p2}" ]
 then
-    source="./.ms_cronjob-volume/"
-    
-    mapfile -d '' -t fileList < <(find "${source}" -type f ! -name ".gitkeep" -print0 2>/dev/null)
+    echo "container_execute.sh - Missing parameter."
 
-    if [ ${#fileList[@]} -eq 0 ]
-    then
-        echo "Copying from volume..."
+    exit 1
+fi
 
-        docker run --rm \
-        --user $(id -u):$(id -g) \
-        -v cimo_${1}_ms_cronjob-volume:/home/source/:ro \
-        -v $(pwd)/.ms_cronjob-volume/:/home/target/ \
-        alpine sh -c "cp -r /home/source/* /home/target/"
-    fi
+parameter1="${1}"
+parameter2="${2}"
 
-    echo "Execute container."
+echo "Copying from volume..."
 
-    if [ "${2}" = "build-up" ]
-    then
-        docker compose -f docker-compose.yaml --env-file ./env/${1}.env build --no-cache &&
-        docker compose -f docker-compose.yaml --env-file ./env/${1}.env up --detach --pull always
-    elif [ "${2}" = "up" ]
-    then
-        docker compose -f docker-compose.yaml --env-file ./env/${1}.env up --detach --pull always
-    fi
+docker run --rm \
+-v cimo_${parameter1}_ms_cronjob-volume:/home/source/:ro \
+-v $(pwd)/certificate/:/home/target/ \
+alpine sh -c "cp -r /home/source/* /home/target/"
+
+echo "Execute container."
+
+if [ "${parameter2}" = "build-up" ]
+then
+    docker compose -f docker-compose.yaml --env-file ./env/${parameter1}.env build --no-cache &&
+    docker compose -f docker-compose.yaml --env-file ./env/${parameter1}.env up --detach --pull always
+elif [ "${parameter2}" = "up" ]
+then
+    docker compose -f docker-compose.yaml --env-file ./env/${parameter1}.env up --detach --pull always
 fi

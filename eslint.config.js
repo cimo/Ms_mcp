@@ -13,7 +13,6 @@ const configIgnore = {
         ".jupyter",
         ".lmstudio",
         ".local",
-        ".ms_cronjob-volume",
         ".npm",
         ".nv",
         ".paddlex",

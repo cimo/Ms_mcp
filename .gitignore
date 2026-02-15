@@ -24,11 +24,11 @@ pnpm-debug.log*
 .cache
 .config
 .local
-.ms_cronjob-volume/**/*
-!.ms_cronjob-volume/**/
-!.ms_cronjob-volume/**/.gitkeep
 .npm
 .pki
+certificate/**/*
+!certificate/**/
+!certificate/**/.gitkeep
 dist
 file/tmp/*
 !file/tmp/.gitkeep

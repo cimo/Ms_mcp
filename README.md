@@ -32,7 +32,6 @@ bash docker/container_execute.sh "local" "up"
     - .cache
     - .config
     - .local
-    - .ms_cronjob-volume/certificate
     - .npm
     - .pki
     - dist
