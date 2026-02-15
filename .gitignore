@@ -30,8 +30,6 @@ certificate/**/*
 !certificate/**/
 !certificate/**/.gitkeep
 dist
-file/tmp/*
-!file/tmp/.gitkeep
 log/*
 !log/.gitkeep
 node_modules
