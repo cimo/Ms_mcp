@@ -3,7 +3,6 @@ import { RateLimitRequestHandler } from "express-rate-limit";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { Ca } from "@cimo/authentication/dist/src/Main.js";
-//import { Cq } from "@cimo/queue/dist/src/Main.js";
 
 // Source
 import * as helperSrc from "../HelperSrc.js";
@@ -72,7 +71,9 @@ export default class Mcp {
                 return sessionId;
             })
             .catch((error: Error) => {
-                return error.toString();
+                helperSrc.writeLog("Mcp.ts - login() - catch()", error);
+
+                return "ko";
             });
     };
 
@@ -109,7 +110,9 @@ export default class Mcp {
                 return sessionId;
             })
             .catch((error: Error) => {
-                return error.toString();
+                helperSrc.writeLog("Mcp.ts - logout() - cath()", error);
+
+                return "ko";
             });
     };
 
@@ -166,29 +169,25 @@ export default class Mcp {
             const cookie = request.headers["cookie"] as string;
             const sessionId = request.headers["mcp-session-id"] as string;
 
-            if (cookie && sessionId) {
-                instance.api
-                    .post<string>(
-                        "/rcp",
-                        {
-                            headers: {
-                                "Content-Type": "application/json",
-                                Accept: "application/json, text/event-stream",
-                                Cookie: cookie,
-                                "mcp-session-id": sessionId
-                            }
-                        },
-                        request.body
-                    )
-                    .then((result) => {
-                        helperSrc.responseBody(result, "", response, 200);
-                    })
-                    .catch(() => {
-                        helperSrc.responseBody("", "ko", response, 500);
-                    });
-            } else {
-                helperSrc.responseBody("", "ko", response, 500);
-            }
+            instance.api
+                .post<string>(
+                    "/rcp",
+                    {
+                        headers: {
+                            "Content-Type": "application/json",
+                            Accept: "application/json, text/event-stream",
+                            Cookie: cookie,
+                            "mcp-session-id": sessionId
+                        }
+                    },
+                    request.body
+                )
+                .then((result) => {
+                    helperSrc.responseBody(result, "", response, 200);
+                })
+                .catch(() => {
+                    helperSrc.responseBody("", "ko", response, 500);
+                });
         });
     };
 }

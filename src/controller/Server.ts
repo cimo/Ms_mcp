@@ -110,26 +110,34 @@ export default class Server {
                 helperSrc.responseBody(`Client ip: ${request.clientIp || ""}`, "", response, 200);
             });
 
-            this.app.get("/login", this.limiter, async (request: Request, response: Response) => {
+            this.app.get("/login", this.limiter, async (_: Request, response: Response) => {
                 Ca.writeCookie(`${helperSrc.LABEL}_authentication`, response);
 
                 const result = await controllerMcp.login(response);
 
-                controllerXvfb.start(result);
+                if (result !== "ko") {
+                    controllerXvfb.start(result);
 
-                helperSrc.responseBody(result, "", response, 200);
+                    helperSrc.responseBody(result, "", response, 200);
+                } else {
+                    helperSrc.responseBody("", result, response, 500);
+                }
             });
 
             this.app.get("/logout", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
                 const result = await controllerMcp.logout(request);
 
-                controllerXvfb.stop(result);
-
-                delete this.sessionObject[result];
-
                 Ca.removeCookie(`${helperSrc.LABEL}_authentication`, request, response);
 
-                helperSrc.responseBody(result, "", response, 200);
+                if (result !== "ko") {
+                    controllerXvfb.stop(result);
+
+                    delete this.sessionObject[result];
+
+                    helperSrc.responseBody(result, "", response, 200);
+                } else {
+                    helperSrc.responseBody("", result, response, 500);
+                }
             });
         });
     };
