@@ -1,25 +1,9 @@
-import { mouse, straightTo, Point } from "@nut-tree-fork/nut-js";
+import { mouse, straightTo, Point, MouseClass } from "@nut-tree-fork/nut-js";
 
-const move = async (x: number, y: number): Promise<string> => {
-    await mouse.move(straightTo(new Point(x, y)));
-
-    return "ok";
+export const move = (x: number, y: number): Promise<MouseClass> => {
+    return mouse.move(straightTo(new Point(x, y)));
 };
 
-const click = async (button: number): Promise<string> => {
-    await mouse.click(button);
-
-    return "ok";
+export const click = (button: number): Promise<MouseClass> => {
+    return mouse.click(button);
 };
-
-const argumentList = process.argv.slice(2);
-
-let result = "";
-
-if (argumentList[0] === "move") {
-    result = await move(Number(argumentList[1]), Number(argumentList[2]));
-} else if (argumentList[0] === "click") {
-    result = await click(Number(argumentList[1]));
-}
-
-process.stdout.write(result);

@@ -12,9 +12,8 @@ export default class Chrome {
         this.pathExtension = "/home/app/docker/ce_microsoft_sso";
     }
 
-    execute = async (displayNumber: number, urlPage: string | undefined): Promise<void> => {
+    execute = async (urlPage: string | undefined): Promise<void> => {
         const flagBaseList: string[] = [
-            `--display=:${displayNumber}`,
             "--ozone-platform=x11",
             "--no-sandbox",
             "--disable-dev-shm-usage",
@@ -29,7 +28,6 @@ export default class Chrome {
 
         const environmentList: NodeJS.ProcessEnv = {
             ...process.env,
-            DISPLAY: `:${displayNumber}`,
             XDG_SESSION_TYPE: "x11"
         };
 

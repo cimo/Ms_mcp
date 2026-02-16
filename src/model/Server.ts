@@ -1,5 +1,9 @@
 import { Request } from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { ChildProcess } from "child_process";
+
+// Source
+import ControllerRuntime from "src/controller/Runtime.js";
 
 export interface Icors {
     originList: string[];
@@ -20,4 +24,6 @@ export interface Irequest extends Request {
 export interface Isession {
     transport: StreamableHTTPServerTransport;
     display: number;
+    runtime: ControllerRuntime | undefined;
+    runtimeWorker: ChildProcess | undefined;
 }

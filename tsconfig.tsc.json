@@ -1,4 +1,10 @@
 {
     "extends": "./tsconfig.json",
-    "include": ["eslint.customRule.ts", "global.d.ts", "src/controller/Server.ts"]
+    "include": [
+        "eslint.customRule.ts",
+        "global.d.ts",
+        "src/controller/Server.ts",
+        "src/controller/RuntimeWorker.ts",
+        "src/controller/Chrome.ts"
+    ]
 }

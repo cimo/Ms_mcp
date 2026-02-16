@@ -120,8 +120,8 @@ export default class Mcp {
         server.registerTool(this.toolMath.expression().name, this.toolMath.expression().config, this.toolMath.expression().content);
         server.registerTool(this.toolAutomate.screenshot().name, this.toolAutomate.screenshot().config, this.toolAutomate.screenshot().content);
         server.registerTool(this.toolAutomate.browserOpen().name, this.toolAutomate.browserOpen().config, this.toolAutomate.browserOpen().content);
-        //server.addTool(toolAutomateMouseMove);
-        //server.addTool(toolAutomateMouseClick);
+        server.registerTool(this.toolAutomate.mouseMove().name, this.toolAutomate.mouseMove().config, this.toolAutomate.mouseMove().content);
+        server.registerTool(this.toolAutomate.mouseClick().name, this.toolAutomate.mouseClick().config, this.toolAutomate.mouseClick().content);
         //server.addTool(toolAutomateOcr);
     };
 

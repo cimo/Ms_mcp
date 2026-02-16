@@ -1,10 +1,7 @@
 import { z } from "zod";
-import { exec } from "child_process";
 
 // Source
-import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
-import ControllerChrome from "../controller/Chrome.js";
 
 export default class Automate {
     // Variable
@@ -12,6 +9,8 @@ export default class Automate {
 
     private inputSchemaScreenshot;
     private inputSchemaBrowserOpen;
+    private inputSchemaMouseMove;
+    private inputSchemaMouseClick;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
@@ -19,6 +18,10 @@ export default class Automate {
 
         this.inputSchemaScreenshot = z.object({});
         this.inputSchemaBrowserOpen = z.object({ url: z.string().optional().describe("URL to open in the browser.") });
+        this.inputSchemaMouseMove = z.object({ x: z.number().describe("X coordinate."), y: z.number().describe("Y coordinate.") });
+        this.inputSchemaMouseClick = z.object({
+            button: z.number().int().min(0).max(2).describe("Left: 0 - Middle: 1 - Right: 2")
+        });
     }
 
     screenshot = () => {
@@ -33,14 +36,11 @@ export default class Automate {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                exec(
-                    `DISPLAY=:${this.sessionObject[extra.sessionId].display} npx tsx ${helperSrc.PATH_ROOT}src/tool/automate/Display.ts "screenshot"`,
-                    (_, stdout, stderr) => {
-                        if ((stdout !== "" && stderr === "") || (stdout !== "" && stderr !== "")) {
-                            result = stdout;
-                        }
-                    }
-                );
+                const runtime = this.sessionObject[extra.sessionId].runtime;
+
+                if (runtime) {
+                    result = await runtime.screenshot();
+                }
             }
 
             return {
@@ -57,7 +57,7 @@ export default class Automate {
     };
 
     browserOpen = () => {
-        const name = "tool_automate_browser";
+        const name = "tool_automate_browser_open";
 
         const config = {
             description: "Open the browser chrome application.",
@@ -68,15 +68,75 @@ export default class Automate {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const controllerChrome = new ControllerChrome();
+                const runtime = this.sessionObject[extra.sessionId].runtime;
 
-                exec(
-                    `pgrep -fa "chrome" | grep -- "display=:${this.sessionObject[extra.sessionId].display}" | grep -- "--window-position" | awk '{print $1}' | xargs kill`
-                );
+                if (runtime) {
+                    result = await runtime.browserOpen(argument.url);
+                }
+            }
 
-                controllerChrome.execute(this.sessionObject[extra.sessionId].display, argument.url).catch((error: Error) => {
-                    helperSrc.writeLog("Automate.ts - controllerChrome.execute() - catch()", error);
-                });
+            return {
+                content: [
+                    {
+                        type: "text" as const,
+                        text: result
+                    }
+                ]
+            };
+        };
+
+        return { name, config, content };
+    };
+
+    mouseMove = () => {
+        const name = "tool_automate_mouse_move";
+
+        const config = {
+            description: "Move mouse cursor to specific coordinates.",
+            inputSchema: this.inputSchemaMouseMove
+        };
+
+        const content = async (argument: z.infer<typeof this.inputSchemaMouseMove>, extra: { sessionId?: string }) => {
+            let result = "";
+
+            if (extra.sessionId && this.sessionObject[extra.sessionId]) {
+                const runtime = this.sessionObject[extra.sessionId].runtime;
+
+                if (runtime) {
+                    result = await runtime.mouseMove(argument.x, argument.y);
+                }
+            }
+
+            return {
+                content: [
+                    {
+                        type: "text" as const,
+                        text: result
+                    }
+                ]
+            };
+        };
+
+        return { name, config, content };
+    };
+
+    mouseClick = () => {
+        const name = "tool_automate_mouse_click";
+
+        const config = {
+            description: "Click the specific mouse button.",
+            inputSchema: this.inputSchemaMouseClick
+        };
+
+        const content = async (argument: z.infer<typeof this.inputSchemaMouseClick>, extra: { sessionId?: string }) => {
+            let result = "";
+
+            if (extra.sessionId && this.sessionObject[extra.sessionId]) {
+                const runtime = this.sessionObject[extra.sessionId].runtime;
+
+                if (runtime) {
+                    result = await runtime.mouseClick(argument.button);
+                }
             }
 
             return {
