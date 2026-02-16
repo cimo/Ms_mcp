@@ -19,7 +19,7 @@ export default class Math {
         });
     }
 
-    read = () => {
+    expression = () => {
         const name = "tool_math_expression";
 
         const config = {

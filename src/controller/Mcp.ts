@@ -9,7 +9,7 @@ import * as helperSrc from "../HelperSrc.js";
 import * as instance from "../Instance.js";
 import * as modelServer from "../model/Server.js";
 import ToolMath from "../tool/Math.js";
-//import Automate from "../tool/Automate.js";
+import Automate from "../tool/Automate.js";
 
 export default class Mcp {
     // Variable
@@ -21,7 +21,7 @@ export default class Mcp {
     private serverVersion: string;
 
     private toolMath: ToolMath;
-    //private automate: Automate;
+    private toolAutomate: Automate;
 
     // Method
     constructor(app: Express.Express, limiter: RateLimitRequestHandler, sessionObject: Record<string, modelServer.Isession>) {
@@ -33,7 +33,7 @@ export default class Mcp {
         this.serverVersion = "1.0.0";
 
         this.toolMath = new ToolMath(this.sessionObject);
-        //this.automate = new Automate(this.sessionObject);
+        this.toolAutomate = new Automate(this.sessionObject);
     }
 
     login = async (response: Response): Promise<string> => {
@@ -117,9 +117,9 @@ export default class Mcp {
     };
 
     toolRegistartion = (server: McpServer): void => {
-        server.registerTool(this.toolMath.read().name, this.toolMath.read().config, this.toolMath.read().content);
-        //this.server.addTool(this.automate.screenshot());
-        //this.server.addTool(this.automate.browserOpen());
+        server.registerTool(this.toolMath.expression().name, this.toolMath.expression().config, this.toolMath.expression().content);
+        server.registerTool(this.toolAutomate.screenshot().name, this.toolAutomate.screenshot().config, this.toolAutomate.screenshot().content);
+        server.registerTool(this.toolAutomate.browserOpen().name, this.toolAutomate.browserOpen().config, this.toolAutomate.browserOpen().content);
         //server.addTool(toolAutomateMouseMove);
         //server.addTool(toolAutomateMouseClick);
         //server.addTool(toolAutomateOcr);
@@ -185,7 +185,9 @@ export default class Mcp {
                 .then((result) => {
                     helperSrc.responseBody(result, "", response, 200);
                 })
-                .catch(() => {
+                .catch((error) => {
+                    helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-call) - post(/rcp) - catch()", error);
+
                     helperSrc.responseBody("", "ko", response, 500);
                 });
         });

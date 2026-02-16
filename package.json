@@ -21,7 +21,7 @@
         "@cimo/authentication": "1.1.31",
         "@cimo/environment": "1.0.23",
         "@cimo/cronjob": "1.0.10",
-        "@cimo/request": "1.6.36",
+        "@cimo/request": "1.6.37",
         "express": "4.22.1",
         "express-rate-limit": "7.5.0",
         "cookie-parser": "1.4.7",
