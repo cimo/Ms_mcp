@@ -11,6 +11,7 @@ import * as modelServer from "../model/Server.js";
 import ControllerUpload from "./Upload.js";
 import ToolMath from "../tool/Math.js";
 import ToolAutomate from "../tool/Automate.js";
+import ToolBrowser from "../tool/Browser.js";
 import ToolDocument from "../tool/Document.js";
 
 export default class Mcp {
@@ -25,6 +26,7 @@ export default class Mcp {
 
     private toolMath: ToolMath;
     private toolAutomate: ToolAutomate;
+    private toolBrowser: ToolBrowser;
     private toolDocument: ToolDocument;
 
     // Method
@@ -39,6 +41,7 @@ export default class Mcp {
 
         this.toolMath = new ToolMath(this.sessionObject);
         this.toolAutomate = new ToolAutomate(this.sessionObject);
+        this.toolBrowser = new ToolBrowser(this.sessionObject);
         this.toolDocument = new ToolDocument(this.sessionObject);
     }
 
@@ -125,13 +128,9 @@ export default class Mcp {
     toolRegistartion = (server: McpServer): void => {
         server.registerTool(this.toolMath.expression().name, this.toolMath.expression().config, this.toolMath.expression().content);
         server.registerTool(this.toolAutomate.screenshot().name, this.toolAutomate.screenshot().config, this.toolAutomate.screenshot().content);
-        server.registerTool(
-            this.toolAutomate.chromeExecute().name,
-            this.toolAutomate.chromeExecute().config,
-            this.toolAutomate.chromeExecute().content
-        );
         server.registerTool(this.toolAutomate.mouseMove().name, this.toolAutomate.mouseMove().config, this.toolAutomate.mouseMove().content);
         server.registerTool(this.toolAutomate.mouseClick().name, this.toolAutomate.mouseClick().config, this.toolAutomate.mouseClick().content);
+        server.registerTool(this.toolBrowser.chromeExecute().name, this.toolBrowser.chromeExecute().config, this.toolBrowser.chromeExecute().content);
         server.registerTool(this.toolDocument.parse().name, this.toolDocument.parse().config, this.toolDocument.parse().content);
         //server.addTool(toolAutomateOcr);
     };

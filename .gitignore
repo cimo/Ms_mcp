@@ -47,6 +47,7 @@ public/index.html
 src/tool/*
 !src/tool/.gitkeep
 !src/tool/automate
+!src/tool/browser
 !src/tool/document
 !src/tool/math
 !src/tool/model
@@ -55,7 +56,7 @@ src/tool/model/*
 !src/tool/model/Automate.ts
 !src/tool/model/Math.ts
 !src/tool/Automate.ts
-!src/tool/Chrome.ts
+!src/tool/Browser.ts
 !src/tool/Document.ts
 !src/tool/Math.ts
 package-lock.json

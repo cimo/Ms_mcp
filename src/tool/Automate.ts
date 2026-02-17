@@ -8,7 +8,6 @@ export default class Automate {
     private sessionObject: Record<string, modelServer.Isession>;
 
     private inputSchemaScreenshot;
-    private inputSchemaBrowserOpen;
     private inputSchemaMouseMove;
     private inputSchemaMouseClick;
 
@@ -17,7 +16,6 @@ export default class Automate {
         this.sessionObject = sessionObject;
 
         this.inputSchemaScreenshot = z.object({});
-        this.inputSchemaBrowserOpen = z.object({ url: z.string().optional().describe("URL to open in the browser.") });
         this.inputSchemaMouseMove = z.object({ x: z.number().describe("X coordinate."), y: z.number().describe("Y coordinate.") });
         this.inputSchemaMouseClick = z.object({
             button: z.number().int().min(0).max(2).describe("Left: 0 - Middle: 1 - Right: 2")
@@ -104,38 +102,6 @@ export default class Automate {
 
                 if (runtime) {
                     result = await runtime.automateMouseClick(argument.button);
-                }
-            }
-
-            return {
-                content: [
-                    {
-                        type: "text" as const,
-                        text: result
-                    }
-                ]
-            };
-        };
-
-        return { name, config, content };
-    };
-
-    chromeExecute = () => {
-        const name = "chrome_execute";
-
-        const config = {
-            description: "Open the browser chrome application.",
-            inputSchema: this.inputSchemaBrowserOpen
-        };
-
-        const content = async (argument: z.infer<typeof this.inputSchemaBrowserOpen>, extra: { sessionId?: string }) => {
-            let result = "";
-
-            if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const runtime = this.sessionObject[extra.sessionId].runtime;
-
-                if (runtime) {
-                    result = await runtime.chromeExecute(argument.url);
                 }
             }
 

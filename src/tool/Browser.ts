@@ -1,10 +1,9 @@
 import { z } from "zod";
 
 // Source
-import * as documentParse from "./document/Parse.js";
 import * as modelServer from "../model/Server.js";
 
-export default class Document {
+export default class Browser {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
@@ -14,16 +13,14 @@ export default class Document {
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchema = z.object({
-            fileName: z.string().describe("File name.")
-        });
+        this.inputSchema = z.object({ url: z.string().optional().describe("URL to open in the browser.") });
     }
 
-    parse = () => {
-        const name = "document_parse";
+    chromeExecute = () => {
+        const name = "chrome_execute";
 
         const config = {
-            description: "Parse document and extract data.",
+            description: "Open the browser chrome application.",
             inputSchema: this.inputSchema
         };
 
@@ -31,7 +28,11 @@ export default class Document {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                result = await documentParse.execute(argument.fileName);
+                const runtime = this.sessionObject[extra.sessionId].runtime;
+
+                if (runtime) {
+                    result = await runtime.chromeExecute(argument.url);
+                }
             }
 
             return {

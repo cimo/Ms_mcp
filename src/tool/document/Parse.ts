@@ -1,10 +1,10 @@
-import { OfficeParserAST, parseOffice } from "officeparser";
+import { parseOffice } from "officeparser";
 
 // Source
 import * as helperSrc from "../../HelperSrc.js";
 
-export const execute = async (fileName: string): Promise<OfficeParserAST> => {
-    return new Promise<OfficeParserAST>((resolve) => {
+export const execute = async (fileName: string): Promise<string> => {
+    return new Promise<string>((resolve) => {
         const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${fileName}`;
 
         helperSrc.fileReadStream(input, async (resultFileReadStream) => {
@@ -19,7 +19,7 @@ export const execute = async (fileName: string): Promise<OfficeParserAST> => {
                     }
                 });
 
-                resolve(result);
+                resolve(JSON.stringify(result));
             }
         });
     });

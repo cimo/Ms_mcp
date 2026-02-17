@@ -29,15 +29,19 @@ export default class Runtime {
         return this.callRuntimeWorker<string>("automateScreenshot", []);
     }
 
-    chromeExecute(url: string | undefined) {
-        return this.callRuntimeWorker<string>("chromeExecute", [url]);
-    }
-
     automateMouseMove(x: number, y: number) {
         return this.callRuntimeWorker<string>("automateMouseMove", [x, y]);
     }
 
     automateMouseClick(button: number) {
         return this.callRuntimeWorker<string>("automateMouseClick", [button]);
+    }
+
+    chromeExecute(url: string | undefined) {
+        return this.callRuntimeWorker<string>("chromeExecute", [url]);
+    }
+
+    documentParse(fileName: string) {
+        return this.callRuntimeWorker<string>("documentParse", [fileName]);
     }
 }
