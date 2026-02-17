@@ -25,7 +25,7 @@ export default class Automate {
     }
 
     screenshot = () => {
-        const name = "tool_automate_screenshot";
+        const name = "automate_screenshot";
 
         const config = {
             description: "Take display screenshot and return the image in base64.",
@@ -39,39 +39,7 @@ export default class Automate {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    result = await runtime.screenshot();
-                }
-            }
-
-            return {
-                content: [
-                    {
-                        type: "text" as const,
-                        text: result
-                    }
-                ]
-            };
-        };
-
-        return { name, config, content };
-    };
-
-    browserOpen = () => {
-        const name = "tool_automate_browser_open";
-
-        const config = {
-            description: "Open the browser chrome application.",
-            inputSchema: this.inputSchemaBrowserOpen
-        };
-
-        const content = async (argument: z.infer<typeof this.inputSchemaBrowserOpen>, extra: { sessionId?: string }) => {
-            let result = "";
-
-            if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const runtime = this.sessionObject[extra.sessionId].runtime;
-
-                if (runtime) {
-                    result = await runtime.browserOpen(argument.url);
+                    result = await runtime.automateScreenshot();
                 }
             }
 
@@ -89,7 +57,7 @@ export default class Automate {
     };
 
     mouseMove = () => {
-        const name = "tool_automate_mouse_move";
+        const name = "automate_mouse_move";
 
         const config = {
             description: "Move mouse cursor to specific coordinates.",
@@ -103,7 +71,7 @@ export default class Automate {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    result = await runtime.mouseMove(argument.x, argument.y);
+                    result = await runtime.automateMouseMove(argument.x, argument.y);
                 }
             }
 
@@ -121,7 +89,7 @@ export default class Automate {
     };
 
     mouseClick = () => {
-        const name = "tool_automate_mouse_click";
+        const name = "automate_mouse_click";
 
         const config = {
             description: "Click the specific mouse button.",
@@ -135,7 +103,39 @@ export default class Automate {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    result = await runtime.mouseClick(argument.button);
+                    result = await runtime.automateMouseClick(argument.button);
+                }
+            }
+
+            return {
+                content: [
+                    {
+                        type: "text" as const,
+                        text: result
+                    }
+                ]
+            };
+        };
+
+        return { name, config, content };
+    };
+
+    chromeExecute = () => {
+        const name = "chrome_execute";
+
+        const config = {
+            description: "Open the browser chrome application.",
+            inputSchema: this.inputSchemaBrowserOpen
+        };
+
+        const content = async (argument: z.infer<typeof this.inputSchemaBrowserOpen>, extra: { sessionId?: string }) => {
+            let result = "";
+
+            if (extra.sessionId && this.sessionObject[extra.sessionId]) {
+                const runtime = this.sessionObject[extra.sessionId].runtime;
+
+                if (runtime) {
+                    result = await runtime.chromeExecute(argument.url);
                 }
             }
 

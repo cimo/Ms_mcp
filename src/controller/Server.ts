@@ -132,12 +132,12 @@ export default class Server {
                 if (result !== "ko") {
                     controllerXvfb.stop(result);
 
-                    delete this.sessionObject[result];
-
                     helperSrc.responseBody(result, "", response, 200);
                 } else {
                     helperSrc.responseBody("", result, response, 500);
                 }
+
+                delete this.sessionObject[result];
             });
         });
     };

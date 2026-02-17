@@ -30,6 +30,8 @@ certificate/**/*
 !certificate/**/
 !certificate/**/.gitkeep
 dist
+file/input/*
+!file/input/.gitkeep
 file/tmp/*
 !file/tmp/.gitkeep
 log/*

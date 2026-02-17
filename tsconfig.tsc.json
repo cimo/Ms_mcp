@@ -4,7 +4,6 @@
         "eslint.customRule.ts",
         "global.d.ts",
         "src/controller/Server.ts",
-        "src/controller/RuntimeWorker.ts",
-        "src/controller/Chrome.ts"
+        "src/controller/RuntimeWorker.ts"
     ]
 }

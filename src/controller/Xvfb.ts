@@ -3,25 +3,23 @@ import { exec, fork } from "child_process";
 // Source
 import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
-import Runtime from "./Runtime.js";
-//import "./RuntimeWorker.js";
+import ControllerRuntime from "./Runtime.js";
 
 export default class Xvfb {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
     // Method
-    private display = (sessionId: string): number => {
-        let result = Object.values(this.sessionObject).length - 1 + 1;
+    private lastDisplay = (): number => {
+        let result = 0;
 
-        this.sessionObject[sessionId] = {
-            ...this.sessionObject[sessionId],
-            display: result,
-            runtime: undefined,
-            runtimeWorker: undefined
-        };
+        for (const session of Object.values(this.sessionObject)) {
+            if (typeof session.display === "number" && session.display > result) {
+                result = session.display;
+            }
+        }
 
-        return result;
+        return result + 1;
     };
 
     constructor(sessionObject: Record<string, modelServer.Isession>) {
@@ -29,13 +27,13 @@ export default class Xvfb {
     }
 
     start = (sessionId: string): void => {
-        const display = this.display(sessionId);
+        const display = this.lastDisplay();
 
         helperSrc.writeLog("Xvfb.ts - start()", `Display: ${display} sessionId: ${sessionId}`);
 
         exec(`Xvfb :${display} -screen 0 1920x1080x24 >> "${helperSrc.PATH_ROOT}${helperSrc.PATH_LOG}xvfb.log" 2>&1`);
 
-        const worker = fork(`${helperSrc.PATH_ROOT}dist/src/controller/RuntimeWorker.js`, [], {
+        const runtimeWorker = fork(`${helperSrc.PATH_ROOT}dist/src/controller/RuntimeWorker.js`, [], {
             env: {
                 ...process.env,
                 DISPLAY: `:${display}`
@@ -45,8 +43,8 @@ export default class Xvfb {
         this.sessionObject[sessionId] = {
             ...this.sessionObject[sessionId],
             display,
-            runtime: new Runtime(worker),
-            runtimeWorker: worker
+            runtimeWorker,
+            runtime: new ControllerRuntime(runtimeWorker)
         };
     };
 

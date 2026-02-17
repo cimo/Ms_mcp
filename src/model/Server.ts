@@ -22,8 +22,8 @@ export interface Irequest extends Request {
 }
 
 export interface Isession {
-    transport: StreamableHTTPServerTransport;
+    rcp: StreamableHTTPServerTransport;
     display: number;
-    runtime: ControllerRuntime | undefined;
     runtimeWorker: ChildProcess | undefined;
+    runtime: ControllerRuntime | undefined;
 }

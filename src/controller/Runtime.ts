@@ -1,41 +1,43 @@
 import { ChildProcess } from "child_process";
 
 export default class Runtime {
-    private worker: ChildProcess;
+    private runtimeWorker: ChildProcess;
 
-    constructor(worker: ChildProcess) {
-        this.worker = worker;
+    constructor(runtimeWorker: ChildProcess) {
+        this.runtimeWorker = runtimeWorker;
     }
 
-    private callWorker<T>(method: keyof Runtime, args: unknown[]): Promise<T> {
+    private callRuntimeWorker<T>(tool: keyof Runtime, argumentList: unknown[]): Promise<T> {
         return new Promise((resolve) => {
             const id = crypto.randomUUID();
 
-            const handler = (msg: { id: string; result: unknown }) => {
-                if (msg.id === id) {
-                    this.worker.off("message", handler);
+            const handler = (data: { id: string; result: unknown }) => {
+                if (data.id === id) {
+                    this.runtimeWorker.off("message", handler);
 
-                    resolve(msg.result as T);
+                    resolve(data.result as T);
                 }
             };
-            this.worker.on("message", handler);
-            this.worker.send({ id, method, args });
+
+            this.runtimeWorker.on("message", handler);
+
+            this.runtimeWorker.send({ id, tool, argumentList });
         });
     }
 
-    screenshot() {
-        return this.callWorker<string>("screenshot", []);
+    automateScreenshot() {
+        return this.callRuntimeWorker<string>("automateScreenshot", []);
     }
 
-    browserOpen(url: string | undefined) {
-        return this.callWorker<string>("browserOpen", [url]);
+    chromeExecute(url: string | undefined) {
+        return this.callRuntimeWorker<string>("chromeExecute", [url]);
     }
 
-    mouseMove(x: number, y: number) {
-        return this.callWorker<string>("mouseMove", [x, y]);
+    automateMouseMove(x: number, y: number) {
+        return this.callRuntimeWorker<string>("automateMouseMove", [x, y]);
     }
 
-    mouseClick(button: number) {
-        return this.callWorker<string>("mouseClick", [button]);
+    automateMouseClick(button: number) {
+        return this.callRuntimeWorker<string>("automateMouseClick", [button]);
     }
 }

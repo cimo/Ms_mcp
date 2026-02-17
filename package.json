@@ -22,16 +22,17 @@
         "@cimo/environment": "1.0.23",
         "@cimo/cronjob": "1.0.10",
         "@cimo/request": "1.6.37",
+        "@cimo/form-data_parser": "1.1.39",
         "express": "4.22.1",
         "express-rate-limit": "7.5.0",
         "cookie-parser": "1.4.7",
         "cors": "2.8.5",
-        "tsx": "4.21.0",
         "@modelcontextprotocol/sdk": "1.26.0",
         "zod": "4.3.6",
         "chrome-launcher": "1.2.1",
         "@nut-tree-fork/nut-js": "4.2.6",
-        "sharp": "0.34.5"
+        "sharp": "0.34.5",
+        "officeparser": "6.0.4"
     },
     "devDependencies": {
         "typescript": "5.7.2",

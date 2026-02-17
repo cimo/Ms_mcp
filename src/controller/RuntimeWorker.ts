@@ -1,37 +1,32 @@
-import ControllerChrome from "../controller/Chrome.js";
+// Source
+import ControllerChrome from "../tool/Chrome.js";
 import * as automateDisplay from "../tool/automate/Display.js";
 import * as automateMouse from "../tool/automate/Mouse.js";
 
-const displayEnv = process.env["DISPLAY"];
-if (!displayEnv) process.exit(1);
+process.on("message", async (data: { id: string; tool: string; argumentList: unknown[] }) => {
+    const { id, tool, argumentList } = data;
 
-const controllerChrome = new ControllerChrome();
+    let result = "";
 
-process.on("message", async (msg: { id: string; method: string; args: unknown[] }) => {
-    const { id, method, args } = msg;
+    if (tool === "automateScreenshot") {
+        result = await automateDisplay.screenshot();
+    } else if (tool === "chromeExecute") {
+        const controllerChrome = new ControllerChrome();
 
-    let result: string = "";
+        await controllerChrome.execute(argumentList[0] as string | undefined);
 
-    switch (method) {
-        case "screenshot":
-            result = await automateDisplay.screenshot();
-            break;
+        result = "ok";
+    } else if (tool === "automateMouseMove") {
+        await automateMouse.move(argumentList[0] as number, argumentList[1] as number);
 
-        case "browserOpen":
-            await controllerChrome.execute(args[0] as string | undefined);
-            result = "ok";
-            break;
+        result = "ok";
+    } else if (tool === "automateMouseClick") {
+        await automateMouse.click(argumentList[0] as number);
 
-        case "mouseMove":
-            await automateMouse.move(args[0] as number, args[1] as number);
-            result = "ok";
-            break;
-
-        case "mouseClick":
-            await automateMouse.click(args[0] as number);
-            result = "ok";
-            break;
+        result = "ok";
     }
 
-    process.send?.({ id, result });
+    if (process.send) {
+        process.send({ id, result });
+    }
 });

@@ -20,7 +20,7 @@ export default class Math {
     }
 
     expression = () => {
-        const name = "tool_math_expression";
+        const name = "math_expression";
 
         const config = {
             description: "Evaluate expression.",
