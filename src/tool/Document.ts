@@ -31,7 +31,7 @@ export default class Document {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                result = await documentParse.execute(argument.fileName);
+                result = JSON.stringify(await documentParse.execute(argument.fileName));
             }
 
             return {

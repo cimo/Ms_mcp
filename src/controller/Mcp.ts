@@ -189,7 +189,9 @@ export default class Mcp {
                             helperSrc.responseBody("ok", "", response, 200);
                         })
                         .catch((error: Error) => {
-                            helperSrc.responseBody("", error, response, 500);
+                            helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-call) - controllerUpload - execute() - catch()", error);
+
+                            helperSrc.responseBody("", "ko", response, 500);
                         });
                 } else {
                     instance.api
