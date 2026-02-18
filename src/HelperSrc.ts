@@ -312,3 +312,36 @@ export const readClientIp = (request: Request): string => {
 
     return result.split(",")[0] || request.ip || "";
 };
+
+export const readMimeType = (buffer: Buffer): modelHelperSrc.ImimeType => {
+    if (buffer.subarray(0, 3).toString("hex") === "ffd8ff") {
+        return { content: "image/jpeg", extension: "jpg" };
+    } else if (buffer.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") {
+        return { content: "image/png", extension: "png" };
+    } else if (buffer.subarray(0, 4).toString("hex") === "49492a00" || buffer.subarray(0, 4).toString("hex") === "4d4d002a") {
+        return { content: "image/tiff", extension: "tiff" };
+    } else if (buffer.subarray(0, 4).toString("hex") === "25504446") {
+        return { content: "application/pdf", extension: "pdf" };
+    } else if (buffer.subarray(0, 2).toString("hex") === "504b") {
+        const head = buffer.subarray(0, Math.min(buffer.length, 64 * 1024)).toString("latin1");
+
+        if (head.includes("word/")) {
+            return {
+                content: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                extension: "docx"
+            };
+        } else if (head.includes("xl/")) {
+            return {
+                content: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                extension: "xlsx"
+            };
+        } else if (head.includes("ppt/")) {
+            return {
+                content: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                extension: "pptx"
+            };
+        }
+    }
+
+    return { content: "", extension: "" };
+};

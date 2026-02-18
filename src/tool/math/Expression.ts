@@ -1,5 +1,5 @@
 // Source
-import * as model from "../model/Math.js";
+import * as model from "./Model.js";
 
 const checkDigit = (character: string): boolean => {
     return character >= "0" && character <= "9";

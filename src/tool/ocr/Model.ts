@@ -1,6 +1,5 @@
-export interface IresponseHeader {
-    "x-endpoint": string;
-    "x-session-id": string;
+export interface IinstanceContext {
+    cookie?: string;
 }
 
 export interface IresponseBody {
@@ -14,7 +13,7 @@ export interface ItoolOcrResponse {
     id: number;
     polygon: number[][];
     text: string;
-    match: boolean;
+    isMatch: boolean;
 }
 
 export interface ItoolOcrResult {
@@ -24,5 +23,5 @@ export interface ItoolOcrResult {
         x: number;
         y: number;
     };
-    match: boolean;
+    isMatch: boolean;
 }

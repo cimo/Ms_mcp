@@ -12,14 +12,13 @@ api.setRequestInterceptor((config: RequestInit) => {
         ...config,
         headers: {
             ...config.headers
-        },
-        credentials: "include"
+        }
     };
 });
 
 api.setResponseInterceptor((response: Response) => {
     if (response.status === 403 || response.status === 500) {
-        helperSrc.writeLog("Instance.ts - responseLogic() - Error", response.status.toString());
+        helperSrc.writeLog("Instance.ts - setResponseInterceptor() - Error", response.status.toString());
     }
 
     return response;

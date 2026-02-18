@@ -44,4 +44,8 @@ export default class Runtime {
     documentParse(fileName: string) {
         return this.callRuntimeWorker<string>("documentParse", [fileName]);
     }
+
+    ocrExecute() {
+        return this.callRuntimeWorker<string>("ocrExecute", []);
+    }
 }

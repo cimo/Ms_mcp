@@ -4,3 +4,8 @@ export interface IresponseBody {
         stderr: string | Error;
     };
 }
+
+export interface ImimeType {
+    extension: string;
+    content: string;
+}
