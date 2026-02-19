@@ -41,10 +41,6 @@ export default class Runtime {
         return this.callRuntimeWorker<string>("chromeExecute", [url]);
     }
 
-    documentParse(fileName: string) {
-        return this.callRuntimeWorker<string>("documentParse", [fileName]);
-    }
-
     ocrExecute() {
         return this.callRuntimeWorker<string>("ocrExecute", []);
     }

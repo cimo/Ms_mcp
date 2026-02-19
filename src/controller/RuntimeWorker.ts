@@ -2,7 +2,6 @@
 import * as automateDisplay from "../tool/automate/Display.js";
 import * as automateMouse from "../tool/automate/Mouse.js";
 import * as browserChrome from "../tool/browser/Chrome.js";
-import * as documentParse from "../tool/document/Parse.js";
 import * as ocrExtract from "../tool/ocr/Extract.js";
 
 process.on("message", async (data: { id: string; tool: string; argumentList: unknown[] }) => {
@@ -24,8 +23,6 @@ process.on("message", async (data: { id: string; tool: string; argumentList: unk
         await browserChrome.execute(argumentList[0] as string | undefined);
 
         result = "ok";
-    } else if (tool === "documentParse") {
-        result = await documentParse.execute(argumentList[0] as string);
     } else if (tool === "ocrExecute") {
         result = await ocrExtract.execute();
     }

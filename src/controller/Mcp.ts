@@ -192,6 +192,18 @@ export default class Mcp {
             }
         });
 
+        this.app.get("/rcp", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const sessionId = request.headers["mcp-session-id"];
+
+            if (typeof sessionId === "string") {
+                await this.sessionObject[sessionId].rcp.handleRequest(request, response);
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - get(/rcp) - Error", "Session ID is missing or invalid.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
         this.app.post("/api/tool-call", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const contentType = request.headers["content-type"];
             const cookie = request.headers["cookie"];
@@ -237,6 +249,55 @@ export default class Mcp {
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
+        });
+
+        this.app.post("/api/task", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const sessionId = request.headers["mcp-session-id"];
+
+            if (typeof sessionId !== "string" || !this.sessionObject[sessionId].runtime) {
+                helperSrc.responseBody("", "ko1", response, 400);
+
+                return;
+            }
+
+            const runtime = this.sessionObject[sessionId].runtime;
+
+            const { stepList } = request.body;
+
+            if (!Array.isArray(stepList)) {
+                helperSrc.responseBody("", "ko2", response, 400);
+
+                return;
+            }
+
+            await runtime.automateScreenshot();
+
+            await runtime.ocrExecute();
+
+            for (const step of stepList) {
+                if (step.action === "chrome_execute") {
+                    await runtime.chromeExecute(step.argumentList?.url);
+                }
+
+                /*if (step.action === "automate_mouse_move") {
+                    await runtime.automateMouseMove(step.argumentList?.x, step.argumentList?.y);
+                }
+
+                if (step.action === "automate_mouse_click") {
+                    await runtime.automateMouseClick(step.argumentList?.button ?? 0);
+                }*/
+            }
+
+            let ocrResult = "[]";
+
+            while (ocrResult === "[]") {
+                await runtime.automateScreenshot();
+                ocrResult = await runtime.ocrExecute();
+
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+            }
+
+            helperSrc.responseBody("ok", "", response, 200);
         });
     };
 }

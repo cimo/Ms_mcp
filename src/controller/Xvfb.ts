@@ -34,11 +34,20 @@ export default class Xvfb {
         exec(`Xvfb :${display} -screen 0 1920x1080x24 >> "${helperSrc.PATH_ROOT}${helperSrc.PATH_LOG}xvfb.log" 2>&1`);
 
         const runtimeWorker = fork(`${helperSrc.PATH_ROOT}dist/src/controller/RuntimeWorker.js`, [], {
+            silent: true,
             env: {
                 ...process.env,
                 DISPLAY: `:${display}`
             }
         });
+
+        if (runtimeWorker.stdout) {
+            runtimeWorker.stdout.on("data", (result) => helperSrc.writeLog("Xvfb.ts - start() - runtimeWorker - stdout", result));
+        }
+
+        if (runtimeWorker.stderr) {
+            runtimeWorker.stderr.on("data", (result) => helperSrc.writeLog("Xvfb.ts - start() - runtimeWorker - stderr", result));
+        }
 
         this.sessionObject[sessionId] = {
             ...this.sessionObject[sessionId],

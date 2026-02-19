@@ -34,11 +34,11 @@ const extract = async (): Promise<model.ItoolOcrResult[]> => {
 
         helperSrc.fileReadStream(input, async (resultFileReadStream) => {
             if (Buffer.isBuffer(resultFileReadStream)) {
-                helperSrc.fileOrFolderRemove(input, (resultFileRemove) => {
+                /*helperSrc.fileOrFolderRemove(input, (resultFileRemove) => {
                     if (typeof resultFileRemove !== "boolean") {
                         helperSrc.writeLog("Extract.ts - extract() - fileReadStream() - fileOrFolderRemove(input)", resultFileRemove.toString());
                     }
-                });
+                });*/
 
                 const buffer = Buffer.from(resultFileReadStream);
                 const mimeType = helperSrc.readMimeType(buffer);
