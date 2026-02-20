@@ -251,53 +251,50 @@ export default class Mcp {
             }
         });
 
-        this.app.post("/api/task", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.post("/api/tool-task", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
 
-            if (typeof sessionId !== "string" || !this.sessionObject[sessionId].runtime) {
-                helperSrc.responseBody("", "ko1", response, 400);
+            if (typeof sessionId === "string") {
+                const runtime = this.sessionObject[sessionId].runtime;
 
-                return;
-            }
+                if (runtime) {
+                    // eslint-disable-next-line no-console
+                    console.log("cimo2", request.body);
 
-            const runtime = this.sessionObject[sessionId].runtime;
+                    /*for (const step of stepList) {
+                        if (step.action === "chrome_execute") {
+                            await runtime.chromeExecute(sessionId, step.argumentList.url);
+                        }
 
-            const { stepList } = request.body;
+                        if (step.action === "automate_mouse_move") {
+                            await runtime.automateMouseMove(sessionId, step.argumentList?.x, step.argumentList?.y);
+                        }
 
-            if (!Array.isArray(stepList)) {
-                helperSrc.responseBody("", "ko2", response, 400);
+                        if (step.action === "automate_mouse_click") {
+                            await runtime.automateMouseClick(sessionId, step.argumentList?.button ?? 0);
+                        }
+                    }*/
 
-                return;
-            }
+                    let ocrResult = "[]";
 
-            await runtime.automateScreenshot();
+                    while (ocrResult === "[]") {
+                        await runtime.automateScreenshot(sessionId);
+                        ocrResult = await runtime.ocrExecute(sessionId, "-", "-", "-", "data");
 
-            await runtime.ocrExecute();
+                        await new Promise((resolve) => setTimeout(resolve, 3000));
+                    }
 
-            for (const step of stepList) {
-                if (step.action === "chrome_execute") {
-                    await runtime.chromeExecute(step.argumentList?.url);
+                    helperSrc.responseBody("ok", "", response, 200);
+                } else {
+                    helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-task) - Error", "Runtime problem.");
+
+                    helperSrc.responseBody("", "ko", response, 500);
                 }
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-task) - Error", "Missing or invalid headers.");
 
-                /*if (step.action === "automate_mouse_move") {
-                    await runtime.automateMouseMove(step.argumentList?.x, step.argumentList?.y);
-                }
-
-                if (step.action === "automate_mouse_click") {
-                    await runtime.automateMouseClick(step.argumentList?.button ?? 0);
-                }*/
+                helperSrc.responseBody("", "ko", response, 500);
             }
-
-            let ocrResult = "[]";
-
-            while (ocrResult === "[]") {
-                await runtime.automateScreenshot();
-                ocrResult = await runtime.ocrExecute();
-
-                await new Promise((resolve) => setTimeout(resolve, 3000));
-            }
-
-            helperSrc.responseBody("ok", "", response, 200);
         });
     };
 }

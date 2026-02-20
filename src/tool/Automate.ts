@@ -37,7 +37,7 @@ export default class Automate {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    result = await runtime.automateScreenshot();
+                    result = await runtime.automateScreenshot(extra.sessionId);
                 }
             }
 
@@ -69,7 +69,7 @@ export default class Automate {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    result = await runtime.automateMouseMove(argument.x, argument.y);
+                    result = await runtime.automateMouseMove(extra.sessionId, argument.x, argument.y);
                 }
             }
 
@@ -101,7 +101,7 @@ export default class Automate {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    result = await runtime.automateMouseClick(argument.button);
+                    result = await runtime.automateMouseClick(extra.sessionId, argument.button);
                 }
             }
 

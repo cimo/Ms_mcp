@@ -7,12 +7,20 @@ export default class Runtime {
         this.runtimeWorker = runtimeWorker;
     }
 
-    private callRuntimeWorker<T>(tool: keyof Runtime, argumentList: unknown[]): Promise<T> {
+    private callRuntimeWorker<T>(sessionId: string, tool: keyof Runtime, argumentList: unknown[]): Promise<T> {
         return new Promise((resolve) => {
             const id = crypto.randomUUID();
 
+            /*const timeout = setTimeout(() => {
+                this.runtimeWorker.off("message", handler);
+
+                reject(new Error("runtimeWorker timeout"));
+            }, 15000);*/
+
             const handler = (data: { id: string; result: unknown }) => {
                 if (data.id === id) {
+                    //clearTimeout(timeout);
+
                     this.runtimeWorker.off("message", handler);
 
                     resolve(data.result as T);
@@ -21,27 +29,27 @@ export default class Runtime {
 
             this.runtimeWorker.on("message", handler);
 
-            this.runtimeWorker.send({ id, tool, argumentList });
+            this.runtimeWorker.send({ id, sessionId, tool, argumentList });
         });
     }
 
-    automateScreenshot() {
-        return this.callRuntimeWorker<string>("automateScreenshot", []);
+    automateScreenshot(sessionId: string) {
+        return this.callRuntimeWorker<string>(sessionId, "automateScreenshot", []);
     }
 
-    automateMouseMove(x: number, y: number) {
-        return this.callRuntimeWorker<string>("automateMouseMove", [x, y]);
+    automateMouseMove(sessionId: string, x: number, y: number) {
+        return this.callRuntimeWorker<string>(sessionId, "automateMouseMove", [x, y]);
     }
 
-    automateMouseClick(button: number) {
-        return this.callRuntimeWorker<string>("automateMouseClick", [button]);
+    automateMouseClick(sessionId: string, button: number) {
+        return this.callRuntimeWorker<string>(sessionId, "automateMouseClick", [button]);
     }
 
-    chromeExecute(url: string | undefined) {
-        return this.callRuntimeWorker<string>("chromeExecute", [url]);
+    chromeExecute(sessionId: string, url: string) {
+        return this.callRuntimeWorker<string>(sessionId, "chromeExecute", [url]);
     }
 
-    ocrExecute() {
-        return this.callRuntimeWorker<string>("ocrExecute", []);
+    ocrExecute(sessionId: string, language: string, fileName: string, searchText: string, mode: string) {
+        return this.callRuntimeWorker<string>(sessionId, "ocrExecute", [language, fileName, searchText, mode]);
     }
 }

@@ -13,7 +13,7 @@ export default class Browser {
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchema = z.object({ url: z.string().optional().describe("URL to open in the browser.") });
+        this.inputSchema = z.object({ url: z.string().describe("URL to open in the browser.") });
     }
 
     chromeExecute = () => {
@@ -31,7 +31,7 @@ export default class Browser {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    result = await runtime.chromeExecute(argument.url);
+                    result = await runtime.chromeExecute(extra.sessionId, argument.url);
                 }
             }
 

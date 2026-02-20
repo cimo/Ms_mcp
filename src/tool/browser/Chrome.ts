@@ -3,7 +3,7 @@ import { launch } from "chrome-launcher";
 // Source
 import * as helperSrc from "../../HelperSrc.js";
 
-export const execute = async (urlPage: string | undefined): Promise<void> => {
+export const execute = async (urlPage: string): Promise<void> => {
     const pathExtension = "/home/app/docker/ce_microsoft_sso";
 
     const flagBaseList: string[] = [

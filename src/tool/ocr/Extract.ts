@@ -1,13 +1,14 @@
 // Source
 import * as helperSrc from "../../HelperSrc.js";
 import * as instance from "./Instance.js";
+import * as modelHelper from "../../model/HelperSrc.js";
 import * as model from "./Model.js";
 
 const login = async (): Promise<string> => {
     let result = "";
 
     await instance.api
-        .get<model.IresponseBody>(
+        .get<modelHelper.IresponseBody>(
             "/login",
             {
                 headers: {
@@ -28,30 +29,30 @@ const login = async (): Promise<string> => {
     return result;
 };
 
-const extract = async (): Promise<model.ItoolOcrResult[]> => {
+const extract = async (language: string, fileName: string, searchText: string, mode: string): Promise<model.ItoolOcrResult[]> => {
     return new Promise<model.ItoolOcrResult[]>((resolve, reject) => {
-        const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}tmp/screenshot.jpg`;
+        const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${fileName}`;
 
         helperSrc.fileReadStream(input, async (resultFileReadStream) => {
             if (Buffer.isBuffer(resultFileReadStream)) {
-                /*helperSrc.fileOrFolderRemove(input, (resultFileRemove) => {
+                helperSrc.fileOrFolderRemove(input, (resultFileRemove) => {
                     if (typeof resultFileRemove !== "boolean") {
                         helperSrc.writeLog("Extract.ts - extract() - fileReadStream() - fileOrFolderRemove(input)", resultFileRemove.toString());
                     }
-                });*/
+                });
 
                 const buffer = Buffer.from(resultFileReadStream);
                 const mimeType = helperSrc.readMimeType(buffer);
                 const blob = new Blob([buffer], { type: mimeType.content });
 
                 const formData = new FormData();
-                formData.append("language", "-");
-                formData.append("file", blob, `screenshot.${mimeType.extension}`);
-                formData.append("searchText", "-");
-                formData.append("mode", "data");
+                formData.append("language", language);
+                formData.append("file", blob, `${fileName}.${mimeType.extension}`);
+                formData.append("searchText", searchText);
+                formData.append("mode", mode);
 
                 await instance.api
-                    .post<model.IresponseBody>("/api/extract", {}, formData)
+                    .post<modelHelper.IresponseBody>("/api/extract", {}, formData)
                     .then((resultApi) => {
                         let resultList: model.ItoolOcrResult[] = [];
 
@@ -100,7 +101,7 @@ const logout = async (): Promise<string> => {
     let result = "";
 
     await instance.api
-        .get<model.IresponseBody>("/logout", {
+        .get<modelHelper.IresponseBody>("/logout", {
             headers: {
                 "Content-Type": "application/json"
             }
@@ -117,13 +118,13 @@ const logout = async (): Promise<string> => {
     return result;
 };
 
-export const execute = async (): Promise<string> => {
+export const execute = async (sessionId: string, language: string, _: string, searchText: string, mode: string): Promise<string> => {
     return await instance.runWithContext(async () => {
         let result: model.ItoolOcrResult[] = [];
 
         await login();
 
-        result = await extract().catch((error: Error) => {
+        result = await extract(language, sessionId, searchText, mode).catch((error: Error) => {
             helperSrc.writeLog("Extract.ts - execute() - extract() - catch()", error);
 
             return [];

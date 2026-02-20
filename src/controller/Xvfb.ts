@@ -42,11 +42,11 @@ export default class Xvfb {
         });
 
         if (runtimeWorker.stdout) {
-            runtimeWorker.stdout.on("data", (result) => helperSrc.writeLog("Xvfb.ts - start() - runtimeWorker - stdout", result));
+            runtimeWorker.stdout.on("data", (result) => helperSrc.writeLog("Xvfb.ts - start() - runtimeWorker - stdout", result.toString("utf8")));
         }
 
         if (runtimeWorker.stderr) {
-            runtimeWorker.stderr.on("data", (result) => helperSrc.writeLog("Xvfb.ts - start() - runtimeWorker - stderr", result));
+            runtimeWorker.stderr.on("data", (result) => helperSrc.writeLog("Xvfb.ts - start() - runtimeWorker - stderr", result.toString("utf8")));
         }
 
         this.sessionObject[sessionId] = {

@@ -32,8 +32,6 @@ certificate/**/*
 dist
 file/input/*
 !file/input/.gitkeep
-file/tmp/*
-!file/tmp/.gitkeep
 log/*
 !log/.gitkeep
 node_modules

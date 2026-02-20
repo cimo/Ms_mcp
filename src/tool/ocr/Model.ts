@@ -2,13 +2,6 @@ export interface IinstanceContext {
     cookie?: string;
 }
 
-export interface IresponseBody {
-    response: {
-        stdout: string;
-        stderr: string | Error;
-    };
-}
-
 export interface ItoolOcrResponse {
     id: number;
     polygon: number[][];
