@@ -259,38 +259,33 @@ export default class Mcp {
                 const runtime = this.sessionObject[sessionId].runtime;
 
                 if (runtime) {
-                    // eslint-disable-next-line no-console
-                    console.log("cimo1", request.body);
+                    if (typeof request.body === "object") {
+                        const body = request.body as modelMcp.ItoolTask;
 
-                    if (!helperSrc.isJson(request.body)) {
-                        const bodyParse = JSON.parse(request.body) as modelMcp.ItoolTask;
+                        for (const step of body.stepList) {
+                            if (step.action === "chrome_execute") {
+                                await runtime.chromeExecute(sessionId, step.argumentObject["url"]);
+                            }
 
-                        // eslint-disable-next-line no-console
-                        console.log("cimo2", bodyParse);
+                            /*if (step.action === "automate_mouse_move") {
+                                await runtime.automateMouseMove(sessionId, parseInt(step.argumentObject["x"]), parseInt(step.argumentObject["y"]));
+                            }
+
+                            if (step.action === "automate_mouse_click") {
+                                await runtime.automateMouseClick(sessionId, parseInt(step.argumentObject["button"]));
+                            }*/
+                        }
+
+                        let ocrResult = "[]";
+
+                        while (ocrResult === "[]") {
+                            await runtime.automateScreenshot(sessionId);
+
+                            ocrResult = await runtime.ocrExecute(sessionId, "-", `${sessionId}.jpg`, "-", "data");
+
+                            await new Promise((resolve) => setTimeout(resolve, 3000));
+                        }
                     }
-
-                    /*for (const step of stepList) {
-                        if (step.action === "chrome_execute") {
-                            await runtime.chromeExecute(sessionId, step.argumentList.url);
-                        }
-
-                        if (step.action === "automate_mouse_move") {
-                            await runtime.automateMouseMove(sessionId, step.argumentList?.x, step.argumentList?.y);
-                        }
-
-                        if (step.action === "automate_mouse_click") {
-                            await runtime.automateMouseClick(sessionId, step.argumentList?.button ?? 0);
-                        }
-                    }*/
-
-                    /*let ocrResult = "[]";
-
-                    while (ocrResult === "[]") {
-                        await runtime.automateScreenshot(sessionId);
-                        ocrResult = await runtime.ocrExecute(sessionId, "-", `${sessionId}.jpg`, "-", "data");
-
-                        await new Promise((resolve) => setTimeout(resolve, 3000));
-                    }*/
 
                     helperSrc.responseBody("ok", "", response, 200);
                 } else {
