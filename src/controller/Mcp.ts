@@ -8,6 +8,7 @@ import { Ca } from "@cimo/authentication/dist/src/Main.js";
 import * as helperSrc from "../HelperSrc.js";
 import * as instance from "../Instance.js";
 import * as modelServer from "../model/Server.js";
+import * as modelMcp from "../model/Mcp.js";
 import ControllerUpload from "./Upload.js";
 import ToolMath from "../tool/Math.js";
 import ToolAutomate from "../tool/Automate.js";
@@ -259,7 +260,14 @@ export default class Mcp {
 
                 if (runtime) {
                     // eslint-disable-next-line no-console
-                    console.log("cimo2", request.body);
+                    console.log("cimo1", request.body);
+
+                    if (!helperSrc.isJson(request.body)) {
+                        const bodyParse = JSON.parse(request.body) as modelMcp.ItoolTask;
+
+                        // eslint-disable-next-line no-console
+                        console.log("cimo2", bodyParse);
+                    }
 
                     /*for (const step of stepList) {
                         if (step.action === "chrome_execute") {
@@ -275,14 +283,14 @@ export default class Mcp {
                         }
                     }*/
 
-                    let ocrResult = "[]";
+                    /*let ocrResult = "[]";
 
                     while (ocrResult === "[]") {
                         await runtime.automateScreenshot(sessionId);
-                        ocrResult = await runtime.ocrExecute(sessionId, "-", "-", "-", "data");
+                        ocrResult = await runtime.ocrExecute(sessionId, "-", `${sessionId}.jpg`, "-", "data");
 
                         await new Promise((resolve) => setTimeout(resolve, 3000));
-                    }
+                    }*/
 
                     helperSrc.responseBody("ok", "", response, 200);
                 } else {

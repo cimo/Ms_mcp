@@ -47,7 +47,7 @@ const extract = async (language: string, fileName: string, searchText: string, m
 
                 const formData = new FormData();
                 formData.append("language", language);
-                formData.append("file", blob, `${fileName}.${mimeType.extension}`);
+                formData.append("file", blob, `${fileName}`);
                 formData.append("searchText", searchText);
                 formData.append("mode", mode);
 
@@ -118,13 +118,13 @@ const logout = async (): Promise<string> => {
     return result;
 };
 
-export const execute = async (sessionId: string, language: string, _: string, searchText: string, mode: string): Promise<string> => {
+export const execute = async (language: string, fileName: string, searchText: string, mode: string): Promise<string> => {
     return await instance.runWithContext(async () => {
         let result: model.ItoolOcrResult[] = [];
 
         await login();
 
-        result = await extract(language, sessionId, searchText, mode).catch((error: Error) => {
+        result = await extract(language, fileName, searchText, mode).catch((error: Error) => {
             helperSrc.writeLog("Extract.ts - execute() - extract() - catch()", error);
 
             return [];

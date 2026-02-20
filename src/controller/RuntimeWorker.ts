@@ -24,13 +24,7 @@ process.on("message", async (data: { id: string; sessionId: string; tool: string
 
         result = "ok";
     } else if (tool === "ocrExecute") {
-        result = await ocrExtract.execute(
-            sessionId,
-            argumentList[0] as string,
-            argumentList[1] as string,
-            argumentList[2] as string,
-            argumentList[3] as string
-        );
+        result = await ocrExtract.execute(argumentList[0] as string, argumentList[1] as string, argumentList[2] as string, argumentList[3] as string);
     }
 
     if (process.send) {

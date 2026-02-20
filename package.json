@@ -22,7 +22,7 @@
         "@cimo/cronjob": "1.0.10",
         "@cimo/environment": "1.0.23",
         "@cimo/form-data_parser": "1.1.39",
-        "@cimo/request": "1.6.38",
+        "@cimo/request": "1.6.39",
         "@modelcontextprotocol/sdk": "1.26.0",
         "@nut-tree-fork/nut-js": "4.2.6",
         "chrome-launcher": "1.2.1",

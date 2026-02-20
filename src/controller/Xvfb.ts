@@ -42,11 +42,15 @@ export default class Xvfb {
         });
 
         if (runtimeWorker.stdout) {
-            runtimeWorker.stdout.on("data", (result) => helperSrc.writeLog("Xvfb.ts - start() - runtimeWorker - stdout", result.toString("utf8")));
+            runtimeWorker.stdout.on("data", (buffer: Buffer) => {
+                helperSrc.writeLog("Xvfb.ts - start() - runtimeWorker - stdout", buffer.toString("utf8"));
+            });
         }
 
         if (runtimeWorker.stderr) {
-            runtimeWorker.stderr.on("data", (result) => helperSrc.writeLog("Xvfb.ts - start() - runtimeWorker - stderr", result.toString("utf8")));
+            runtimeWorker.stderr.on("data", (buffer: Buffer) => {
+                helperSrc.writeLog("Xvfb.ts - start() - runtimeWorker - stderr", buffer.toString("utf8"));
+            });
         }
 
         this.sessionObject[sessionId] = {
