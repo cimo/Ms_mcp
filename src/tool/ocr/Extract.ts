@@ -1,14 +1,14 @@
 // Source
 import * as helperSrc from "../../HelperSrc.js";
 import * as instance from "./Instance.js";
-import * as modelHelper from "../../model/HelperSrc.js";
+import * as modelHelperSrc from "../../model/HelperSrc.js";
 import * as model from "./Model.js";
 
 const login = async (): Promise<string> => {
     let result = "";
 
     await instance.api
-        .get<modelHelper.IresponseBody>(
+        .get<modelHelperSrc.IresponseBody>(
             "/login",
             {
                 headers: {
@@ -52,7 +52,7 @@ const extract = async (language: string, fileName: string, searchText: string, m
                 formData.append("mode", mode);
 
                 await instance.api
-                    .post<modelHelper.IresponseBody>("/api/extract", {}, formData)
+                    .post<modelHelperSrc.IresponseBody>("/api/extract", {}, formData)
                     .then((resultApi) => {
                         let resultList: model.ItoolOcrResult[] = [];
 
@@ -84,14 +84,20 @@ const extract = async (language: string, fileName: string, searchText: string, m
                         }
 
                         resolve(resultList);
+
+                        return;
                     })
                     .catch((error: Error) => {
                         helperSrc.writeLog("Extract.ts - extract() - api(/extract) - catch()", error);
 
                         reject("ko");
+
+                        return;
                     });
             } else {
                 reject("File input not exists.");
+
+                return;
             }
         });
     });
@@ -101,7 +107,7 @@ const logout = async (): Promise<string> => {
     let result = "";
 
     await instance.api
-        .get<modelHelper.IresponseBody>("/logout", {
+        .get<modelHelperSrc.IresponseBody>("/logout", {
             headers: {
                 "Content-Type": "application/json"
             }

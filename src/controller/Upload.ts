@@ -22,8 +22,10 @@ export default class Upload {
             });
 
             request.on("end", () => {
+                const contentType = request.headers["content-type"];
+
                 const buffer = Buffer.concat(chunkList);
-                const formDataList = Cfdp.readInput(buffer, request.headers["content-type"]);
+                const formDataList = Cfdp.readInput(buffer, contentType);
 
                 const resultCheckRequest = this.checkRequest(formDataList);
 
@@ -35,23 +37,33 @@ export default class Upload {
                             if (isFileExists) {
                                 Fs.access(input, Fs.constants.F_OK, (error) => {
                                     if (!error) {
-                                        reject("File exists.");
+                                        reject(new Error("File exists."));
+
+                                        return;
                                     } else {
                                         helperSrc.fileWriteStream(input, formData.buffer, (resultFileWriteStream) => {
-                                            if (resultFileWriteStream) {
+                                            if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
                                                 resolve(formDataList);
+
+                                                return;
                                             } else {
-                                                reject(resultFileWriteStream);
+                                                reject(new Error("File write failed."));
+
+                                                return;
                                             }
                                         });
                                     }
                                 });
                             } else {
                                 helperSrc.fileWriteStream(input, formData.buffer, (resultFileWriteStream) => {
-                                    if (resultFileWriteStream) {
+                                    if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
                                         resolve(formDataList);
+
+                                        return;
                                     } else {
-                                        reject(resultFileWriteStream);
+                                        reject(new Error("File write failed."));
+
+                                        return;
                                     }
                                 });
                             }
@@ -60,12 +72,16 @@ export default class Upload {
                         }
                     }
                 } else {
-                    reject(resultCheckRequest);
+                    reject(new Error(resultCheckRequest));
+
+                    return;
                 }
             });
 
             request.on("error", (error: Error) => {
                 reject(error);
+
+                return;
             });
         });
     };

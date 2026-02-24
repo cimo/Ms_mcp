@@ -22,7 +22,7 @@ export interface Irequest extends Request {
 }
 
 export interface Isession {
-    rcp: StreamableHTTPServerTransport;
+    rpc: StreamableHTTPServerTransport;
     display: number;
     runtimeWorker: ChildProcess | undefined;
     runtime: ControllerRuntime | undefined;

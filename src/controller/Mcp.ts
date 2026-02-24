@@ -55,7 +55,7 @@ export default class Mcp {
         if (typeof cookie === "string") {
             return instance.api
                 .post(
-                    "/rcp",
+                    "/rpc",
                     {
                         headers: {
                             "Content-Type": "application/json",
@@ -101,7 +101,7 @@ export default class Mcp {
         if (typeof cookie === "string" && typeof sessionId === "string") {
             return instance.api
                 .post(
-                    "/rcp",
+                    "/rpc",
                     {
                         headers: {
                             "Content-Type": "application/json",
@@ -148,20 +148,20 @@ export default class Mcp {
     };
 
     api = (): void => {
-        this.app.post("/rcp", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.post("/rpc", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
 
             if (request.body.method === "initialize") {
                 const sessionIdNew = helperSrc.generateUniqueId();
 
-                const rcp = new StreamableHTTPServerTransport({
+                const rpc = new StreamableHTTPServerTransport({
                     sessionIdGenerator: () => sessionIdNew,
                     enableJsonResponse: true
                 });
 
                 this.sessionObject[sessionIdNew] = {
                     ...this.sessionObject[sessionIdNew],
-                    rcp
+                    rpc
                 };
 
                 const server = new McpServer({
@@ -171,13 +171,13 @@ export default class Mcp {
 
                 this.toolRegistartion(server);
 
-                await server.connect(rcp);
+                await server.connect(rpc);
 
-                await this.sessionObject[sessionIdNew].rcp.handleRequest(request, response, request.body);
+                await this.sessionObject[sessionIdNew].rpc.handleRequest(request, response, request.body);
 
                 return;
             } else if (typeof sessionId === "string" && request.body.method === "terminate") {
-                this.sessionObject[sessionId].rcp.close();
+                this.sessionObject[sessionId].rpc.close();
 
                 helperSrc.responseBody(sessionId, "", response, 200);
 
@@ -185,21 +185,21 @@ export default class Mcp {
             }
 
             if (typeof sessionId === "string") {
-                await this.sessionObject[sessionId].rcp.handleRequest(request, response, request.body);
+                await this.sessionObject[sessionId].rpc.handleRequest(request, response, request.body);
             } else {
-                helperSrc.writeLog("Mcp.ts - api() - post(/rcp) - Error", "Session ID is missing or invalid.");
+                helperSrc.writeLog("Mcp.ts - api() - post(/rpc) - Error", "Session ID is missing or invalid.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
         });
 
-        this.app.get("/rcp", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.get("/rpc", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
 
             if (typeof sessionId === "string") {
-                await this.sessionObject[sessionId].rcp.handleRequest(request, response);
+                await this.sessionObject[sessionId].rpc.handleRequest(request, response);
             } else {
-                helperSrc.writeLog("Mcp.ts - api() - get(/rcp) - Error", "Session ID is missing or invalid.");
+                helperSrc.writeLog("Mcp.ts - api() - get(/rpc) - Error", "Session ID is missing or invalid.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
@@ -225,7 +225,7 @@ export default class Mcp {
                 } else {
                     instance.api
                         .post<string>(
-                            "/rcp",
+                            "/rpc",
                             {
                                 headers: {
                                     "Content-Type": "application/json",
@@ -240,7 +240,7 @@ export default class Mcp {
                             helperSrc.responseBody(result, "", response, 200);
                         })
                         .catch((error: Error) => {
-                            helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-call) - post(/rcp) - catch()", error);
+                            helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-call) - post(/rpc) - catch()", error);
 
                             helperSrc.responseBody("", "ko", response, 500);
                         });
@@ -283,7 +283,7 @@ export default class Mcp {
 
                             ocrResult = await runtime.ocrExecute(sessionId, "-", `${sessionId}.jpg`, "-", "data");
 
-                            await new Promise((resolve) => setTimeout(resolve, 3000));
+                            await new Promise((resolve) => setTimeout(resolve, 1000));
                         }
                     }
 

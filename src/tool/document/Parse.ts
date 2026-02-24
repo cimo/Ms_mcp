@@ -16,10 +16,15 @@ export const execute = (fileName: string): Promise<string> => {
                 });
 
                 const result = await parseOffice(resultFileReadStream, {
-                    extractAttachments: true
+                    newlineDelimiter: "\n\n",
+                    extractAttachments: false,
+                    ocr: false,
+                    ocrLanguage: ""
                 });
 
                 resolve(JSON.stringify(result));
+
+                return;
             }
         });
     });

@@ -31,7 +31,7 @@ export default class Browser {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    result = await runtime.chromeExecute(extra.sessionId, argument.url);
+                    await runtime.chromeExecute(extra.sessionId, argument.url);
                 }
             }
 
