@@ -48,10 +48,12 @@ src/tool/*
 !src/tool/document
 !src/tool/math
 !src/tool/ocr
+!src/tool/rag
 !src/tool/.gitkeep
 !src/tool/Automate.ts
 !src/tool/Browser.ts
 !src/tool/Document.ts
 !src/tool/Math.ts
 !src/tool/Ocr.ts
+!src/tool/Rag.ts
 package-lock.json

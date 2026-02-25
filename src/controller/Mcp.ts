@@ -15,6 +15,7 @@ import ToolAutomate from "../tool/Automate.js";
 import ToolBrowser from "../tool/Browser.js";
 import ToolDocument from "../tool/Document.js";
 import ToolOcr from "../tool/Ocr.js";
+import ToolRag from "../tool/Rag.js";
 
 export default class Mcp {
     // Variable
@@ -31,6 +32,7 @@ export default class Mcp {
     private toolBrowser: ToolBrowser;
     private toolDocument: ToolDocument;
     private toolOcr: ToolOcr;
+    private toolRag: ToolRag;
 
     // Method
     constructor(app: Express.Express, limiter: RateLimitRequestHandler, sessionObject: Record<string, modelServer.Isession>) {
@@ -47,6 +49,7 @@ export default class Mcp {
         this.toolBrowser = new ToolBrowser(this.sessionObject);
         this.toolDocument = new ToolDocument(this.sessionObject);
         this.toolOcr = new ToolOcr(this.sessionObject);
+        this.toolRag = new ToolRag(this.sessionObject);
     }
 
     login = async (response: Response): Promise<string> => {
@@ -145,6 +148,7 @@ export default class Mcp {
         server.registerTool(this.toolBrowser.chromeExecute().name, this.toolBrowser.chromeExecute().config, this.toolBrowser.chromeExecute().content);
         server.registerTool(this.toolDocument.parse().name, this.toolDocument.parse().config, this.toolDocument.parse().content);
         server.registerTool(this.toolOcr.execute().name, this.toolOcr.execute().config, this.toolOcr.execute().content);
+        server.registerTool(this.toolRag.execute().name, this.toolRag.execute().config, this.toolRag.execute().content);
     };
 
     api = (): void => {
