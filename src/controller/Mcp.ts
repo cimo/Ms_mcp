@@ -11,11 +11,8 @@ import * as modelServer from "../model/Server.js";
 import * as modelMcp from "../model/Mcp.js";
 import ControllerUpload from "./Upload.js";
 import ToolMath from "../tool/Math.js";
-import ToolAutomate from "../tool/Automate.js";
-import ToolBrowser from "../tool/Browser.js";
 import ToolDocument from "../tool/Document.js";
 import ToolOcr from "../tool/Ocr.js";
-import ToolRag from "../tool/Rag.js";
 
 export default class Mcp {
     // Variable
@@ -28,11 +25,8 @@ export default class Mcp {
     private serverVersion: string;
 
     private toolMath: ToolMath;
-    private toolAutomate: ToolAutomate;
-    private toolBrowser: ToolBrowser;
     private toolDocument: ToolDocument;
     private toolOcr: ToolOcr;
-    private toolRag: ToolRag;
 
     // Method
     constructor(app: Express.Express, limiter: RateLimitRequestHandler, sessionObject: Record<string, modelServer.Isession>) {
@@ -45,11 +39,8 @@ export default class Mcp {
         this.serverVersion = "1.0.0";
 
         this.toolMath = new ToolMath(this.sessionObject);
-        this.toolAutomate = new ToolAutomate(this.sessionObject);
-        this.toolBrowser = new ToolBrowser(this.sessionObject);
         this.toolDocument = new ToolDocument(this.sessionObject);
         this.toolOcr = new ToolOcr(this.sessionObject);
-        this.toolRag = new ToolRag(this.sessionObject);
     }
 
     login = async (response: Response): Promise<string> => {
@@ -142,16 +133,11 @@ export default class Mcp {
 
     toolRegistartion = (server: McpServer): void => {
         server.registerTool(this.toolMath.expression().name, this.toolMath.expression().config, this.toolMath.expression().content);
-        server.registerTool(this.toolAutomate.screenshot().name, this.toolAutomate.screenshot().config, this.toolAutomate.screenshot().content);
-        server.registerTool(this.toolAutomate.mouseMove().name, this.toolAutomate.mouseMove().config, this.toolAutomate.mouseMove().content);
-        server.registerTool(this.toolAutomate.mouseClick().name, this.toolAutomate.mouseClick().config, this.toolAutomate.mouseClick().content);
-        server.registerTool(this.toolBrowser.chromeExecute().name, this.toolBrowser.chromeExecute().config, this.toolBrowser.chromeExecute().content);
         server.registerTool(this.toolDocument.parse().name, this.toolDocument.parse().config, this.toolDocument.parse().content);
         server.registerTool(this.toolOcr.execute().name, this.toolOcr.execute().config, this.toolOcr.execute().content);
-        server.registerTool(this.toolRag.execute().name, this.toolRag.execute().config, this.toolRag.execute().content);
     };
 
-    api = (): void => {
+    rpc = (): void => {
         this.app.post("/rpc", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
 
@@ -208,47 +194,48 @@ export default class Mcp {
                 helperSrc.responseBody("", "ko", response, 500);
             }
         });
+    };
+
+    api = (): void => {
+        this.app.post("/api/upload", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            this.controllerUpload
+                .execute(request, true)
+                .then((result) => {
+                    helperSrc.responseBody(result[0].fileName, "", response, 200);
+                })
+                .catch((error: Error) => {
+                    helperSrc.writeLog("Mcp.ts - api() - post(/api/upload) - controllerUpload - execute() - catch()", error);
+
+                    helperSrc.responseBody("", "ko", response, 500);
+                });
+        });
 
         this.app.post("/api/tool-call", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            const contentType = request.headers["content-type"];
             const cookie = request.headers["cookie"];
             const sessionId = request.headers["mcp-session-id"];
 
-            if (typeof contentType === "string" && typeof cookie === "string" && typeof sessionId === "string") {
-                if (contentType.includes("multipart/form-data")) {
-                    this.controllerUpload
-                        .execute(request, true)
-                        .then(() => {
-                            helperSrc.responseBody("ok", "", response, 200);
-                        })
-                        .catch((error: Error) => {
-                            helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-call) - controllerUpload - execute() - catch()", error);
+            if (typeof cookie === "string" && typeof sessionId === "string") {
+                instance.api
+                    .post<string>(
+                        "/rpc",
+                        {
+                            headers: {
+                                "Content-Type": "application/json",
+                                Accept: "application/json, text/event-stream",
+                                Cookie: cookie,
+                                "mcp-session-id": sessionId
+                            }
+                        },
+                        request.body
+                    )
+                    .then((result) => {
+                        helperSrc.responseBody(result, "", response, 200);
+                    })
+                    .catch((error: Error) => {
+                        helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-call) - post(/rpc) - catch()", error);
 
-                            helperSrc.responseBody("", "ko", response, 500);
-                        });
-                } else {
-                    instance.api
-                        .post<string>(
-                            "/rpc",
-                            {
-                                headers: {
-                                    "Content-Type": "application/json",
-                                    Accept: "application/json, text/event-stream",
-                                    Cookie: cookie,
-                                    "mcp-session-id": sessionId
-                                }
-                            },
-                            request.body
-                        )
-                        .then((result) => {
-                            helperSrc.responseBody(result, "", response, 200);
-                        })
-                        .catch((error: Error) => {
-                            helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-call) - post(/rpc) - catch()", error);
-
-                            helperSrc.responseBody("", "ko", response, 500);
-                        });
-                }
+                        helperSrc.responseBody("", "ko", response, 500);
+                    });
             } else {
                 helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-call) - Error", "Missing or invalid headers.");
 
@@ -258,14 +245,13 @@ export default class Mcp {
 
         this.app.post("/api/tool-task", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
+            const body = request.body as modelMcp.ItoolTask;
 
             if (typeof sessionId === "string") {
                 const runtime = this.sessionObject[sessionId].runtime;
 
                 if (runtime) {
                     if (typeof request.body === "object") {
-                        const body = request.body as modelMcp.ItoolTask;
-
                         for (const step of body.stepList) {
                             if (step.action === "chrome_execute") {
                                 await runtime.chromeExecute(sessionId, step.argumentObject["url"]);

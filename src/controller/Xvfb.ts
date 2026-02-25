@@ -43,13 +43,13 @@ export default class Xvfb {
 
         if (runtimeWorker.stdout) {
             runtimeWorker.stdout.on("data", (buffer: Buffer) => {
-                helperSrc.writeLog("Xvfb.ts - start() - runtimeWorker - stdout", buffer.toString("utf8"));
+                helperSrc.writeLog("RuntimeWorker - stdout", buffer.toString("utf8"));
             });
         }
 
         if (runtimeWorker.stderr) {
             runtimeWorker.stderr.on("data", (buffer: Buffer) => {
-                helperSrc.writeLog("Xvfb.ts - start() - runtimeWorker - stderr", buffer.toString("utf8"));
+                helperSrc.writeLog("RuntimeWorker - stderr", buffer.toString("utf8"));
             });
         }
 

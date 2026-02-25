@@ -92,6 +92,7 @@ export default class Server {
 
         server.listen(helperSrc.SERVER_PORT, () => {
             const controllerMcp = new ControllerMcp(this.app, this.limiter, this.sessionObject);
+            controllerMcp.rpc();
             controllerMcp.api();
 
             const controllerXvfb = new ControllerXvfb(this.sessionObject);
