@@ -13,6 +13,7 @@ import ControllerUpload from "./Upload.js";
 import ToolMath from "../tool/Math.js";
 import ToolDocument from "../tool/Document.js";
 import ToolOcr from "../tool/Ocr.js";
+import ToolRag from "../tool/Rag.js";
 
 export default class Mcp {
     // Variable
@@ -27,6 +28,7 @@ export default class Mcp {
     private toolMath: ToolMath;
     private toolDocument: ToolDocument;
     private toolOcr: ToolOcr;
+    private toolRag: ToolRag;
 
     // Method
     constructor(app: Express.Express, limiter: RateLimitRequestHandler, sessionObject: Record<string, modelServer.Isession>) {
@@ -41,6 +43,7 @@ export default class Mcp {
         this.toolMath = new ToolMath(this.sessionObject);
         this.toolDocument = new ToolDocument(this.sessionObject);
         this.toolOcr = new ToolOcr(this.sessionObject);
+        this.toolRag = new ToolRag(this.sessionObject);
     }
 
     login = async (response: Response): Promise<string> => {
@@ -79,7 +82,7 @@ export default class Mcp {
                     return sessionId ? sessionId : "";
                 })
                 .catch((error: Error) => {
-                    helperSrc.writeLog("Mcp.ts - login() - catch()", error);
+                    helperSrc.writeLog("Mcp.ts - login() - catch()", error.message);
 
                     return "ko";
                 });
@@ -122,7 +125,7 @@ export default class Mcp {
                     return sessionId;
                 })
                 .catch((error: Error) => {
-                    helperSrc.writeLog("Mcp.ts - logout() - catch()", error);
+                    helperSrc.writeLog("Mcp.ts - logout() - catch()", error.message);
 
                     return "ko";
                 });
@@ -135,6 +138,7 @@ export default class Mcp {
         server.registerTool(this.toolMath.expression().name, this.toolMath.expression().config, this.toolMath.expression().content);
         server.registerTool(this.toolDocument.parse().name, this.toolDocument.parse().config, this.toolDocument.parse().content);
         server.registerTool(this.toolOcr.execute().name, this.toolOcr.execute().config, this.toolOcr.execute().content);
+        server.registerTool(this.toolRag.search().name, this.toolRag.search().config, this.toolRag.search().content);
     };
 
     rpc = (): void => {
@@ -198,16 +202,67 @@ export default class Mcp {
 
     api = (): void => {
         this.app.post("/api/upload", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            this.controllerUpload
-                .execute(request, true)
-                .then((result) => {
-                    helperSrc.responseBody(result[0].fileName, "", response, 200);
-                })
-                .catch((error: Error) => {
-                    helperSrc.writeLog("Mcp.ts - api() - post(/api/upload) - controllerUpload - execute() - catch()", error);
+            const sessionId = request.headers["mcp-session-id"];
 
-                    helperSrc.responseBody("", "ko", response, 500);
-                });
+            if (typeof sessionId === "string") {
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/`;
+
+                this.controllerUpload
+                    .execute(request, true, input)
+                    .then((result) => {
+                        const fileName = result[0].fileName;
+
+                        const fileExtension = fileName.split(".").pop();
+
+                        if (fileExtension && fileExtension.toLowerCase() === "pdf") {
+                            this.toolDocument
+                                .parse()
+                                .content({ fileName, format: "markdown" }, { sessionId })
+                                .then((resultDocumentParse) => {
+                                    this.toolRag
+                                        .store()
+                                        .content({ text: resultDocumentParse.content[0].text }, { sessionId })
+                                        .then(() => {
+                                            const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${fileName}.lock`;
+
+                                            helperSrc.fileWriteStream(input, Buffer.from([]), () => {});
+                                        });
+                                });
+                        }
+
+                        helperSrc.responseBody(fileName, "", response, 200);
+                    })
+                    .catch((error: Error) => {
+                        helperSrc.writeLog("Mcp.ts - api() - post(/api/upload) - controllerUpload - execute() - catch()", error.message);
+
+                        helperSrc.responseBody("", "ko", response, 500);
+                    });
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/upload) - Error", "Missing or invalid headers.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
+        this.app.post("/api/tool-rag", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            let result = "";
+
+            const sessionId = request.headers["mcp-session-id"];
+            const body: modelMcp.ItoolRag = request.body;
+
+            if (typeof sessionId === "string") {
+                body.fileName = "";
+
+                const resultSearch = await this.toolRag.search().content({ text: body.input }, { sessionId });
+
+                result = resultSearch.content[0].text;
+
+                helperSrc.responseBody(result, "", response, 200);
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-rag) - Error", "Missing or invalid headers.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
         });
 
         this.app.post("/api/tool-call", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
@@ -232,7 +287,7 @@ export default class Mcp {
                         helperSrc.responseBody(result, "", response, 200);
                     })
                     .catch((error: Error) => {
-                        helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-call) - post(/rpc) - catch()", error);
+                        helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-call) - post(/rpc) - catch()", error.message);
 
                         helperSrc.responseBody("", "ko", response, 500);
                     });

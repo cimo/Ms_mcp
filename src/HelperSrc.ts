@@ -133,7 +133,7 @@ export const writeLog = (tag: string, value: string | Record<string, unknown> | 
 export const keepProcess = (): void => {
     for (const event of ["uncaughtException", "unhandledRejection"]) {
         process.on(event, (error: Error) => {
-            writeLog("HelperSrc.ts - keepProcess()", `Event: "${event}" - ${error.toString()}`);
+            writeLog("HelperSrc.ts - keepProcess()", `Event: "${event}" - ${error.message}`);
         });
     }
 };

@@ -15,7 +15,8 @@ export default class Document {
         this.sessionObject = sessionObject;
 
         this.inputSchema = z.object({
-            fileName: z.string().describe("File name.")
+            fileName: z.string().describe("File name."),
+            format: z.enum(["json", "markdown"]).describe("Output format.")
         });
     }
 
@@ -31,7 +32,7 @@ export default class Document {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                result = await documentParse.execute(argument.fileName);
+                result = await documentParse.execute(argument.fileName, argument.format, extra.sessionId);
             }
 
             return {

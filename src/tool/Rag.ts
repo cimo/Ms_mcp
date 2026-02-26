@@ -15,14 +15,18 @@ export default class Rag {
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchema = z.object({});
+        this.inputSchema = z.object({
+            text: z.string().describe("Input text.")
+        });
+
+        ragEmbedding.createDatabase();
     }
 
-    execute = () => {
-        const name = "rag_embedding";
+    store = () => {
+        const name = "rag_store";
 
         const config = {
-            description: "Embedding text data.",
+            description: "Store file content in the vector database converted with the embedding model.",
             inputSchema: this.inputSchema
         };
 
@@ -32,7 +36,37 @@ export default class Rag {
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const uniqueId = helperSrc.generateUniqueId();
 
-                await ragEmbedding.execute(extra.sessionId, uniqueId, result);
+                await ragEmbedding.store(extra.sessionId, uniqueId, argument.text);
+            }
+
+            return {
+                content: [
+                    {
+                        type: "text" as const,
+                        text: result
+                    }
+                ]
+            };
+        };
+
+        return { name, config, content };
+    };
+
+    search = () => {
+        const name = "rag_search";
+
+        const config = {
+            description: "Search text in the vector database converted with the embedding model.",
+            inputSchema: this.inputSchema
+        };
+
+        const content = async (argument: z.infer<typeof this.inputSchema>, extra: { sessionId?: string }) => {
+            let result = "";
+
+            if (extra.sessionId && this.sessionObject[extra.sessionId]) {
+                const uniqueId = helperSrc.generateUniqueId();
+
+                result = await ragEmbedding.search(extra.sessionId, uniqueId, argument.text);
             }
 
             return {

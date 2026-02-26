@@ -9,11 +9,35 @@ export default class Upload {
     // Variable
 
     // Method
-    constructor() {
-        //...
-    }
+    private checkRequest = (formDataList: CfdpModel.Iinput[]): string => {
+        let result = "";
 
-    execute = (request: Request, isFileExists: boolean): Promise<CfdpModel.Iinput[]> => {
+        const parameterList: string[] = [];
+
+        for (const formData of formDataList) {
+            parameterList.push(formData.name);
+
+            if (formData.name === "file") {
+                if (formData.fileName === "" || formData.mimeType === "" || formData.size === "") {
+                    result += "File input empty.";
+                } else if (!helperSrc.fileCheckMimeType(formData.mimeType)) {
+                    result += "Mime type are not allowed.";
+                } else if (!helperSrc.fileCheckSize(parseInt(formData.size))) {
+                    result += "File size exceeds limit.";
+                }
+            }
+        }
+
+        if (!parameterList.includes("file")) {
+            result += "Parameter 'file' is missing.";
+        }
+
+        return result;
+    };
+
+    constructor() {}
+
+    execute = (request: Request, isFileExists: boolean, path: string): Promise<CfdpModel.Iinput[]> => {
         return new Promise((resolve, reject) => {
             const chunkList: Buffer[] = [];
 
@@ -32,7 +56,17 @@ export default class Upload {
                 if (resultCheckRequest === "") {
                     for (const formData of formDataList) {
                         if (formData.name === "file" && formData.fileName && formData.buffer) {
-                            const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${formData.fileName}`;
+                            const input = `${path}${formData.fileName}`;
+
+                            Fs.mkdir(`${path}`, { recursive: true }, (error) => {
+                                if (error) {
+                                    helperSrc.writeLog("Upload.ts - execute() - request.on() - mkdir() - Error", error.message);
+
+                                    reject(new Error("Directory creation failed."));
+
+                                    return;
+                                }
+                            });
 
                             if (isFileExists) {
                                 Fs.access(input, Fs.constants.F_OK, (error) => {
@@ -79,36 +113,12 @@ export default class Upload {
             });
 
             request.on("error", (error: Error) => {
+                helperSrc.writeLog("Upload.ts - execute() - request.on() - Error", error.message);
+
                 reject(error);
 
                 return;
             });
         });
-    };
-
-    private checkRequest = (formDataList: CfdpModel.Iinput[]): string => {
-        let result = "";
-
-        const parameterList: string[] = [];
-
-        for (const formData of formDataList) {
-            parameterList.push(formData.name);
-
-            if (formData.name === "file") {
-                if (formData.fileName === "" || formData.mimeType === "" || formData.size === "") {
-                    result += "File input empty.";
-                } else if (!helperSrc.fileCheckMimeType(formData.mimeType)) {
-                    result += "Mime type are not allowed.";
-                } else if (!helperSrc.fileCheckSize(parseInt(formData.size))) {
-                    result += "File size exceeds limit.";
-                }
-            }
-        }
-
-        if (!parameterList.includes("file")) {
-            result += "Parameter 'file' is missing.";
-        }
-
-        return result;
     };
 }

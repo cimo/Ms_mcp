@@ -11,6 +11,11 @@ export interface IruntimeWorkerMessageData {
     argumentList: unknown[];
 }
 
+export interface ItoolRag {
+    fileName: string;
+    input: string;
+}
+
 export interface ItoolTask {
     stepList: [
         {

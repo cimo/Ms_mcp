@@ -21,7 +21,7 @@ const login = async (): Promise<string> => {
             result = JSON.stringify(resultApi, null, 2);
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Extract.ts - login() - api(/login) - catch()", error);
+            helperSrc.writeLog("Extract.ts - login() - api(/login) - catch()", error.message);
 
             result = "ko";
         });
@@ -88,7 +88,7 @@ const extract = async (language: string, fileName: string, searchText: string, m
                         return;
                     })
                     .catch((error: Error) => {
-                        helperSrc.writeLog("Extract.ts - extract() - api(/extract) - catch()", error);
+                        helperSrc.writeLog("Extract.ts - extract() - api(/extract) - catch()", error.message);
 
                         reject("ko");
 
@@ -116,7 +116,7 @@ const logout = async (): Promise<string> => {
             result = JSON.stringify(resultApi, null, 2);
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Extract.ts - logout() - api(/logout) - catch()", error);
+            helperSrc.writeLog("Extract.ts - logout() - api(/logout) - catch()", error.message);
 
             result = "ko";
         });

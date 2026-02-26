@@ -7,7 +7,7 @@ import * as modelHelperSrc from "../../model/HelperSrc.js";
 import * as instance from "./Instance.js";
 import * as model from "./Model.js";
 
-const db: DatabaseSync = new DatabaseSync(":memory:", { allowExtension: true });
+let db: DatabaseSync | null = null;
 
 // Method
 const login = async (uniqueId: string): Promise<string> => {
@@ -28,7 +28,7 @@ const login = async (uniqueId: string): Promise<string> => {
             result = JSON.stringify(resultApi, null, 2);
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Rag.ts - login() - api(/login) - catch()", error);
+            helperSrc.writeLog("Rag.ts - login() - api(/login) - catch()", error.message);
 
             result = "ko";
         });
@@ -56,25 +56,28 @@ const embedding = async (uniqueId: string, text: string | string[]): Promise<mod
             result = JSON.parse(resultEmbedding.response.stdout) as model.IapiEmbeddingData[];
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Rag.ts - embedding() - catch()", error);
+            helperSrc.writeLog("Rag.ts - embedding() - catch()", error.message);
         });
 
     return result;
 };
 
 const createTable = async (tableName: string): Promise<void> => {
-    db.exec(`CREATE VIRTUAL TABLE "${tableName}" USING vec0(id INTEGER PRIMARY KEY, chunk TEXT NOT NULL, embedding float[768])`);
+    if (db) {
+        db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS "${tableName}" USING vec0(id INTEGER PRIMARY KEY, chunk TEXT NOT NULL, embedding float[768])`);
+    }
 };
 
 const insert = (tableName: string, chunk: string, embedding: number[]): void => {
-    const insertEmbedding = db.prepare(`INSERT INTO "${tableName}" (chunk, embedding) VALUES (?, ?)`);
+    if (db) {
+        const insertEmbedding = db.prepare(`INSERT INTO "${tableName}" (chunk, embedding) VALUES (?, ?)`);
 
-    const embeddingBlob = new Uint8Array(new Float32Array(embedding).buffer);
-    insertEmbedding.run(chunk, embeddingBlob);
+        insertEmbedding.run(chunk, new Uint8Array(new Float32Array(embedding).buffer));
+    }
 };
 
 const chunkLength = async (tableName: string, uniqueId: string, text: string): Promise<void> => {
-    const chunkLength = 100;
+    const chunkLength = 2000;
 
     for (let a = 0; a < text.length; a += chunkLength) {
         const chunk = text.substring(a, a + chunkLength);
@@ -101,7 +104,7 @@ const logout = async (uniqueId: string): Promise<string> => {
             result = JSON.stringify(resultApi, null, 2);
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Rag.ts - logout() - api(/logout) - catch()", error);
+            helperSrc.writeLog("Rag.ts - logout() - api(/logout) - catch()", error.message);
 
             result = "ko";
         });
@@ -109,43 +112,54 @@ const logout = async (uniqueId: string): Promise<string> => {
     return result;
 };
 
-export const loadDatabase = (): void => {
+export const createDatabase = (): void => {
+    db = new DatabaseSync(":memory:", { allowExtension: true });
     sqliteVec.load(db);
 
     const row = db.prepare("SELECT sqlite_version() AS sqlite_version, vec_version() AS vec_version;").get();
 
     if (row) {
-        helperSrc.writeLog("Rag.ts - loadDatabase()", `Sqlite version: ${row["sqlite_version"]} Vec version: ${row["vec_version"]}`);
+        helperSrc.writeLog("Rag.ts - createDatabase()", `Sqlite version: ${row["sqlite_version"]} - Vec version: ${row["vec_version"]}`);
     }
 };
 
-export const execute = async (tableName: string, uniqueId: string, result: string): Promise<void> => {
+export const store = async (tableName: string, uniqueId: string, text: string): Promise<void> => {
     await instance.runWithContext(async () => {
         await login(uniqueId);
 
         await createTable(tableName);
 
-        await chunkLength(tableName, uniqueId, result);
+        await chunkLength(tableName, uniqueId, text);
 
         await logout(uniqueId);
     });
 };
 
-/*search = (tableName: string, embedding: number[]): string[] => {
-        const resultList: string[] = [];
-        const resultCount = 5;
+export const search = async (tableName: string, uniqueId: string, input: string): Promise<string> => {
+    return await instance.runWithContext(async () => {
+        const resultObject: Record<string, string> = {};
 
-        const queryBlob = new Uint8Array(new Float32Array(embedding).buffer);
+        await login(uniqueId);
 
-        const selectResult = db
-            .prepare(`SELECT chunk FROM "${tableName}" WHERE embedding MATCH ? ORDER BY distance LIMIT ${resultCount}`)
-            .all(queryBlob);
+        const data = await embedding(uniqueId, input);
 
-        for (const row of selectResult) {
-            if (row["chunk"]) {
-                resultList.push(row["chunk"] as string);
+        const queryBlob = new Uint8Array(new Float32Array(data[0].embedding).buffer);
+
+        if (db) {
+            const querySelect = db.prepare(`SELECT chunk FROM "${tableName}" WHERE embedding MATCH ? ORDER BY distance LIMIT 5`).all(queryBlob);
+
+            let counter = 0;
+            for (const row of querySelect) {
+                if (row["chunk"]) {
+                    counter++;
+
+                    resultObject[`citation ${counter}`] = row["chunk"] as string;
+                }
             }
         }
 
-        return resultList;
-    };*/
+        await logout(uniqueId);
+
+        return JSON.stringify(resultObject);
+    });
+};
