@@ -244,27 +244,6 @@ export default class Mcp {
             }
         });
 
-        this.app.post("/api/tool-rag", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            let result = "";
-
-            const sessionId = request.headers["mcp-session-id"];
-            const body: modelMcp.ItoolRag = request.body;
-
-            if (typeof sessionId === "string") {
-                body.fileName = "";
-
-                const resultSearch = await this.toolRag.search().content({ text: body.input }, { sessionId });
-
-                result = resultSearch.content[0].text;
-
-                helperSrc.responseBody(result, "", response, 200);
-            } else {
-                helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-rag) - Error", "Missing or invalid headers.");
-
-                helperSrc.responseBody("", "ko", response, 500);
-            }
-        });
-
         this.app.post("/api/tool-call", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const cookie = request.headers["cookie"];
             const sessionId = request.headers["mcp-session-id"];
