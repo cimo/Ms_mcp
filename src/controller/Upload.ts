@@ -74,33 +74,21 @@ export default class Upload {
                                         reject(new Error("File exists."));
 
                                         return;
-                                    } else {
-                                        helperSrc.fileWriteStream(input, formData.buffer, (resultFileWriteStream) => {
-                                            if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
-                                                resolve(formDataList);
-
-                                                return;
-                                            } else {
-                                                reject(new Error("File write failed."));
-
-                                                return;
-                                            }
-                                        });
-                                    }
-                                });
-                            } else {
-                                helperSrc.fileWriteStream(input, formData.buffer, (resultFileWriteStream) => {
-                                    if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
-                                        resolve(formDataList);
-
-                                        return;
-                                    } else {
-                                        reject(new Error("File write failed."));
-
-                                        return;
                                     }
                                 });
                             }
+
+                            helperSrc.fileWriteStream(input, formData.buffer, (resultFileWriteStream) => {
+                                if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
+                                    resolve(formDataList);
+
+                                    return;
+                                } else {
+                                    reject(new Error("File write failed."));
+
+                                    return;
+                                }
+                            });
 
                             break;
                         }

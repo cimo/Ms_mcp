@@ -173,6 +173,8 @@ export default class Mcp {
             } else if (typeof sessionId === "string" && request.body.method === "terminate") {
                 this.sessionObject[sessionId].rpc.close();
 
+                this.toolRag.remove().content({}, { sessionId });
+
                 helperSrc.responseBody(sessionId, "", response, 200);
 
                 return;
@@ -221,7 +223,7 @@ export default class Mcp {
                                 .then((resultDocumentParse) => {
                                     this.toolRag
                                         .store()
-                                        .content({ text: resultDocumentParse.content[0].text }, { sessionId })
+                                        .content({ fileContent: resultDocumentParse.content[0].text }, { sessionId })
                                         .then(() => {
                                             const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${fileName}.lock`;
 

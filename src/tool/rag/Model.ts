@@ -7,3 +7,8 @@ export interface IapiEmbeddingData {
     embedding: number[];
     index: number;
 }
+
+export type TsemanticChunkOption = {
+    maxChars: number;
+    overlapSentences?: number;
+};

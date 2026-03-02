@@ -9,15 +9,23 @@ export default class Rag {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
-    private inputSchema;
+    private inputSchemaStore;
+    private inputSchemaSearch;
+    private inputSchemaDelete;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchema = z.object({
-            text: z.string().describe("Input text.")
+        this.inputSchemaStore = z.object({
+            fileContent: z.string().describe("File content.")
         });
+
+        this.inputSchemaSearch = z.object({
+            input: z.string().describe("Input prompt.")
+        });
+
+        this.inputSchemaDelete = z.object({});
 
         ragEmbedding.createDatabase();
     }
@@ -27,16 +35,16 @@ export default class Rag {
 
         const config = {
             description: "Store file content in the vector database converted with the embedding model.",
-            inputSchema: this.inputSchema
+            inputSchema: this.inputSchemaStore
         };
 
-        const content = async (argument: z.infer<typeof this.inputSchema>, extra: { sessionId?: string }) => {
+        const content = async (argument: z.infer<typeof this.inputSchemaStore>, extra: { sessionId?: string }) => {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const uniqueId = helperSrc.generateUniqueId();
 
-                await ragEmbedding.store(extra.sessionId, uniqueId, argument.text);
+                await ragEmbedding.store(extra.sessionId, uniqueId, argument.fileContent);
             }
 
             return {
@@ -57,16 +65,44 @@ export default class Rag {
 
         const config = {
             description: "Search text in the vector database converted with the embedding model.",
-            inputSchema: this.inputSchema
+            inputSchema: this.inputSchemaSearch
         };
 
-        const content = async (argument: z.infer<typeof this.inputSchema>, extra: { sessionId?: string }) => {
+        const content = async (argument: z.infer<typeof this.inputSchemaSearch>, extra: { sessionId?: string }) => {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const uniqueId = helperSrc.generateUniqueId();
 
-                result = await ragEmbedding.search(extra.sessionId, uniqueId, argument.text);
+                result = await ragEmbedding.search(extra.sessionId, uniqueId, argument.input);
+            }
+
+            return {
+                content: [
+                    {
+                        type: "text" as const,
+                        text: result
+                    }
+                ]
+            };
+        };
+
+        return { name, config, content };
+    };
+
+    remove = () => {
+        const name = "rag_delete_table";
+
+        const config = {
+            description: "Remove the table with the file content in the vector database.",
+            inputSchema: this.inputSchemaDelete
+        };
+
+        const content = async (argument: z.infer<typeof this.inputSchemaDelete>, extra: { sessionId?: string }) => {
+            let result = "";
+
+            if (extra.sessionId && this.sessionObject[extra.sessionId]) {
+                ragEmbedding.remove(extra.sessionId);
             }
 
             return {

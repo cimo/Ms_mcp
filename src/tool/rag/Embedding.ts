@@ -6,6 +6,7 @@ import * as helperSrc from "../../HelperSrc.js";
 import * as modelHelperSrc from "../../model/HelperSrc.js";
 import * as instance from "./Instance.js";
 import * as model from "./Model.js";
+import * as semantic from "./Semantic.js";
 
 let db: DatabaseSync | null = null;
 
@@ -76,20 +77,6 @@ const insert = (tableName: string, chunk: string, embedding: number[]): void => 
     }
 };
 
-const chunkLength = async (tableName: string, uniqueId: string, text: string): Promise<void> => {
-    const chunkLength = 2000;
-
-    for (let a = 0; a < text.length; a += chunkLength) {
-        const chunk = text.substring(a, a + chunkLength);
-
-        const data = await embedding(uniqueId, chunk);
-
-        if (data[0].embedding.length > 0) {
-            insert(tableName, chunk, data[0].embedding);
-        }
-    }
-};
-
 const logout = async (uniqueId: string): Promise<string> => {
     let result = "";
 
@@ -123,13 +110,24 @@ export const createDatabase = (): void => {
     }
 };
 
-export const store = async (tableName: string, uniqueId: string, text: string): Promise<void> => {
+export const store = async (tableName: string, uniqueId: string, fileContent: string): Promise<void> => {
     await instance.runWithContext(async () => {
         await login(uniqueId);
 
         await createTable(tableName);
 
-        await chunkLength(tableName, uniqueId, text);
+        const chunkList = semantic.chunkList(fileContent, {
+            maxChars: 2000,
+            overlapSentences: 1
+        });
+
+        for (let chunk of chunkList) {
+            const data = await embedding(uniqueId, chunk);
+
+            if (data[0].embedding.length > 0) {
+                insert(tableName, chunk, data[0].embedding);
+            }
+        }
 
         await logout(uniqueId);
     });
@@ -162,4 +160,10 @@ export const search = async (tableName: string, uniqueId: string, input: string)
 
         return JSON.stringify(resultObject);
     });
+};
+
+export const remove = async (tableName: string): Promise<void> => {
+    if (db) {
+        db.exec(`DROP TABLE IF EXISTS "${tableName}"`);
+    }
 };
