@@ -72,7 +72,7 @@ process.on("message", async (data: modelMcp.IruntimeWorkerMessageData) => {
             });
 
         return;
-    } else if (data.tool === "chromeExecute") {
+    } else if (data.tool === "chrome") {
         await browserChrome
             .execute(data.argumentList[0] as string)
             .then(() => {
@@ -86,7 +86,7 @@ process.on("message", async (data: modelMcp.IruntimeWorkerMessageData) => {
                 resultProcess = { ...resultProcess, error: `Process ${data.tool} failed.` };
 
                 if (process.send) {
-                    helperSrc.writeLog("RuntimeWorker.ts - process.on(message) - chromeExecute - catch()", error.message);
+                    helperSrc.writeLog("RuntimeWorker.ts - process.on(message) - chrome - catch()", error.message);
 
                     process.send(resultProcess);
                 }
@@ -95,7 +95,13 @@ process.on("message", async (data: modelMcp.IruntimeWorkerMessageData) => {
         return;
     } else if (data.tool === "ocrExecute") {
         await ocrExtract
-            .execute(data.argumentList[0] as string, data.argumentList[1] as string, data.argumentList[2] as string, data.argumentList[3] as string)
+            .execute(
+                data.argumentList[0] as string,
+                data.argumentList[1] as string,
+                data.argumentList[2] as string,
+                data.argumentList[3] as string,
+                data.argumentList[4] as string
+            )
             .then((result) => {
                 resultProcess = { id: data.id, result };
 

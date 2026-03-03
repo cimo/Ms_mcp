@@ -2,27 +2,31 @@ import { z } from "zod";
 
 // Source
 import * as modelServer from "../model/Server.js";
+import * as modelMcp from "../model/Mcp.js";
 
 export default class Automate {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
     private inputSchemaScreenshot;
-    private inputSchemaMouseMove;
-    private inputSchemaMouseClick;
+    inputSchemaMouseMove;
+    inputSchemaMouseClick;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchemaScreenshot = z.object({});
-        this.inputSchemaMouseMove = z.object({ x: z.number().describe("X coordinate."), y: z.number().describe("Y coordinate.") });
+        this.inputSchemaScreenshot = z.object().default({}).describe("No input required.");
+        this.inputSchemaMouseMove = z.object({
+            x: z.number().default(0).describe("X coordinate."),
+            y: z.number().default(0).describe("Y coordinate.")
+        });
         this.inputSchemaMouseClick = z.object({
-            button: z.number().int().min(0).max(2).describe("Left: 0 - Middle: 1 - Right: 2")
+            button: z.number().int().min(0).max(2).default(0).describe("Left: 0 - Middle: 1 - Right: 2")
         });
     }
 
-    screenshot = () => {
+    screenshot = (): modelMcp.ItoolRpc<typeof this.inputSchemaScreenshot> => {
         const name = "automate_screenshot";
 
         const config = {
@@ -54,7 +58,7 @@ export default class Automate {
         return { name, config, content };
     };
 
-    mouseMove = () => {
+    mouseMove = (): modelMcp.ItoolRpc<typeof this.inputSchemaMouseMove> => {
         const name = "automate_mouse_move";
 
         const config = {
@@ -86,7 +90,7 @@ export default class Automate {
         return { name, config, content };
     };
 
-    mouseClick = () => {
+    mouseClick = (): modelMcp.ItoolRpc<typeof this.inputSchemaMouseClick> => {
         const name = "automate_mouse_click";
 
         const config = {

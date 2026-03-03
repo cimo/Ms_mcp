@@ -2,30 +2,31 @@ import { z } from "zod";
 
 // Source
 import * as modelServer from "../model/Server.js";
+import * as modelMcp from "../model/Mcp.js";
 
 export default class Ocr {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
-    private inputSchema;
+    inputSchema;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
         this.inputSchema = z.object({
-            language: z.string().optional().describe("Language of the text in the image."),
-            fileName: z.string().describe("Name of the image file."),
-            searchText: z.string().optional().describe("Text to search for in the image."),
-            mode: z.string().describe("Type of data to extract from the image.")
+            language: z.string().default("").describe("Language of the text in the image."),
+            fileName: z.string().default("").describe("Name of the image file."),
+            searchText: z.string().default("").describe("Text to search in the image."),
+            mode: z.string().default("data").describe("Type of data to extract from the image.")
         });
     }
 
-    execute = () => {
+    execute = (): modelMcp.ItoolRpc<typeof this.inputSchema> => {
         const name = "ocr_execute";
 
         const config = {
-            description: "Extract text from an image.",
+            description: "Extract data from an image.",
             inputSchema: this.inputSchema
         };
 
@@ -36,13 +37,7 @@ export default class Ocr {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    result = await runtime.ocrExecute(
-                        extra.sessionId,
-                        argument.language || "-",
-                        argument.fileName,
-                        argument.searchText || "-",
-                        argument.mode
-                    );
+                    result = await runtime.ocrExecute(extra.sessionId, argument.language, argument.fileName, argument.searchText, argument.mode);
                 }
             }
 

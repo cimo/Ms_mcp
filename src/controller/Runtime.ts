@@ -73,16 +73,16 @@ export default class Runtime {
         });
     }
 
-    async chromeExecute(sessionId: string, url: string): Promise<string> {
-        return this.callRuntimeWorker(sessionId, "chromeExecute", [url]).catch((error: Error) => {
-            helperSrc.writeLog("Runtime.ts - chromeExecute() - callRuntimeWorker() - catch()", error.message);
+    async chrome(sessionId: string, url: string): Promise<string> {
+        return this.callRuntimeWorker(sessionId, "chrome", [url]).catch((error: Error) => {
+            helperSrc.writeLog("Runtime.ts - chrome() - callRuntimeWorker() - catch()", error.message);
 
             return "ko";
         });
     }
 
     async ocrExecute(sessionId: string, language: string, fileName: string, searchText: string, mode: string): Promise<string> {
-        return this.callRuntimeWorker(sessionId, "ocrExecute", [language, fileName, searchText, mode]).catch((error: Error) => {
+        return this.callRuntimeWorker(sessionId, "ocrExecute", [language, fileName, searchText, mode, sessionId]).catch((error: Error) => {
             helperSrc.writeLog("Runtime.ts - ocrExecute() - callRuntimeWorker() - catch()", error.message);
 
             return "ko";

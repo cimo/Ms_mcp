@@ -1,25 +1,26 @@
 import { z } from "zod";
 
 // Source
-import * as mathExpression from "./math/Expression.js";
 import * as modelServer from "../model/Server.js";
+import * as modelMcp from "../model/Mcp.js";
+import * as mathExpression from "./math/Expression.js";
 
 export default class Math {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
-    private inputSchema;
+    inputSchema;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
         this.inputSchema = z.object({
-            input: z.string().describe("A math expression, example: '3 + 4 * (2 - 1) ^ 3 / 2'")
+            input: z.string().default("").describe("A math expression.")
         });
     }
 
-    expression = () => {
+    expression = (): modelMcp.ItoolRpc<typeof this.inputSchema> => {
         const name = "math_expression";
 
         const config = {

@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export interface IruntimeHandlerData {
     id: string;
     result?: string;
@@ -11,16 +13,25 @@ export interface IruntimeWorkerMessageData {
     argumentList: unknown[];
 }
 
-export interface ItoolRag {
-    fileName: string;
-    input: string;
+export interface ItoolRpc<TSchema extends z.ZodTypeAny> {
+    name: string;
+    config: {
+        description: string;
+        inputSchema: TSchema;
+    };
+    content: (
+        argument: z.infer<TSchema>,
+        extra: { sessionId?: string }
+    ) => Promise<{
+        content: Array<{ type: "text"; text: string }>;
+    }>;
+}
+
+export interface ItoolCall {
+    name: string;
+    argumentObject: Record<string, string>;
 }
 
 export interface ItoolTask {
-    stepList: [
-        {
-            action: string;
-            argumentObject: Record<string, string>;
-        }
-    ];
+    list: ItoolCall[];
 }

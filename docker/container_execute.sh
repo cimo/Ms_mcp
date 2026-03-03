@@ -3,7 +3,7 @@
 p1=$(printf '%s' "${1}" | xargs)
 p2=$(printf '%s' "${2}" | xargs)
 
-if [ -z "${p1}" ] || [ -z "${p2}" ]
+if [ "$#" -lt 2 ]
 then
     echo "container_execute.sh - Missing parameter."
 

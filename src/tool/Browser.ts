@@ -2,22 +2,23 @@ import { z } from "zod";
 
 // Source
 import * as modelServer from "../model/Server.js";
+import * as modelMcp from "../model/Mcp.js";
 
 export default class Browser {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
-    private inputSchema;
+    inputSchema;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchema = z.object({ url: z.string().describe("URL to open in the browser.") });
+        this.inputSchema = z.object({ url: z.string().default("").describe("URL to open in the browser.") });
     }
 
-    chromeExecute = () => {
-        const name = "chrome_execute";
+    chrome = (): modelMcp.ItoolRpc<typeof this.inputSchema> => {
+        const name = "chrome";
 
         const config = {
             description: "Open the browser chrome application.",
@@ -31,7 +32,7 @@ export default class Browser {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    await runtime.chromeExecute(extra.sessionId, argument.url);
+                    await runtime.chrome(extra.sessionId, argument.url);
                 }
             }
 

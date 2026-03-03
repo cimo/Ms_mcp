@@ -1,30 +1,31 @@
 import { z } from "zod";
 
 // Source
-import * as documentParse from "./document/Parse.js";
 import * as modelServer from "../model/Server.js";
+import * as modelMcp from "../model/Mcp.js";
+import * as documentParse from "./document/Parser.js";
 
 export default class Document {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
-    private inputSchema;
+    inputSchema;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
         this.inputSchema = z.object({
-            fileName: z.string().describe("File name."),
-            format: z.enum(["json", "markdown"]).describe("Output format.")
+            fileName: z.string().default("").describe("File name."),
+            format: z.enum(["json", "markdown"]).default("markdown").describe("Output format.")
         });
     }
 
-    parse = () => {
-        const name = "document_parse";
+    parser = (): modelMcp.ItoolRpc<typeof this.inputSchema> => {
+        const name = "document_parser";
 
         const config = {
-            description: "Parse document and extract data.",
+            description: "Parse docx, xlsx, pptx, pdf document and extract data in json or markdown.",
             inputSchema: this.inputSchema
         };
 

@@ -29,15 +29,15 @@ const login = async (): Promise<string> => {
     return result;
 };
 
-const extract = async (language: string, fileName: string, searchText: string, mode: string): Promise<model.ItoolOcrResult[]> => {
+const extract = async (language: string, fileName: string, searchText: string, mode: string, sessionId: string): Promise<model.ItoolOcrResult[]> => {
     return new Promise<model.ItoolOcrResult[]>((resolve, reject) => {
-        const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${fileName}`;
+        const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${fileName}`;
 
         helperSrc.fileReadStream(input, async (resultFileReadStream) => {
             if (Buffer.isBuffer(resultFileReadStream)) {
                 helperSrc.fileOrFolderRemove(input, (resultFileRemove) => {
                     if (typeof resultFileRemove !== "boolean") {
-                        helperSrc.writeLog("Extract.ts - extract() - fileReadStream() - fileOrFolderRemove(input)", resultFileRemove.toString());
+                        helperSrc.writeLog("Extract.ts - extract() - fileReadStream() - fileOrFolderRemove()", resultFileRemove.toString());
                     }
                 });
 
@@ -90,12 +90,12 @@ const extract = async (language: string, fileName: string, searchText: string, m
                     .catch((error: Error) => {
                         helperSrc.writeLog("Extract.ts - extract() - api(/extract) - catch()", error.message);
 
-                        reject("ko");
+                        reject(new Error(error.message));
 
                         return;
                     });
             } else {
-                reject("File input not exists.");
+                reject(new Error("File read failed."));
 
                 return;
             }
@@ -124,14 +124,14 @@ const logout = async (): Promise<string> => {
     return result;
 };
 
-export const execute = async (language: string, fileName: string, searchText: string, mode: string): Promise<string> => {
+export const execute = async (language: string, fileName: string, searchText: string, mode: string, sessionId: string): Promise<string> => {
     return await instance.runWithContext(async () => {
         let result: model.ItoolOcrResult[] = [];
 
         await login();
 
-        result = await extract(language, fileName, searchText, mode).catch((error: Error) => {
-            helperSrc.writeLog("Extract.ts - execute() - extract() - catch()", error);
+        result = await extract(language, fileName, searchText, mode, sessionId).catch((error: Error) => {
+            helperSrc.writeLog("Extract.ts - execute() - extract() - catch()", error.message);
 
             return [];
         });

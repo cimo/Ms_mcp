@@ -3,7 +3,7 @@ import { parseOffice, OfficeParserAST, HeadingMetadata } from "officeparser";
 // Source
 import * as helperSrc from "../../HelperSrc.js";
 
-const parse = (fileName: string, sessionId: string): Promise<OfficeParserAST> => {
+const parser = (fileName: string, sessionId: string): Promise<OfficeParserAST> => {
     return new Promise<OfficeParserAST>((resolve, reject) => {
         const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${fileName}`;
 
@@ -11,7 +11,7 @@ const parse = (fileName: string, sessionId: string): Promise<OfficeParserAST> =>
             if (Buffer.isBuffer(resultFileReadStream)) {
                 helperSrc.fileOrFolderRemove(input, (resultFileRemove) => {
                     if (typeof resultFileRemove !== "boolean") {
-                        helperSrc.writeLog("Parse.ts - execute() - fileReadStream() - fileOrFolderRemove(input)", resultFileRemove.toString());
+                        helperSrc.writeLog("Parser.ts - execute() - fileReadStream() - fileOrFolderRemove()", resultFileRemove.toString());
                     }
                 });
 
@@ -26,7 +26,7 @@ const parse = (fileName: string, sessionId: string): Promise<OfficeParserAST> =>
 
                 return;
             } else {
-                reject("File input not exists.");
+                reject(new Error("File read failed."));
 
                 return;
             }
@@ -71,7 +71,7 @@ const markdown = (ast: OfficeParserAST): string => {
 export const execute = async (fileName: string, format: string, sessionId: string): Promise<string> => {
     let result = "";
 
-    const ast = await parse(fileName, sessionId);
+    const ast = await parser(fileName, sessionId);
 
     if (format === "json") {
         result = json(ast);
