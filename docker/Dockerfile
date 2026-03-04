@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:26.04
 
 ARG _ENV_NAME
 ARG _DOMAIN
@@ -40,7 +40,9 @@ COPY ./ ${PATH_ROOT}
 
 RUN cd ~ \
     # No root
-    && useradd -U node -d ${PATH_ROOT} -s /bin/bash \
+    && userdel -r ubuntu \
+    && groupadd -g 1000 node \
+    && useradd -m -u 1000 -g 1000 -d ${PATH_ROOT} -s /bin/bash node \
     && uid="$(id -u node)" \
     && mkdir -p ${PATH_ROOT} /run/user/${uid} \
     && chown -R node:node ${PATH_ROOT} /run/user/${uid} \
