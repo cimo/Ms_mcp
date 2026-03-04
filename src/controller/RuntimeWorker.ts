@@ -96,11 +96,11 @@ process.on("message", async (data: modelMcp.IruntimeWorkerMessageData) => {
     } else if (data.tool === "ocrExecute") {
         await ocrExtract
             .execute(
+                data.sessionId,
                 data.argumentList[0] as string,
                 data.argumentList[1] as string,
                 data.argumentList[2] as string,
-                data.argumentList[3] as string,
-                data.argumentList[4] as string
+                data.argumentList[3] as string
             )
             .then((result) => {
                 resultProcess = { id: data.id, result };

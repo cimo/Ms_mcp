@@ -29,7 +29,7 @@ const login = async (): Promise<string> => {
     return result;
 };
 
-const extract = async (language: string, fileName: string, searchText: string, mode: string, sessionId: string): Promise<model.ItoolOcrResult[]> => {
+const extract = async (sessionId: string, language: string, fileName: string, searchText: string, mode: string): Promise<model.ItoolOcrResult[]> => {
     return new Promise<model.ItoolOcrResult[]>((resolve, reject) => {
         const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${fileName}`;
 
@@ -124,13 +124,13 @@ const logout = async (): Promise<string> => {
     return result;
 };
 
-export const execute = async (language: string, fileName: string, searchText: string, mode: string, sessionId: string): Promise<string> => {
+export const execute = async (sessionId: string, language: string, fileName: string, searchText: string, mode: string): Promise<string> => {
     return await instance.runWithContext(async () => {
         let result: model.ItoolOcrResult[] = [];
 
         await login();
 
-        result = await extract(language, fileName, searchText, mode, sessionId).catch((error: Error) => {
+        result = await extract(sessionId, language, fileName, searchText, mode).catch((error: Error) => {
             helperSrc.writeLog("Extract.ts - execute() - extract() - catch()", error.message);
 
             return [];

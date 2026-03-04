@@ -8,7 +8,6 @@ export default class Automate {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
-    private inputSchemaScreenshot;
     inputSchemaMouseMove;
     inputSchemaMouseClick;
 
@@ -16,7 +15,6 @@ export default class Automate {
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchemaScreenshot = z.object().default({}).describe("No input required.");
         this.inputSchemaMouseMove = z.object({
             x: z.number().default(0).describe("X coordinate."),
             y: z.number().default(0).describe("Y coordinate.")
@@ -26,15 +24,15 @@ export default class Automate {
         });
     }
 
-    screenshot = (): modelMcp.ItoolRpc<typeof this.inputSchemaScreenshot> => {
+    screenshot = (): modelMcp.ItoolRpc<z.ZodObject<{}, z.core.$strip>> => {
         const name = "automate_screenshot";
 
         const config = {
             description: "Take display screenshot and return the image in base64.",
-            inputSchema: this.inputSchemaScreenshot
+            inputSchema: z.object({}).strict()
         };
 
-        const content = async (_: z.infer<typeof this.inputSchemaScreenshot>, extra: { sessionId?: string }) => {
+        const content = async (_: z.infer<z.ZodObject<{}, z.core.$strip>>, extra: { sessionId?: string }) => {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {

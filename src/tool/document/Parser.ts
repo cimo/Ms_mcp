@@ -3,7 +3,7 @@ import { parseOffice, OfficeParserAST, HeadingMetadata } from "officeparser";
 // Source
 import * as helperSrc from "../../HelperSrc.js";
 
-const parser = (fileName: string, sessionId: string): Promise<OfficeParserAST> => {
+const parser = (sessionId: string, fileName: string): Promise<OfficeParserAST> => {
     return new Promise<OfficeParserAST>((resolve, reject) => {
         const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${fileName}`;
 
@@ -68,10 +68,10 @@ const markdown = (ast: OfficeParserAST): string => {
     return result;
 };
 
-export const execute = async (fileName: string, format: string, sessionId: string): Promise<string> => {
+export const execute = async (sessionId: string, fileName: string, format: string): Promise<string> => {
     let result = "";
 
-    const ast = await parser(fileName, sessionId);
+    const ast = await parser(sessionId, fileName);
 
     if (format === "json") {
         result = json(ast);

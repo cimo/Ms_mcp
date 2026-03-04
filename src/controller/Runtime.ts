@@ -82,7 +82,7 @@ export default class Runtime {
     }
 
     async ocrExecute(sessionId: string, language: string, fileName: string, searchText: string, mode: string): Promise<string> {
-        return this.callRuntimeWorker(sessionId, "ocrExecute", [language, fileName, searchText, mode, sessionId]).catch((error: Error) => {
+        return this.callRuntimeWorker(sessionId, "ocrExecute", [language, fileName, searchText, mode]).catch((error: Error) => {
             helperSrc.writeLog("Runtime.ts - ocrExecute() - callRuntimeWorker() - catch()", error.message);
 
             return "ko";

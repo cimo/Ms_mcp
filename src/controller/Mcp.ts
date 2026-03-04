@@ -141,14 +141,16 @@ export default class Mcp {
     };
 
     toolRegistartion = (server: McpServer): void => {
-        server.registerTool(this.toolAutomate.mouseClick().name, this.toolAutomate.mouseClick().config, this.toolAutomate.mouseClick().content);
-        server.registerTool(this.toolAutomate.mouseMove().name, this.toolAutomate.mouseMove().config, this.toolAutomate.mouseMove().content);
         server.registerTool(this.toolAutomate.screenshot().name, this.toolAutomate.screenshot().config, this.toolAutomate.screenshot().content);
+        server.registerTool(this.toolAutomate.mouseMove().name, this.toolAutomate.mouseMove().config, this.toolAutomate.mouseMove().content);
+        server.registerTool(this.toolAutomate.mouseClick().name, this.toolAutomate.mouseClick().config, this.toolAutomate.mouseClick().content);
         server.registerTool(this.toolBrowser.chrome().name, this.toolBrowser.chrome().config, this.toolBrowser.chrome().content);
         server.registerTool(this.toolDocument.parser().name, this.toolDocument.parser().config, this.toolDocument.parser().content);
         server.registerTool(this.toolMath.expression().name, this.toolMath.expression().config, this.toolMath.expression().content);
         server.registerTool(this.toolOcr.execute().name, this.toolOcr.execute().config, this.toolOcr.execute().content);
+        server.registerTool(this.toolRag.store().name, this.toolRag.store().config, this.toolRag.store().content);
         server.registerTool(this.toolRag.search().name, this.toolRag.search().config, this.toolRag.search().content);
+        server.registerTool(this.toolRag.remove().name, this.toolRag.remove().config, this.toolRag.remove().content);
     };
 
     rpc = (): void => {
@@ -320,6 +322,8 @@ export default class Mcp {
                 const runtime = this.sessionObject[sessionId].runtime;
 
                 if (runtime) {
+                    let result = "[]";
+
                     if (typeof request.body === "object") {
                         for (const tool of body.list) {
                             if (tool.name === "chrome") {
@@ -335,18 +339,26 @@ export default class Mcp {
                             }*/
                         }
 
-                        let ocrResult = "[]";
+                        let count = 0;
 
-                        while (ocrResult === "[]") {
+                        while (result === "[]" && count <= 2) {
                             await runtime.automateScreenshot(sessionId);
 
-                            ocrResult = await runtime.ocrExecute(sessionId, "", `${sessionId}.jpg`, "", "data");
+                            result = await runtime.ocrExecute(sessionId, "", "screenshot.jpg", "", "data");
 
                             await new Promise((resolve) => setTimeout(resolve, 1000));
+
+                            count++;
+                        }
+
+                        if (result === "[]" && count === 3) {
+                            result = "Data empty.";
+
+                            helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-task) - Error", result);
                         }
                     }
 
-                    helperSrc.responseBody("ok", "", response, 200);
+                    helperSrc.responseBody(result, "", response, 200);
                 } else {
                     helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-task) - Error", "Runtime problem.");
 

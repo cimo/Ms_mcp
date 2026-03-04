@@ -10,9 +10,7 @@ export default class Rag {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
-    private inputSchemaStore;
-    private inputSchemaRemove;
-
+    inputSchemaStore;
     inputSchemaSearch;
 
     // Method
@@ -22,8 +20,6 @@ export default class Rag {
         this.inputSchemaStore = z.object({
             fileContent: z.string().default("").describe("File content.")
         });
-
-        this.inputSchemaRemove = z.object().default({}).describe("No input required.");
 
         this.inputSchemaSearch = z.object({
             input: z.string().default("").describe("Input prompt.")
@@ -62,34 +58,6 @@ export default class Rag {
         return { name, config, content };
     };
 
-    remove = (): modelMcp.ItoolRpc<typeof this.inputSchemaRemove> => {
-        const name = "rag_remove";
-
-        const config = {
-            description: "Remove the table from the vector database.",
-            inputSchema: this.inputSchemaRemove
-        };
-
-        const content = async (_: z.infer<typeof this.inputSchemaRemove>, extra: { sessionId?: string }) => {
-            let result = "";
-
-            if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                ragEmbedding.remove(extra.sessionId);
-            }
-
-            return {
-                content: [
-                    {
-                        type: "text" as const,
-                        text: result
-                    }
-                ]
-            };
-        };
-
-        return { name, config, content };
-    };
-
     search = (): modelMcp.ItoolRpc<typeof this.inputSchemaSearch> => {
         const name = "rag_search";
 
@@ -105,6 +73,34 @@ export default class Rag {
                 const uniqueId = helperSrc.generateUniqueId();
 
                 result = await ragEmbedding.search(extra.sessionId, uniqueId, argument.input);
+            }
+
+            return {
+                content: [
+                    {
+                        type: "text" as const,
+                        text: result
+                    }
+                ]
+            };
+        };
+
+        return { name, config, content };
+    };
+
+    remove = (): modelMcp.ItoolRpc<z.ZodObject<{}, z.core.$strip>> => {
+        const name = "rag_remove";
+
+        const config = {
+            description: "Remove the table from the vector database.",
+            inputSchema: z.object({}).strict()
+        };
+
+        const content = async (_: z.infer<z.ZodObject<{}, z.core.$strip>>, extra: { sessionId?: string }) => {
+            let result = "";
+
+            if (extra.sessionId && this.sessionObject[extra.sessionId]) {
+                ragEmbedding.remove(extra.sessionId);
             }
 
             return {

@@ -1,3 +1,5 @@
+import Path from "path";
+import Fs from "fs";
 import { mouse, screen } from "@nut-tree-fork/nut-js";
 import sharp, { Channels } from "sharp";
 
@@ -5,13 +7,18 @@ import sharp, { Channels } from "sharp";
 import * as helperSrc from "../../HelperSrc.js";
 
 const drawCursor = async (sessionId: string, buffer: Buffer): Promise<void> => {
+    const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/screenshot.jpg`;
+
+    const directory = Path.dirname(input);
+    Fs.mkdirSync(directory, { recursive: true });
+
     const cursor = Buffer.from(`<svg width="20" height="20"><circle cx="5" cy="5" r="5" fill="red"/></svg>`);
 
     const mousePosition = await mouse.getPosition();
 
     await sharp(buffer)
         .composite([{ input: cursor, top: mousePosition.y, left: mousePosition.x }])
-        .toFile(`${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}.jpg`);
+        .toFile(input);
 };
 
 export const screenshot = async (sessionId: string): Promise<string> => {

@@ -33,7 +33,7 @@ export default class Document {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                result = await documentParse.execute(argument.fileName, argument.format, extra.sessionId);
+                result = await documentParse.execute(extra.sessionId, argument.fileName, argument.format);
             }
 
             return {

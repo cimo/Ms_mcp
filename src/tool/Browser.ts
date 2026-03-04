@@ -14,7 +14,9 @@ export default class Browser {
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchema = z.object({ url: z.string().default("").describe("URL to open in the browser.") });
+        this.inputSchema = z.object({
+            url: z.string().default("").describe("URL to open in the browser.")
+        });
     }
 
     chrome = (): modelMcp.ItoolRpc<typeof this.inputSchema> => {
