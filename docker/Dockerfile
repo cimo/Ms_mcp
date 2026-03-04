@@ -34,20 +34,18 @@ ENV DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}bus"
 ENV PULSE_SERVER="unix:/mnt/wslg/PulseServer"
 
 COPY ./certificate/ /usr/local/share/ca-certificates/
-COPY ./docker/NotoSansJP-Regular.ttf /usr/share/fonts/truetype/noto/
-COPY ./docker/NotoSansSymbols2-Regular.ttf /usr/share/fonts/truetype/noto/
-COPY ./docker/NotoColorEmoji-Regular.ttf /usr/share/fonts/truetype/noto/
-COPY ./docker/font.local.conf /etc/fonts/local.conf
+COPY ./docker/font/ /usr/share/fonts/truetype/noto/
+COPY ./docker/font.conf /etc/fonts/local.conf
 COPY ./ ${PATH_ROOT}
 
 RUN cd ~ \
     # No root
     && useradd -U node -d ${PATH_ROOT} -s /bin/bash \
     && uid="$(id -u node)" \
-    && mkdir -p ${PATH_ROOT} "/run/user/${uid}" \
-    && chown -R node:node ${PATH_ROOT} "/run/user/${uid}" \
+    && mkdir -p ${PATH_ROOT} /run/user/${uid} \
+    && chown -R node:node ${PATH_ROOT} /run/user/${uid} \
     && chmod -R 775 ${PATH_ROOT} \
-    && chmod -R 700 "/run/user/${uid}" \
+    && chmod -R 700 /run/user/${uid} \
     # Update
     && VERSION_CODENAME=$(grep VERSION_CODENAME= /etc/os-release | cut -d= -f2) \
     && chmod -R 0644 /usr/local/share/ca-certificates/ \
@@ -56,24 +54,39 @@ RUN cd ~ \
     && ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && echo ${TZ} > /etc/timezone \
     && echo "application/typescript ts" >> /etc/mime.types \
     # NodeJs
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_23.x | bash - \
     && apt-get update && apt-get install -y \
     nodejs \
     # Wslg
+    && groupadd -g 110 render || true \
+    && groupadd -g 44 video || true \
+    && usermod -aG 110 node \
+    && usermod -aG 44 node \
     && apt-get update && apt-get install -y \
     libglib2.0-0 \
     libgtk-3-0 \
     libcairo2 \
+    libatk-bridge2.0-0 \
+    libatspi2.0-0 \
+    libxkbcommon0 \
     libfontconfig1 \
     libfreetype6 \
     libnss3 \
     libnspr4 \
     libasound2 \
-    libgbm1 \
+    libgl1 \
+    libglx-mesa0 \
+    libgl1-mesa-dri \
     libegl1 \
     libegl1-mesa \
-    libgl1-mesa-dri \
+    libgbm1 \
+    mesa-va-drivers \
+    mesa-utils-extra \
     libdrm2 \
+    libxdamage1 \
+    libxfixes3 \
+    libxcomposite1 \
+    libxrandr2 \
     libwayland-client0 \
     libwayland-egl1 \
     libwayland-cursor0 \
