@@ -16,7 +16,8 @@ const parser = (sessionId: string, fileName: string): Promise<OfficeParserAST> =
                 });
 
                 const result = await parseOffice(resultFileReadStream, {
-                    newlineDelimiter: "\n\n",
+                    newlineDelimiter: "\n",
+                    ignoreNotes: false,
                     extractAttachments: false,
                     ocr: false,
                     ocrLanguage: ""
@@ -45,16 +46,19 @@ const markdown = (ast: OfficeParserAST): string => {
         if (node.type === "heading") {
             const metadata = node.metadata as HeadingMetadata;
             resultParts.push(`${"#".repeat(metadata.level ?? 1)} ${node.text}`);
+
             continue;
         }
 
         if (node.type === "list") {
             resultParts.push(`- ${node.text}`);
+
             continue;
         }
 
         if (node.type === "table") {
             resultParts.push("[Table Data]");
+
             continue;
         }
 
