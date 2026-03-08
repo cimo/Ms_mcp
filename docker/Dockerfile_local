@@ -1,4 +1,4 @@
-FROM ubuntu:26.04
+FROM ubuntu:24.04
 
 ARG _ENV_NAME
 ARG _DOMAIN
@@ -72,12 +72,14 @@ RUN cd ~ \
     libfreetype6 \
     libnss3 \
     libnspr4 \
-    libasound2 \
+    libasound2t64 \
     libgl1 \
     libglx-mesa0 \
     libgl1-mesa-dri \
     libegl1 \
-    libegl1-mesa \
+    libegl1-mesa-dev \
+    libegl-dev \
+    libglvnd-dev \
     libgbm1 \
     mesa-va-drivers \
     mesa-utils-extra \
@@ -114,8 +116,6 @@ CMD \
     # Dbus
     bash ${PATH_ROOT}script/dbus.sh \
     # Npm
-    && rm -rf ${PATH_ROOT}node_modules/ ${PATH_ROOT}package-lock.json \
-    && npm install \
-    && npm run execute
+    && bash ${PATH_ROOT}script/npm.sh "execute"
 
 EXPOSE ${SERVER_PORT}
