@@ -1,0 +1,4 @@
+{
+    "schedule": "*/10 * * * *",
+    "command": "bash script/cronjob_input.sh"
+}

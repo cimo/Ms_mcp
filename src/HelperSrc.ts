@@ -173,7 +173,7 @@ export const fileReadStream = (filePath: string, callback: (result: NodeJS.Errno
     });
 };
 
-export const fileOrFolderRemove = (path: string, callback: (result: NodeJS.ErrnoException | boolean) => void): void => {
+export const fileOrFolderDelete = (path: string, callback: (result: NodeJS.ErrnoException | boolean) => void): void => {
     Fs.stat(path, (error, stats) => {
         if (error) {
             return callback(error);
@@ -233,7 +233,7 @@ export const isJson = (value: string): boolean => {
     }
 };
 
-export const removeAnsiEscape = (text: string): string => {
+export const deleteAnsiEscape = (text: string): string => {
     const regex = new RegExp(["\x1b", "[", "[0-9;]*", "[a-zA-Z]"].join(""), "g");
 
     return text.replace(regex, "");
@@ -278,7 +278,7 @@ export const findFileInDirectoryRecursive = (path: string, extension: string, ca
 
                             next();
                         });
-                    } else if (!errorStat && statData.isFile() && data.endsWith(extension)) {
+                    } else if (!errorStat && statData.isFile() && (data.endsWith(extension) || extension === ".*")) {
                         resultList.push(pathData);
 
                         next();

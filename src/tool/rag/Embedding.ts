@@ -162,7 +162,7 @@ export const search = async (tableName: string, uniqueId: string, input: string)
     });
 };
 
-export const remove = async (tableName: string): Promise<void> => {
+export const drop = async (tableName: string): Promise<void> => {
     if (db) {
         db.exec(`DROP TABLE IF EXISTS "${tableName}"`);
     }

@@ -9,9 +9,9 @@ const parser = (sessionId: string, fileName: string): Promise<OfficeParserAST> =
 
         helperSrc.fileReadStream(input, async (resultFileReadStream) => {
             if (Buffer.isBuffer(resultFileReadStream)) {
-                helperSrc.fileOrFolderRemove(input, (resultFileRemove) => {
-                    if (typeof resultFileRemove !== "boolean") {
-                        helperSrc.writeLog("Parser.ts - execute() - fileReadStream() - fileOrFolderRemove()", resultFileRemove.toString());
+                helperSrc.fileOrFolderDelete(input, (resultFileDelete) => {
+                    if (typeof resultFileDelete !== "boolean") {
+                        helperSrc.writeLog("Parser.ts - execute() - fileReadStream() - fileOrFolderDelete()", resultFileDelete.toString());
                     }
                 });
 

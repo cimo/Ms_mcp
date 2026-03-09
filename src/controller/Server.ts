@@ -128,7 +128,7 @@ export default class Server {
             this.app.get("/logout", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
                 const result = await controllerMcp.logout(request);
 
-                Ca.removeCookie(`${helperSrc.LABEL}_authentication`, request, response);
+                Ca.deleteCookie(`${helperSrc.LABEL}_authentication`, request, response);
 
                 if (result !== "ko") {
                     controllerXvfb.stop(result);

@@ -27,6 +27,10 @@ export interface ItoolRpc<TSchema extends z.ZodTypeAny> {
     }>;
 }
 
+export interface IfileUploadedDelete {
+    fileName: string;
+}
+
 export interface ItoolCall {
     name: string;
     argumentObject: Record<string, string>;

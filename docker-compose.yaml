@@ -3,6 +3,7 @@ services:
     container_name: cimo-ms-mcp
     env_file:
       - ./env/local.env
+    shm_size: "2gb"
     build:
       context: ./
       dockerfile: ./docker/${DOCKERFILE}

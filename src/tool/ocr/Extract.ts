@@ -35,9 +35,9 @@ const extract = async (sessionId: string, language: string, fileName: string, se
 
         helperSrc.fileReadStream(input, async (resultFileReadStream) => {
             if (Buffer.isBuffer(resultFileReadStream)) {
-                helperSrc.fileOrFolderRemove(input, (resultFileRemove) => {
-                    if (typeof resultFileRemove !== "boolean") {
-                        helperSrc.writeLog("Extract.ts - extract() - fileReadStream() - fileOrFolderRemove()", resultFileRemove.toString());
+                helperSrc.fileOrFolderDelete(input, (resultFileDelete) => {
+                    if (typeof resultFileDelete !== "boolean") {
+                        helperSrc.writeLog("Extract.ts - extract() - fileReadStream() - fileOrFolderDelete()", resultFileDelete.toString());
                     }
                 });
 

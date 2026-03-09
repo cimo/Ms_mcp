@@ -150,7 +150,7 @@ export default class Mcp {
         server.registerTool(this.toolOcr.execute().name, this.toolOcr.execute().config, this.toolOcr.execute().content);
         server.registerTool(this.toolRag.store().name, this.toolRag.store().config, this.toolRag.store().content);
         server.registerTool(this.toolRag.search().name, this.toolRag.search().config, this.toolRag.search().content);
-        server.registerTool(this.toolRag.remove().name, this.toolRag.remove().config, this.toolRag.remove().content);
+        server.registerTool(this.toolRag.delete().name, this.toolRag.delete().config, this.toolRag.delete().content);
     };
 
     rpc = (): void => {
@@ -185,7 +185,7 @@ export default class Mcp {
             } else if (typeof sessionId === "string" && request.body.method === "terminate") {
                 this.sessionObject[sessionId].rpc.close();
 
-                this.toolRag.remove().content({}, { sessionId });
+                this.toolRag.delete().content({}, { sessionId });
 
                 helperSrc.responseBody(sessionId, "", response, 200);
 
@@ -258,8 +258,53 @@ export default class Mcp {
             }
         });
 
+        this.app.get("/api/file-uploaded", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const sessionId = request.headers["mcp-session-id"];
+
+            if (typeof sessionId === "string") {
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/`;
+
+                helperSrc.findFileInDirectoryRecursive(input, ".*", (list) => {
+                    const resultList = [];
+
+                    for (let a = 0; a < list.length; a++) {
+                        const partList = list[a].split("/");
+
+                        resultList.push(partList[partList.length - 1]);
+                    }
+
+                    helperSrc.responseBody(JSON.stringify(resultList), "", response, 200);
+                });
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/upload) - Error", "Missing or invalid headers.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
+        this.app.post("/api/file-uploaded-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const sessionId = request.headers["mcp-session-id"];
+            const body = request.body as modelMcp.IfileUploadedDelete;
+
+            if (typeof sessionId === "string") {
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${body.fileName}`;
+
+                helperSrc.fileOrFolderDelete(input, (result) => {
+                    if (typeof result !== "boolean") {
+                        helperSrc.writeLog("Mcp.ts - api() - post(/api/file-uploaded-delete) - fileOrFolderDelete()", result.toString());
+
+                        helperSrc.responseBody("", result.toString(), response, 500);
+                    }
+                });
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/upload) - Error", "Missing or invalid headers.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
         this.app.get("/api/tool-list", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            const toolList = [
+            const resultList = [
                 {
                     name: this.toolDocument.parser().name,
                     argumentObject: this.toolDocument.inputSchema.parse({})
@@ -278,7 +323,7 @@ export default class Mcp {
                 }
             ];
 
-            helperSrc.responseBody(JSON.stringify(toolList), "", response, 200);
+            helperSrc.responseBody(JSON.stringify(resultList), "", response, 200);
         });
 
         this.app.post("/api/tool-call", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {

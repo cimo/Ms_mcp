@@ -88,11 +88,11 @@ export default class Rag {
         return { name, config, content };
     };
 
-    remove = (): modelMcp.ItoolRpc<z.ZodObject<{}, z.core.$strip>> => {
-        const name = "rag_remove";
+    delete = (): modelMcp.ItoolRpc<z.ZodObject<{}, z.core.$strip>> => {
+        const name = "rag_delete";
 
         const config = {
-            description: "Remove the table from the vector database.",
+            description: "Delete the table from the vector database.",
             inputSchema: z.object({}).strict()
         };
 
@@ -100,7 +100,7 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                ragEmbedding.remove(extra.sessionId);
+                ragEmbedding.drop(extra.sessionId);
             }
 
             return {
