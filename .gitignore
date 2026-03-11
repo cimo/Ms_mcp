@@ -25,6 +25,7 @@ pnpm-debug.log*
 .config
 .local
 .npm
+.npmrc
 .pki
 certificate/**/*
 !certificate/**/
