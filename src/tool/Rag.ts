@@ -28,7 +28,7 @@ export default class Rag {
         ragEmbedding.createDatabase();
     }
 
-    store = (): modelMcp.ItoolRpc<typeof this.inputSchemaStore> => {
+    store = (): modelMcp.Irpc<typeof this.inputSchemaStore> => {
         const name = "rag_store";
 
         const config = {
@@ -58,7 +58,7 @@ export default class Rag {
         return { name, config, content };
     };
 
-    search = (): modelMcp.ItoolRpc<typeof this.inputSchemaSearch> => {
+    search = (): modelMcp.Irpc<typeof this.inputSchemaSearch> => {
         const name = "rag_search";
 
         const config = {
@@ -88,7 +88,7 @@ export default class Rag {
         return { name, config, content };
     };
 
-    delete = (): modelMcp.ItoolRpc<z.ZodObject<{}, z.core.$strip>> => {
+    delete = (): modelMcp.Irpc<z.ZodObject<{}, z.core.$strip>> => {
         const name = "rag_delete";
 
         const config = {

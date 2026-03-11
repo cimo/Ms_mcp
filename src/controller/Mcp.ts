@@ -52,7 +52,13 @@ export default class Mcp {
         this.toolRag = new ToolRag(this.sessionObject);
     }
 
-    login = async (response: Response): Promise<string> => {
+    login = async (request: Request, response: Response): Promise<string> => {
+        const sessionId = request.headers["mcp-session-id"];
+
+        if (typeof sessionId === "string" && this.sessionObject[sessionId] && this.sessionObject[sessionId].rpc) {
+            return sessionId;
+        }
+
         const cookie = response.getHeader("set-cookie");
 
         if (typeof cookie === "string") {
@@ -63,6 +69,7 @@ export default class Mcp {
                         headers: {
                             "Content-Type": "application/json",
                             Accept: "application/json, text/event-stream",
+                            "mcp-session-id": typeof sessionId === "string" ? sessionId : "",
                             Cookie: cookie
                         }
                     },
@@ -83,9 +90,7 @@ export default class Mcp {
                     true
                 )
                 .then((result) => {
-                    const sessionId = result.headers.get("mcp-session-id");
-
-                    return sessionId ? sessionId : "";
+                    return result.headers.get("mcp-session-id") || "";
                 })
                 .catch((error: Error) => {
                     helperSrc.writeLog("Mcp.ts - login() - catch()", error.message);
@@ -140,7 +145,7 @@ export default class Mcp {
         return "ko";
     };
 
-    toolRegistartion = (server: McpServer): void => {
+    toolRegistration = (server: McpServer): void => {
         server.registerTool(this.toolAutomate.screenshot().name, this.toolAutomate.screenshot().config, this.toolAutomate.screenshot().content);
         server.registerTool(this.toolAutomate.mouseMove().name, this.toolAutomate.mouseMove().config, this.toolAutomate.mouseMove().content);
         server.registerTool(this.toolAutomate.mouseClick().name, this.toolAutomate.mouseClick().config, this.toolAutomate.mouseClick().content);
@@ -157,7 +162,7 @@ export default class Mcp {
         this.app.post("/rpc", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
 
-            if (typeof sessionId !== "string" && request.body.method === "initialize") {
+            if (request.body.method === "initialize") {
                 const sessionIdNew = helperSrc.generateUniqueId();
 
                 const rpc = new StreamableHTTPServerTransport({
@@ -175,7 +180,7 @@ export default class Mcp {
                     version: this.serverVersion
                 });
 
-                this.toolRegistartion(server);
+                this.toolRegistration(server);
 
                 await server.connect(rpc);
 
@@ -195,7 +200,7 @@ export default class Mcp {
             if (typeof sessionId === "string") {
                 await this.sessionObject[sessionId].rpc.handleRequest(request, response, request.body);
             } else {
-                helperSrc.writeLog("Mcp.ts - api() - post(/rpc) - Error", "Session ID is missing or invalid.");
+                helperSrc.writeLog("Mcp.ts - api() - post(/rpc) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
@@ -204,10 +209,10 @@ export default class Mcp {
         this.app.get("/rpc", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
 
-            if (typeof sessionId === "string") {
+            if (typeof sessionId === "string" && this.sessionObject[sessionId] && this.sessionObject[sessionId].rpc) {
                 await this.sessionObject[sessionId].rpc.handleRequest(request, response);
             } else {
-                helperSrc.writeLog("Mcp.ts - api() - get(/rpc) - Error", "Session ID is missing or invalid.");
+                helperSrc.writeLog("Mcp.ts - api() - get(/rpc) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
@@ -252,7 +257,7 @@ export default class Mcp {
                         helperSrc.responseBody("", "ko", response, 500);
                     });
             } else {
-                helperSrc.writeLog("Mcp.ts - api() - post(/api/upload) - Error", "Missing or invalid headers.");
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/upload) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
@@ -276,7 +281,7 @@ export default class Mcp {
                     helperSrc.responseBody(JSON.stringify(resultList), "", response, 200);
                 });
             } else {
-                helperSrc.writeLog("Mcp.ts - api() - post(/api/upload) - Error", "Missing or invalid headers.");
+                helperSrc.writeLog("Mcp.ts - api() - get(/api/file-uploaded) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
@@ -296,34 +301,44 @@ export default class Mcp {
                         helperSrc.responseBody("", result.toString(), response, 500);
                     }
                 });
+
+                helperSrc.responseBody("ok", "", response, 200);
             } else {
-                helperSrc.writeLog("Mcp.ts - api() - post(/api/upload) - Error", "Missing or invalid headers.");
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/file-uploaded-delete) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
         });
 
         this.app.get("/api/tool-list", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            const resultList = [
-                {
-                    name: this.toolDocument.parser().name,
-                    argumentObject: this.toolDocument.inputSchema.parse({})
-                },
-                {
-                    name: this.toolMath.expression().name,
-                    argumentObject: this.toolMath.inputSchema.parse({})
-                },
-                {
-                    name: this.toolOcr.execute().name,
-                    argumentObject: this.toolOcr.inputSchema.parse({})
-                },
-                {
-                    name: this.toolRag.search().name,
-                    argumentObject: this.toolRag.inputSchemaSearch.parse({})
-                }
-            ];
+            const sessionId = request.headers["mcp-session-id"];
 
-            helperSrc.responseBody(JSON.stringify(resultList), "", response, 200);
+            if (typeof sessionId === "string") {
+                const resultList = [
+                    {
+                        name: this.toolDocument.parser().name,
+                        argumentObject: this.toolDocument.inputSchema.parse({})
+                    },
+                    {
+                        name: this.toolMath.expression().name,
+                        argumentObject: this.toolMath.inputSchema.parse({})
+                    },
+                    {
+                        name: this.toolOcr.execute().name,
+                        argumentObject: this.toolOcr.inputSchema.parse({})
+                    },
+                    {
+                        name: this.toolRag.search().name,
+                        argumentObject: this.toolRag.inputSchemaSearch.parse({})
+                    }
+                ];
+
+                helperSrc.responseBody(JSON.stringify(resultList), "", response, 200);
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - get(/api/tool-list) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
         });
 
         this.app.post("/api/tool-call", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
@@ -353,7 +368,7 @@ export default class Mcp {
                         helperSrc.responseBody("", "ko", response, 500);
                     });
             } else {
-                helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-call) - Error", "Missing or invalid headers.");
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-call) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
@@ -410,7 +425,7 @@ export default class Mcp {
                     helperSrc.responseBody("", "ko", response, 500);
                 }
             } else {
-                helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-task) - Error", "Missing or invalid headers.");
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-task) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }

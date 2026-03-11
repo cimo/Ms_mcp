@@ -20,7 +20,7 @@ export default class Math {
         });
     }
 
-    expression = (): modelMcp.ItoolRpc<typeof this.inputSchema> => {
+    expression = (): modelMcp.Irpc<typeof this.inputSchema> => {
         const name = "math_expression";
 
         const config = {

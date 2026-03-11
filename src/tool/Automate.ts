@@ -24,7 +24,7 @@ export default class Automate {
         });
     }
 
-    screenshot = (): modelMcp.ItoolRpc<z.ZodObject<{}, z.core.$strip>> => {
+    screenshot = (): modelMcp.Irpc<z.ZodObject<{}, z.core.$strip>> => {
         const name = "automate_screenshot";
 
         const config = {
@@ -56,7 +56,7 @@ export default class Automate {
         return { name, config, content };
     };
 
-    mouseMove = (): modelMcp.ItoolRpc<typeof this.inputSchemaMouseMove> => {
+    mouseMove = (): modelMcp.Irpc<typeof this.inputSchemaMouseMove> => {
         const name = "automate_mouse_move";
 
         const config = {
@@ -88,7 +88,7 @@ export default class Automate {
         return { name, config, content };
     };
 
-    mouseClick = (): modelMcp.ItoolRpc<typeof this.inputSchemaMouseClick> => {
+    mouseClick = (): modelMcp.Irpc<typeof this.inputSchemaMouseClick> => {
         const name = "automate_mouse_click";
 
         const config = {

@@ -13,7 +13,7 @@ export interface IruntimeWorkerMessageData {
     argumentList: unknown[];
 }
 
-export interface ItoolRpc<TSchema extends z.ZodTypeAny> {
+export interface Irpc<TSchema extends z.ZodTypeAny> {
     name: string;
     config: {
         description: string;

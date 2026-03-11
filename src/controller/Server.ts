@@ -111,10 +111,10 @@ export default class Server {
                 helperSrc.responseBody(`Client ip: ${request.clientIp || ""}`, "", response, 200);
             });
 
-            this.app.get("/login", this.limiter, async (_: Request, response: Response) => {
+            this.app.get("/login", this.limiter, async (request: Request, response: Response) => {
                 Ca.writeCookie(`${helperSrc.LABEL}_authentication`, response);
 
-                const result = await controllerMcp.login(response);
+                const result = await controllerMcp.login(request, response);
 
                 if (result !== "ko") {
                     controllerXvfb.start(result);

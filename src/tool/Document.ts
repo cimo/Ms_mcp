@@ -21,7 +21,7 @@ export default class Document {
         });
     }
 
-    parser = (): modelMcp.ItoolRpc<typeof this.inputSchema> => {
+    parser = (): modelMcp.Irpc<typeof this.inputSchema> => {
         const name = "document_parser";
 
         const config = {

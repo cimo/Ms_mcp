@@ -27,9 +27,15 @@ export default class Xvfb {
     }
 
     start = (sessionId: string): void => {
+        const session = this.sessionObject[sessionId];
+
+        if (session && session.runtimeWorker && typeof session.display === "number") {
+            return;
+        }
+
         const display = this.lastDisplay();
 
-        helperSrc.writeLog("Xvfb.ts - start()", `Display: ${display} sessionId: ${sessionId}`);
+        helperSrc.writeLog("Xvfb.ts - start()", `Display: ${display} - sessionId: ${sessionId}`);
 
         exec(`Xvfb :${display} -screen 0 1920x1080x24 >> "${helperSrc.PATH_ROOT}${helperSrc.PATH_LOG}xvfb.log" 2>&1`);
 

@@ -22,7 +22,7 @@ export default class Ocr {
         });
     }
 
-    execute = (): modelMcp.ItoolRpc<typeof this.inputSchema> => {
+    execute = (): modelMcp.Irpc<typeof this.inputSchema> => {
         const name = "ocr_execute";
 
         const config = {

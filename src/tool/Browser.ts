@@ -19,7 +19,7 @@ export default class Browser {
         });
     }
 
-    chrome = (): modelMcp.ItoolRpc<typeof this.inputSchema> => {
+    chrome = (): modelMcp.Irpc<typeof this.inputSchema> => {
         const name = "chrome";
 
         const config = {

@@ -5,9 +5,11 @@ import { Cr } from "@cimo/request/dist/src/Main.js";
 import * as helperSrc from "../../HelperSrc.js";
 import * as model from "./Model.js";
 
-const requestContext = new AsyncLocalStorage<model.IinstanceContext>();
+const protocol = helperSrc.localeFromEnvName() === "jp" ? "https" : "http";
 
-export const api = new Cr("https://localhost:1046");
+export const api = new Cr(`${protocol}://${helperSrc.DOMAIN}:1046`);
+
+const requestContext = new AsyncLocalStorage<model.IinstanceContext>();
 
 export const runWithContext = async <T>(callback: () => Promise<T>): Promise<T> => {
     return await requestContext.run({}, callback);
