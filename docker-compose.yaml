@@ -3,6 +3,10 @@ services:
     container_name: cimo-ms-mcp
     env_file:
       - ./env/local.env
+    environment:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      GALLIUM_DRIVER: "llvmpipe"
+      MESA_LOADER_DRIVER_OVERRIDE: "llvmpipe"
     shm_size: "2gb"
     build:
       context: ./
@@ -22,5 +26,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
       - /mnt/wslg:/mnt/wslg
+      - /usr/lib/wsl/lib:/usr/lib/wsl/lib
 volumes:
   ms_cronjob-volume:
