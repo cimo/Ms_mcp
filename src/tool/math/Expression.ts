@@ -56,13 +56,13 @@ const tokenize = (input: string): model.Ttoken[] => {
             }
 
             if (!isDigit) {
-                throw new Error(`Tool expression: Invalid number at position ${start}`);
+                throw new Error(`Invalid number at position ${start}`);
             }
 
             const num = Number(input.slice(start, count));
 
             if (!Number.isFinite(num)) {
-                throw new Error("Tool expression: Invalid numeric literal.");
+                throw new Error("Invalid numeric literal.");
             }
 
             result.push(num);
@@ -102,7 +102,7 @@ const tokenize = (input: string): model.Ttoken[] => {
             continue;
         }
 
-        throw new Error(`Tool expression: Unsupported character ${character}`);
+        throw new Error(`Unsupported character ${character}`);
     }
 
     return result;
@@ -149,7 +149,7 @@ const toRpn = (tokenList: model.Ttoken[]): model.Ttoken[] => {
             }
 
             if (!stack.length) {
-                throw new Error("Tool expression: Mismatched parentheses.");
+                throw new Error("Mismatched parentheses.");
             }
 
             stack.pop();
@@ -157,14 +157,14 @@ const toRpn = (tokenList: model.Ttoken[]): model.Ttoken[] => {
             continue;
         }
 
-        throw new Error(`Tool expression: Unsupported token in shunting-yard ${String(token)}`);
+        throw new Error(`Unsupported token in shunting-yard ${String(token)}`);
     }
 
     while (stack.length) {
         const s = stack.pop() as model.Ttoken;
 
         if (s === "(" || s === ")") {
-            throw new Error("Tool expression: Mismatched parentheses.");
+            throw new Error("Mismatched parentheses.");
         }
 
         result.push(s);
@@ -187,7 +187,7 @@ const evaluate = (rpnList: model.Ttoken[]): number => {
         const a = stack.pop() as number;
 
         if (typeof a !== "number" || typeof b !== "number") {
-            throw new Error("Tool expression: Insufficient operands.");
+            throw new Error("Insufficient operands.");
         }
 
         if (rpn === "+") {
@@ -201,12 +201,12 @@ const evaluate = (rpnList: model.Ttoken[]): number => {
         } else if (rpn === "^") {
             stack.push(Math.pow(a, b));
         } else {
-            throw new Error(`Tool expression: Unknown operator ${String(rpn)}`);
+            throw new Error(`Unknown operator ${String(rpn)}`);
         }
     }
 
     if (stack.length !== 1) {
-        throw new Error("Tool expression: Remaining operands.");
+        throw new Error("Remaining operands.");
     }
 
     return stack[0];
