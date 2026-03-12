@@ -35,12 +35,6 @@ const extract = async (sessionId: string, language: string, fileName: string, se
 
         helperSrc.fileReadStream(input, async (resultFileReadStream) => {
             if (Buffer.isBuffer(resultFileReadStream)) {
-                helperSrc.fileOrFolderDelete(input, (resultFileDelete) => {
-                    if (typeof resultFileDelete !== "boolean") {
-                        helperSrc.writeLog("Extract.ts - extract() - fileReadStream() - fileOrFolderDelete()", resultFileDelete.toString());
-                    }
-                });
-
                 const buffer = Buffer.from(resultFileReadStream);
                 const mimeType = helperSrc.readMimeType(buffer);
                 const blob = new Blob([buffer], { type: mimeType.content });

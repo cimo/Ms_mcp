@@ -9,12 +9,6 @@ const parser = (sessionId: string, fileName: string): Promise<OfficeParserAST> =
 
         helperSrc.fileReadStream(input, async (resultFileReadStream) => {
             if (Buffer.isBuffer(resultFileReadStream)) {
-                helperSrc.fileOrFolderDelete(input, (resultFileDelete) => {
-                    if (typeof resultFileDelete !== "boolean") {
-                        helperSrc.writeLog("Parser.ts - execute() - fileReadStream() - fileOrFolderDelete()", resultFileDelete.toString());
-                    }
-                });
-
                 const result = await parseOffice(resultFileReadStream, {
                     newlineDelimiter: "\n",
                     ignoreNotes: false,
