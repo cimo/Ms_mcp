@@ -382,9 +382,30 @@ export default class Mcp {
             }
         });
 
-        this.app.post("/api/tool-task", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.get("/api/task-list", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelMcp.ItoolTask;
+
+            if (typeof sessionId === "string") {
+                const resultList: modelMcp.Itool[] = [
+                    {
+                        name: "automate_browser",
+                        argumentObject: {},
+                        icon: "automate_browser.png",
+                        description: "Interact with the browser and execute instruction in loop ultil the request are completed."
+                    }
+                ];
+
+                helperSrc.responseBody(JSON.stringify(resultList), "", response, 200);
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - get(/api/tool-list) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
+        this.app.post("/api/task-call", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const sessionId = request.headers["mcp-session-id"];
+            const body = request.body as modelMcp.ItaskCall;
 
             if (typeof sessionId === "string") {
                 const runtime = this.sessionObject[sessionId].runtime;
@@ -414,7 +435,7 @@ export default class Mcp {
 
                             result = await runtime.ocrExecute(sessionId, "", "screenshot.jpg", "", "data");
 
-                            await new Promise((resolve) => setTimeout(resolve, 1000));
+                            await new Promise((resolve) => setTimeout(resolve, 3000));
 
                             count++;
                         }
@@ -422,18 +443,18 @@ export default class Mcp {
                         if (result === "[]" && count === 3) {
                             result = "Data empty.";
 
-                            helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-task) - Error", result);
+                            helperSrc.writeLog("Mcp.ts - api() - post(/api/task-call) - Error", result);
                         }
                     }
 
                     helperSrc.responseBody(result, "", response, 200);
                 } else {
-                    helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-task) - Error", "Runtime problem.");
+                    helperSrc.writeLog("Mcp.ts - api() - post(/api/task-call) - Error", "Runtime problem.");
 
                     helperSrc.responseBody("", "ko", response, 500);
                 }
             } else {
-                helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-task) - Error", "Missing or invalid header.");
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/task-call) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }

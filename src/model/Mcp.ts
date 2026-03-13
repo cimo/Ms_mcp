@@ -43,6 +43,6 @@ export interface ItoolCall {
     argumentObject: Record<string, string>;
 }
 
-export interface ItoolTask {
+export interface ItaskCall {
     list: ItoolCall[];
 }
