@@ -273,9 +273,12 @@ export default class Mcp {
                     const resultList = [];
 
                     for (let a = 0; a < list.length; a++) {
-                        const partList = list[a].split("/");
+                        const nameList = list[a].split("/");
+                        const name = nameList[nameList.length - 1];
 
-                        resultList.push(partList[partList.length - 1]);
+                        if (name.toLowerCase() !== "screenshot.jpg") {
+                            resultList.push(name);
+                        }
                     }
 
                     helperSrc.responseBody(JSON.stringify(resultList), "", response, 200);
@@ -389,9 +392,9 @@ export default class Mcp {
                 const resultList: modelMcp.Itool[] = [
                     {
                         name: "automate_browser",
-                        argumentObject: {},
+                        argumentObject: { url: "..." },
                         icon: "automate_browser.png",
-                        description: "Interact with the browser and execute instruction in loop ultil the request are completed."
+                        description: "Interact with the browser and execute the instructions in a loop until the requests are completed."
                     }
                 ];
 
@@ -415,7 +418,7 @@ export default class Mcp {
 
                     if (typeof request.body === "object") {
                         for (const tool of body.list) {
-                            if (tool.name === "chrome") {
+                            if (tool.name === "automate_browser") {
                                 await runtime.chrome(sessionId, tool.argumentObject["url"]);
                             }
 
@@ -436,6 +439,16 @@ export default class Mcp {
                             result = await runtime.ocrExecute(sessionId, "", "screenshot.jpg", "", "data");
 
                             await new Promise((resolve) => setTimeout(resolve, 3000));
+
+                            const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/screenshot.jpg`;
+
+                            helperSrc.fileOrFolderDelete(input, (resultFileDelete) => {
+                                if (typeof resultFileDelete !== "boolean") {
+                                    helperSrc.writeLog("Mcp.ts - api() - post(/api/task-call) - fileOrFolderDelete()", resultFileDelete.toString());
+
+                                    helperSrc.responseBody("", resultFileDelete.toString(), response, 500);
+                                }
+                            });
 
                             count++;
                         }
