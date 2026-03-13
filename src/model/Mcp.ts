@@ -31,6 +31,13 @@ export interface IfileUploadedDelete {
     fileName: string;
 }
 
+export interface Itool {
+    name: string;
+    argumentObject: Record<string, string>;
+    icon: string;
+    description: string;
+}
+
 export interface ItoolCall {
     name: string;
     argumentObject: Record<string, string>;

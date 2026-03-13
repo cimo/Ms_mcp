@@ -150,7 +150,7 @@ export default class Mcp {
         server.registerTool(this.toolAutomate.mouseMove().name, this.toolAutomate.mouseMove().config, this.toolAutomate.mouseMove().content);
         server.registerTool(this.toolAutomate.mouseClick().name, this.toolAutomate.mouseClick().config, this.toolAutomate.mouseClick().content);
         server.registerTool(this.toolBrowser.chrome().name, this.toolBrowser.chrome().config, this.toolBrowser.chrome().content);
-        server.registerTool(this.toolDocument.parser().name, this.toolDocument.parser().config, this.toolDocument.parser().content);
+        server.registerTool(this.toolDocument.parse().name, this.toolDocument.parse().config, this.toolDocument.parse().content);
         server.registerTool(this.toolMath.expression().name, this.toolMath.expression().config, this.toolMath.expression().content);
         server.registerTool(this.toolOcr.execute().name, this.toolOcr.execute().config, this.toolOcr.execute().content);
         server.registerTool(this.toolRag.store().name, this.toolRag.store().config, this.toolRag.store().content);
@@ -235,7 +235,7 @@ export default class Mcp {
 
                         if (fileExtension && fileExtension.toLowerCase() === "pdf") {
                             this.toolDocument
-                                .parser()
+                                .parse()
                                 .content({ fileName, format: "markdown" }, { sessionId })
                                 .then((resultDocumentParser) => {
                                     this.toolRag
@@ -314,22 +314,30 @@ export default class Mcp {
             const sessionId = request.headers["mcp-session-id"];
 
             if (typeof sessionId === "string") {
-                const resultList = [
+                const resultList: modelMcp.Itool[] = [
                     {
-                        name: this.toolDocument.parser().name,
-                        argumentObject: this.toolDocument.inputSchema.parse({})
+                        name: this.toolDocument.parse().name,
+                        argumentObject: this.toolDocument.inputSchema.parse({}),
+                        icon: "document.png",
+                        description: this.toolDocument.parse().config.description
                     },
                     {
                         name: this.toolMath.expression().name,
-                        argumentObject: this.toolMath.inputSchema.parse({})
+                        argumentObject: this.toolMath.inputSchema.parse({}),
+                        icon: "math.png",
+                        description: this.toolMath.expression().config.description
                     },
                     {
                         name: this.toolOcr.execute().name,
-                        argumentObject: this.toolOcr.inputSchema.parse({})
+                        argumentObject: this.toolOcr.inputSchema.parse({}),
+                        icon: "ocr.png",
+                        description: this.toolOcr.execute().config.description
                     },
                     {
                         name: this.toolRag.search().name,
-                        argumentObject: this.toolRag.inputSchemaSearch.parse({})
+                        argumentObject: this.toolRag.inputSchemaSearch.parse({}),
+                        icon: "rag.png",
+                        description: this.toolRag.search().config.description
                     }
                 ];
 

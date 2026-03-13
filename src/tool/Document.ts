@@ -17,15 +17,15 @@ export default class Document {
 
         this.inputSchema = z.object({
             fileName: z.string().default("").describe("File name."),
-            format: z.enum(["json", "markdown"]).default("markdown").describe("Output format.")
+            format: z.enum(["json", "markdown", "html"]).default("html").describe("Output format.")
         });
     }
 
-    parser = (): modelMcp.Irpc<typeof this.inputSchema> => {
-        const name = "document_parser";
+    parse = (): modelMcp.Irpc<typeof this.inputSchema> => {
+        const name = "document_parse";
 
         const config = {
-            description: "Parse docx, xlsx, pptx, pdf document and extract data in json or markdown.",
+            description: "Parse docx, xlsx, pptx, pdf document and extract data.",
             inputSchema: this.inputSchema
         };
 
