@@ -8,17 +8,13 @@ const login = async (): Promise<string> => {
     let result = "";
 
     await instance.api
-        .get<modelHelperSrc.IresponseBody>(
-            "/login",
-            {
-                headers: {
-                    "Content-Type": "application/json"
-                }
-            },
-            true
-        )
+        .get<modelHelperSrc.IresponseBody>("/login", {
+            headers: {
+                "Content-Type": "application/json"
+            }
+        })
         .then((resultApi) => {
-            result = JSON.stringify(resultApi, null, 2);
+            result = JSON.stringify(resultApi.data, null, 2);
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Extract.ts - login() - api(/login) - catch()", error.message);
@@ -50,7 +46,7 @@ const extract = async (sessionId: string, language: string, fileName: string, se
                     .then((resultApi) => {
                         let resultList: model.ItoolOcrResult[] = [];
 
-                        const stdoutList: model.ItoolOcrResponse[] = JSON.parse(resultApi.response.stdout);
+                        const stdoutList: model.ItoolOcrResponse[] = JSON.parse(resultApi.data.response.stdout);
 
                         for (const stdout of stdoutList) {
                             const x: number[] = [];
@@ -107,7 +103,7 @@ const logout = async (): Promise<string> => {
             }
         })
         .then((resultApi) => {
-            result = JSON.stringify(resultApi, null, 2);
+            result = JSON.stringify(resultApi.data, null, 2);
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Extract.ts - logout() - api(/logout) - catch()", error.message);

@@ -15,18 +15,14 @@ const login = async (uniqueId: string): Promise<string> => {
     let result = "";
 
     await instance.api
-        .get<modelHelperSrc.IresponseBody>(
-            "/login",
-            {
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${uniqueId}`
-                }
-            },
-            true
-        )
+        .get<modelHelperSrc.IresponseBody>("/login", {
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${uniqueId}`
+            }
+        })
         .then((resultApi) => {
-            result = JSON.stringify(resultApi, null, 2);
+            result = JSON.stringify(resultApi.data, null, 2);
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Rag.ts - login() - api(/login) - catch()", error.message);
@@ -53,8 +49,8 @@ const embedding = async (uniqueId: string, text: string | string[]): Promise<mod
                 input: text
             }
         )
-        .then((resultEmbedding) => {
-            result = JSON.parse(resultEmbedding.response.stdout) as model.IapiEmbeddingData[];
+        .then((resultApi) => {
+            result = JSON.parse(resultApi.data.response.stdout) as model.IapiEmbeddingData[];
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Rag.ts - embedding() - catch()", error.message);
@@ -88,7 +84,7 @@ const logout = async (uniqueId: string): Promise<string> => {
             }
         })
         .then((resultApi) => {
-            result = JSON.stringify(resultApi, null, 2);
+            result = JSON.stringify(resultApi.data, null, 2);
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Rag.ts - logout() - api(/logout) - catch()", error.message);

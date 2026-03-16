@@ -85,9 +85,7 @@ export default class Mcp {
                                 version: "1.0"
                             }
                         }
-                    },
-                    false,
-                    true
+                    }
                 )
                 .then((result) => {
                     return result.headers.get("mcp-session-id") || "";
@@ -371,7 +369,7 @@ export default class Mcp {
                         request.body
                     )
                     .then((result) => {
-                        helperSrc.responseBody(result, "", response, 200);
+                        helperSrc.responseBody(result.data, "", response, 200);
                     })
                     .catch((error: Error) => {
                         helperSrc.writeLog("Mcp.ts - api() - post(/api/tool-call) - post(/rpc) - catch()", error.message);

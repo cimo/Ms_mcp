@@ -22,7 +22,7 @@
         "@cimo/cronjob": "1.0.11",
         "@cimo/environment": "1.0.24",
         "@cimo/form-data_parser": "1.1.40",
-        "@cimo/request": "1.6.40",
+        "@cimo/request": "1.7.40",
         "cookie-parser": "1.4.7",
         "cors": "2.8.5",
         "express": "4.22.1",
