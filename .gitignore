@@ -21,6 +21,7 @@ pnpm-debug.log*
 *.sw?
 
 # cimo +
+.Identifier
 .cache
 .config
 .local

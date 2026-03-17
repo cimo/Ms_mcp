@@ -21,8 +21,10 @@ ENV VERSION_TAG=${_VERSION_TAG}
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NOWARNINGS=yes
 ENV SUDO_FORCE_REMOVE=yes
+ENV HISTFILE="/home/node/.bash_history"
 ENV NODE_OPTIONS=--use-openssl-ca
 ENV NODE_EXTRA_CA_CERTS="${PATH_CERTIFICATE_PEM}"
+ENV NPM_CONFIG_USERCONFIG="/home/node/.npmrc"
 ENV WAYLAND_DISPLAY=wayland-0
 ENV XDG_SESSION_TYPE=wayland
 ENV XDG_RUNTIME_DIR="/mnt/wslg/runtime-dir/"
@@ -45,9 +47,9 @@ RUN cd ~ \
     && groupadd -g 1000 node \
     && useradd -m -u 1000 -g 1000 -d ${PATH_ROOT} -s /bin/bash node \
     && uid="$(id -u node)" \
-    && mkdir -p ${PATH_ROOT} /run/user/${uid} \
-    && chown -R node:node ${PATH_ROOT} /run/user/${uid} \
-    && chmod -R 775 ${PATH_ROOT} \
+    && mkdir -p ${PATH_ROOT} /home/node/ /run/user/${uid} \
+    && chown -R node:node ${PATH_ROOT} /home/node/ /run/user/${uid} \
+    && chmod -R 775 ${PATH_ROOT} /home/node/ \
     && chmod -R 700 /run/user/${uid} \
     # Update
     && VERSION_CODENAME=$(grep VERSION_CODENAME= /etc/os-release | cut -d= -f2) \
