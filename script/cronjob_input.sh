@@ -11,7 +11,7 @@ do
         statData=$(stat -c %Y "${data}")
         time=$((${currentTime} - ${statData}))
 
-        if [ ${time} -gt 600 ]
+        if [ ${time} -gt "${MS_M_PERSISTENCE_SECOND}" ]
         then
             if [ -d "${data}" ]
             then

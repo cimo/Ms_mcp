@@ -9,7 +9,13 @@ It's possible to use a custom certificate instead of "Ms_cronjob", just add it t
 ## Info:
 
 -   Cross platform (Windows, Linux)
--   Tool: Math, Automate, Document
+-   Tool: Document parser, Math, OCR, RAG.
+-   Task: Automation web.
+-   Agent: Work in progress..
+
+## Secret env
+
+1. Create "local.secret.env" file in "env" folder and add there only the secret variable.
 
 ## Installation
 

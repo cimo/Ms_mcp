@@ -32,6 +32,7 @@ certificate/**/*
 !certificate/**/
 !certificate/**/.gitkeep
 dist
+env/*.secret.*
 file/input/*
 !file/input/.gitkeep
 log/*
