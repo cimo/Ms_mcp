@@ -24,9 +24,9 @@ echo "Execute container."
 
 if [ "${parameter2}" = "build-up" ]
 then
-    docker compose -f docker-compose.yaml --env-file ./env/${parameter1}.env build --no-cache &&
-    docker compose -f docker-compose.yaml --env-file ./env/${parameter1}.env up --detach --pull always
+    docker compose -f docker-compose.yaml --env-file ./env/${parameter1}.env --env-file ./env/${parameter1}.secret.env build --no-cache &&
+    docker compose -f docker-compose.yaml --env-file ./env/${parameter1}.env --env-file ./env/${parameter1}.secret.env up --detach --pull always
 elif [ "${parameter2}" = "up" ]
 then
-    docker compose -f docker-compose.yaml --env-file ./env/${parameter1}.env up --detach --pull always
+    docker compose -f docker-compose.yaml --env-file ./env/${parameter1}.env --env-file ./env/${parameter1}.secret.env up --detach --pull always
 fi

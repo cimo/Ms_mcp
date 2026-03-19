@@ -49,7 +49,8 @@ RUN cd ~ \
     && uid="$(id -u node)" \
     && mkdir -p ${PATH_ROOT} /home/node/ /run/user/${uid} \
     && chown -R node:node ${PATH_ROOT} /home/node/ /run/user/${uid} \
-    && chmod -R 775 ${PATH_ROOT} /home/node/ /run/user/${uid} \
+    && chmod -R 775 ${PATH_ROOT} /home/node/ \
+    && chmod -R 700 /run/user/${uid} \
     # Update
     && VERSION_CODENAME=$(grep VERSION_CODENAME= /etc/os-release | cut -d= -f2) \
     && chmod -R 0644 /usr/local/share/ca-certificates/ \
