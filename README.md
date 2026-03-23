@@ -13,10 +13,6 @@ It's possible to use a custom certificate instead of "Ms_cronjob", just add it t
 -   Task: Automation web.
 -   Agent: Work in progress..
 
-## Secret env
-
-1. Create "local.secret.env" file in the "env" folder and add the secret variable there when needed.
-
 ## Installation
 
 1. For build and up write on terminal:
