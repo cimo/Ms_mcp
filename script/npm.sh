@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 p1=$(printf '%s' "${1}" | xargs)
 
 if [ "$#" -lt 1 ]

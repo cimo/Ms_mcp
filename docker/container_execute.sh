@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 p1=$(printf '%s' "${1}" | xargs)
 p2=$(printf '%s' "${2}" | xargs)
 
