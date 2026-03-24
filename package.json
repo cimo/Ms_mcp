@@ -32,8 +32,8 @@
         "@nut-tree-fork/nut-js": "4.2.6",
         "sharp": "0.34.5",
         "chrome-launcher": "1.2.1",
-        "officeparser": "6.0.4",
-        "sqlite-vec": "0.1.7-alpha.2"
+        "officeparser": "6.0.6",
+        "sqlite-vec": "0.1.7"
     },
     "devDependencies": {
         "@types/node": "25.3.0",
@@ -64,6 +64,8 @@
         "cookie": "0.7.0",
         "**/cookie": "0.7.0",
         "brace-expansion": "2.0.2",
-        "**/brace-expansion": "2.0.2"
+        "**/brace-expansion": "2.0.2",
+        "file-type": "21.4.0",
+        "**/file-type": "21.4.0"
     }
 }
