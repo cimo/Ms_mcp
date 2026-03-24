@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-xdgRuntimeDir=$XDG_RUNTIME_DIR
+xdgRuntimeDir="${XDG_RUNTIME_DIR}"
 userId="/run/user/$(id -u)/"
 
 XDG_RUNTIME_DIR="${userId}" \

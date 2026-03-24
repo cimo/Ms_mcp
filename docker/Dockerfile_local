@@ -49,6 +49,9 @@ RUN cd ~ \
     && chmod -R 775 ${PATH_ROOT} /home/node/ \
     && chmod -R 700 /run/user/${uid} \
     # Update
+    && echo 'Acquire::Retries "3";' > /etc/apt/apt.conf.d/80-retries \
+    && echo 'Acquire::http::No-Cache "true";' > /etc/apt/apt.conf.d/99no-cache \
+    && echo 'Acquire::https::No-Cache "true";' >> /etc/apt/apt.conf.d/99no-cache \
     && VERSION_CODENAME=$(grep VERSION_CODENAME= /etc/os-release | cut -d= -f2) \
     && chmod -R 0644 /usr/local/share/ca-certificates/ \
     && apt-get update && apt-get install -y ca-certificates tzdata curl media-types jq \
