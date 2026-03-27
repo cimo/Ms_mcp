@@ -6,7 +6,7 @@ p1=$(printf '%s' "${1}" | xargs)
 
 if [ "$#" -lt 1 ]
 then
-    echo "npm.sh - Missing parameter."
+    echo -e "\n❌ npm.sh - Missing parameter."
 
     exit 1
 fi

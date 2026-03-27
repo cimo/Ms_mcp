@@ -19,11 +19,11 @@ do
             then
                 rm -rf "${data}"
 
-                echo "Folder '${data}' deleted."
+                echo -e "\nFolder '${data}' deleted."
             else
                 rm -f "${data}"
                 
-                echo "File '${data}' deleted."
+                echo -e "\nFile '${data}' deleted."
             fi
         fi
     fi
