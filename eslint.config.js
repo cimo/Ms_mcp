@@ -11,7 +11,6 @@ const configIgnore = {
         ".config",
         ".ipython",
         ".jupyter",
-        ".lmstudio",
         ".local",
         ".npm",
         ".nv",
