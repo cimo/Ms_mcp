@@ -67,6 +67,7 @@ RUN cd ~ \
     && groupadd -g 44 video || true \
     && usermod -aG 110 node \
     && usermod -aG 44 node \
+    && echo "<driconf></driconf>" > /etc/drirc \
     && apt-get update && apt-get install -y \
     libglib2.0-0 \
     libgtk-3-0 \
