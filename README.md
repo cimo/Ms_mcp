@@ -4,7 +4,8 @@ Microservice mcp.
 
 Depend on "Ms_cronjob" (use "ms_cronjob-volume" to share the certificate).
 
-It's possible to use a custom certificate instead of "Ms_cronjob", just add it to the "certificate" folder before build the container.
+It's possible to use a custom certificate instead of self signed.
+Just add it to the "/certificate/custom/" folder and change the env variable before build the container.
 
 ## Info:
 
@@ -21,7 +22,7 @@ It's possible to use a custom certificate instead of "Ms_cronjob", just add it t
 bash docker/container_execute.sh "local" "build-up"
 ```
 
-3. Just for up write on terminal:
+2. Just for up write on terminal:
 
 ```
 bash docker/container_execute.sh "local" "up"
