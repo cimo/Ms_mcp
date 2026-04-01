@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -euo pipefail
-
 for pathEnvFile in "./env/${ENV_NAME}".*
 do
     if [ -f "${pathEnvFile}" ]

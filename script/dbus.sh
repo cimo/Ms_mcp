@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -euo pipefail
-
 xdgRuntimeDir="${XDG_RUNTIME_DIR}"
 userId="/run/user/$(id -u)/"
 
