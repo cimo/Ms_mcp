@@ -22,4 +22,4 @@ do
     fi
 done
 
-export PATH="${PATH_ROOT}.local/bin/:${PATH_ROOT}.cargo/bin/:${PATH}"
+export PATH="${PATH_ROOT}.venv/bin/:${PATH_ROOT}.local/bin/:${PATH_ROOT}.cargo/bin/:${PATH}"

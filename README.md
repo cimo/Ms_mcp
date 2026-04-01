@@ -37,6 +37,7 @@ bash docker/container_execute.sh "local" "up"
     - .local
     - .npm
     - .pki
+    - .venv
     - dist
     - node_modules
     - package-lock.json

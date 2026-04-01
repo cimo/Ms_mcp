@@ -16,6 +16,7 @@ const configIgnore = {
         ".nv",
         ".paddlex",
         ".pki",
+        ".venv",
         "certificate",
         "dist",
         "node_modules",
