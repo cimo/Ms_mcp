@@ -4,6 +4,7 @@ import { z } from "zod";
 import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import * as modelMcp from "../model/Mcp.js";
+import * as modelRag from "./rag/Model.js";
 import * as ragEmbedding from "./rag/Embedding.js";
 
 export default class Rag {
@@ -12,17 +13,25 @@ export default class Rag {
 
     inputSchemaStore;
     inputSchemaSearch;
+    inputSchemaDelete;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
         this.inputSchemaStore = z.object({
+            fileName: z.string().default("").describe("File name."),
             fileContent: z.string().default("").describe("File content.")
         });
 
         this.inputSchemaSearch = z.object({
-            input: z.string().default("").describe("Input prompt.")
+            mode: z.string().default("").describe("Search mode: <database|document>."),
+            fileName: z.string().default("").describe("File name: <filename|All>."),
+            input: z.string().default("").describe("Search input: <input>.")
+        });
+
+        this.inputSchemaDelete = z.object({
+            fileName: z.string().default("").describe("File name.")
         });
 
         ragEmbedding.createDatabase();
@@ -42,7 +51,7 @@ export default class Rag {
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const uniqueId = helperSrc.generateUniqueId();
 
-                await ragEmbedding.store(extra.sessionId, uniqueId, argument.fileContent);
+                await ragEmbedding.store(extra.sessionId, uniqueId, argument.fileName, argument.fileContent);
             }
 
             return {
@@ -62,7 +71,10 @@ export default class Rag {
         const name = "rag_search";
 
         const config = {
-            description: "Search text in the vector database.",
+            description:
+                "Search text in the vector database or document.\n" +
+                "Use the prompt: \n" +
+                "Search mode: <database|document>. File name: <filename|All>. Search input: <input>.",
             inputSchema: this.inputSchemaSearch
         };
 
@@ -70,9 +82,52 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const uniqueId = helperSrc.generateUniqueId();
+                const fileName = argument.fileName.trim().replace(/\.+$/, "");
+                const mode = argument.mode.trim().replace(/\.+$/, "");
+                const input = argument.input.trim().replace(/\.+$/, "");
 
-                result = await ragEmbedding.search(extra.sessionId, uniqueId, argument.input);
+                const searchFileName = fileName.toLowerCase() === "all" ? ".*" : fileName;
+
+                const fileList = await helperSrc.uploadedFileList(extra.sessionId, searchFileName);
+
+                if (fileList.length > 0) {
+                    if (mode.toLowerCase() === "database") {
+                        const uniqueId = helperSrc.generateUniqueId();
+
+                        result = await ragEmbedding.searchDatabase(extra.sessionId, uniqueId, fileName, input);
+                    } else if (mode.toLowerCase() === "document") {
+                        const resultList: modelRag.IapiRag[] = [];
+                        const baseFileNameList: string[] = [];
+
+                        for (const fileName of fileList) {
+                            const baseFileName = helperSrc.baseFileName(fileName);
+
+                            if (!baseFileNameList.includes(baseFileName)) {
+                                const searchResult = await ragEmbedding.searchDocument(extra.sessionId, fileName, input);
+
+                                resultList.push({
+                                    fileName,
+                                    pageNumber: searchResult.pageNumber
+                                });
+
+                                baseFileNameList.push(baseFileName);
+                            }
+                        }
+
+                        if (resultList.length === 0) {
+                            result = "Not found in document(s).";
+                        } else {
+                            result = JSON.stringify({
+                                type: "html",
+                                resultList
+                            } as modelRag.IapiRagResult);
+                        }
+                    } else {
+                        result = `Error: Invalid search mode: ${mode}. Please use "database" or "document".`;
+                    }
+                } else {
+                    result = fileName.toLowerCase() === "all" ? "Error: No uploaded file." : `Error: File does not exist: ${fileName}.`;
+                }
             }
 
             return {
@@ -88,19 +143,19 @@ export default class Rag {
         return { name, config, content };
     };
 
-    delete = (): modelMcp.Irpc<z.ZodObject<{}, z.core.$strip>> => {
+    delete = (): modelMcp.Irpc<typeof this.inputSchemaDelete> => {
         const name = "rag_delete";
 
         const config = {
             description: "Delete the table from the vector database.",
-            inputSchema: z.object({}).strict()
+            inputSchema: this.inputSchemaDelete
         };
 
-        const content = async (_: z.infer<z.ZodObject<{}, z.core.$strip>>, extra: { sessionId?: string }) => {
+        const content = async (argument: z.infer<typeof this.inputSchemaDelete>, extra: { sessionId?: string }) => {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                ragEmbedding.drop(extra.sessionId);
+                ragEmbedding.drop(extra.sessionId, argument.fileName);
             }
 
             return {

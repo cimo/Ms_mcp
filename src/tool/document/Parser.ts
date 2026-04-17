@@ -1,183 +1,149 @@
-import { parseOffice, OfficeParserAST, HeadingMetadata, OfficeContentNode } from "officeparser";
+import Fs from "fs";
 
 // Source
 import * as helperSrc from "../../HelperSrc.js";
+import * as instance from "./Instance.js";
+import * as modelHelperSrc from "../../model/HelperSrc.js";
+import * as modelRag from "../rag/Model.js";
+import * as json from "./Json.js";
+import * as markdown from "./Markdown.js";
+import * as svg from "./Svg.js";
 
-const parser = (sessionId: string, fileName: string): Promise<OfficeParserAST> => {
-    return new Promise<OfficeParserAST>((resolve, reject) => {
-        const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${fileName}`;
+const login = async (): Promise<string> => {
+    let result = "";
 
-        helperSrc.fileReadStream(input, async (resultFileReadStream) => {
-            if (Buffer.isBuffer(resultFileReadStream)) {
-                const result = await parseOffice(resultFileReadStream, {
-                    newlineDelimiter: "\n",
-                    ignoreNotes: false,
-                    extractAttachments: false,
-                    ocr: false,
-                    ocrLanguage: ""
-                });
-
-                resolve(result);
-
-                return;
-            } else {
-                reject(new Error("File read failed."));
-
-                return;
+    await instance.api
+        .get<modelHelperSrc.IresponseBody>("/login", {
+            headers: {
+                "Content-Type": "application/json"
             }
+        })
+        .then((resultApi) => {
+            result = JSON.stringify(resultApi.data, null, 2);
+        })
+        .catch((error: Error) => {
+            helperSrc.writeLog("Parser.ts - login() - api(/login) - catch()", error.message);
+
+            result = "ko";
         });
+
+    return result;
+};
+
+const convertToPdf = async (inputFolder: string, fileName: string): Promise<boolean> => {
+    return new Promise<boolean>(async (resolve, reject) => {
+        const baseFileName = helperSrc.baseFileName(fileName);
+
+        if (!fileName.toLowerCase().endsWith(".pdf")) {
+            helperSrc.fileReadStream(`${inputFolder}${fileName}`, async (resultFileReadStream) => {
+                if (Buffer.isBuffer(resultFileReadStream)) {
+                    const buffer = Buffer.from(resultFileReadStream);
+                    const mimeType = helperSrc.readMimeType(buffer);
+                    const blob = new Blob([buffer], { type: mimeType.content });
+
+                    const formData = new FormData();
+                    formData.append("file", blob, `${fileName}`);
+
+                    await instance.api
+                        .post<modelHelperSrc.IresponseBody>("/api/toPdf", {}, formData)
+                        .then((resultApi) => {
+                            helperSrc.fileWriteStream(
+                                `${inputFolder}${baseFileName}_copy.pdf`,
+                                Buffer.from(resultApi.data.response.stdout, "base64"),
+                                () => {
+                                    resolve(true);
+
+                                    return;
+                                }
+                            );
+                        })
+                        .catch((error: Error) => {
+                            helperSrc.writeLog("Parser.ts - convertToPdf() - api(/toPdf) - catch()", error.message);
+
+                            reject(new Error(error.message));
+
+                            return;
+                        });
+                } else {
+                    reject(new Error("File read failed."));
+
+                    return;
+                }
+            });
+        } else {
+            Fs.copyFile(`${inputFolder}${fileName}`, `${inputFolder}${baseFileName}_copy.pdf`, (error) => {
+                if (error) {
+                    resolve(false);
+
+                    return;
+                }
+
+                resolve(true);
+            });
+        }
     });
 };
 
-const json = (ast: OfficeParserAST): string => {
-    return JSON.stringify(ast);
-};
+const logout = async (): Promise<string> => {
+    let result = "";
 
-const markdown = (ast: OfficeParserAST): string => {
-    const resultList: string[] = [];
-
-    for (const node of ast.content) {
-        if (node.type === "heading") {
-            const metadata = node.metadata as HeadingMetadata;
-            resultList.push(`${"#".repeat(metadata.level ?? 1)} ${node.text}`);
-
-            continue;
-        }
-
-        if (node.type === "list") {
-            resultList.push(`- ${node.text}`);
-
-            continue;
-        }
-
-        if (node.type === "table") {
-            if (node.children && node.children.length > 0) {
-                const rowList: string[] = [];
-
-                if (node.children[0].children) {
-                    const headerList: string[] = [];
-                    const separatorList: string[] = [];
-
-                    for (const headerCell of node.children[0].children) {
-                        headerList.push(` ${headerCell.text ?? ""} `);
-                        separatorList.push(" --- ");
-                    }
-
-                    rowList.push(`|${headerList.join("|")}|`);
-                    rowList.push(`|${separatorList.join("|")}|`);
-                }
-
-                for (let a = 1; a < node.children.length; a++) {
-                    const bodyList: string[] = [];
-                    const childList = node.children[a].children;
-
-                    if (childList) {
-                        for (const childCell of childList) {
-                            bodyList.push(` ${childCell.text ?? ""} `);
-                        }
-                    }
-
-                    rowList.push(`|${bodyList.join("|")}|`);
-                }
-
-                resultList.push(rowList.join("\n"));
-            } else {
-                resultList.push("[Empty Table]");
+    await instance.api
+        .get<modelHelperSrc.IresponseBody>("/logout", {
+            headers: {
+                "Content-Type": "application/json"
             }
+        })
+        .then((resultApi) => {
+            result = JSON.stringify(resultApi.data, null, 2);
+        })
+        .catch((error: Error) => {
+            helperSrc.writeLog("Parser.ts - logout() - api(/logout) - catch()", error.message);
 
-            continue;
-        }
-
-        if (node.text) {
-            resultList.push(node.text);
-        }
-    }
-
-    const result = resultList.join("\n\n");
+            result = "ko";
+        });
 
     return result;
-};
-
-const convertChildren = (node: OfficeContentNode, tag: string = ""): string => {
-    const htmlList: string[] = [];
-
-    if (node.children) {
-        for (const child of node.children) {
-            let childHtml = "";
-
-            if (tag === "") {
-                childHtml = nodeToHtml(child);
-            } else {
-                childHtml = `<${tag}>${nodeToHtml(child)}</${tag}>`;
-            }
-
-            htmlList.push(childHtml);
-        }
-    }
-
-    return htmlList.join("\n");
-};
-
-const nodeToHtml = (node: OfficeContentNode): string => {
-    let html = "";
-
-    switch (node.type) {
-        case "paragraph":
-            const text = convertChildren(node);
-            html = `<p>${text ? text : ""}</p>`;
-
-            break;
-        case "text":
-            html = node.text ? node.text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : "";
-
-            break;
-        case "table":
-            html = `<table>${convertChildren(node)}</table>`;
-
-            break;
-        case "row":
-            html = `<tr>${convertChildren(node)}</tr>`;
-
-            break;
-        case "cell":
-            html = `<td>${convertChildren(node)}</td>`;
-
-            break;
-        case "list":
-            html = `<ul>${convertChildren(node, "li")}</ul>`;
-
-            break;
-        default:
-            html = node.children ? convertChildren(node) : "";
-
-            break;
-    }
-
-    return html;
-};
-
-const html = (ast: OfficeParserAST): string => {
-    const htmlList: string[] = [];
-
-    for (const node of ast.content) {
-        htmlList.push(nodeToHtml(node));
-    }
-
-    return `<html>${htmlList.join("\n")}</html>`;
 };
 
 export const execute = async (sessionId: string, fileName: string, format: string): Promise<string> => {
-    let result = "";
+    return await instance.runWithContext(async () => {
+        let result = "";
 
-    const ast = await parser(sessionId, fileName);
+        await login();
 
-    if (format === "json") {
-        result = json(ast);
-    } else if (format === "markdown") {
-        result = markdown(ast);
-    } else if (format === "html") {
-        result = html(ast);
-    }
+        const baseFileName = helperSrc.baseFileName(fileName);
+        const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${baseFileName}/`;
 
-    return result;
+        const isConverted = await convertToPdf(inputFolder, fileName);
+
+        if (!isConverted) {
+            return "Conversion to PDF failed.";
+        }
+
+        const pdfFile = `${inputFolder}${baseFileName}_copy.pdf`;
+
+        if (format === "json") {
+            result = json.convert(pdfFile);
+        } else if (format === "markdown") {
+            result = markdown.convert(pdfFile);
+        } else if (format === "html") {
+            const convertResult = svg.convert(inputFolder, fileName, "");
+
+            const documentResult: modelRag.IapiRagResult = {
+                type: "html",
+                resultList: [
+                    {
+                        fileName,
+                        pageNumber: convertResult.pageNumber
+                    } as modelRag.IapiRag
+                ]
+            };
+
+            result = JSON.stringify(documentResult);
+        }
+
+        await logout();
+
+        return result;
+    });
 };

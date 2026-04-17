@@ -56,7 +56,8 @@ export default class Upload {
                 if (resultCheckRequest === "") {
                     for (const formData of formDataList) {
                         if (formData.name === "file" && formData.fileName && formData.buffer) {
-                            const path = pathValue;
+                            const baseFileName = helperSrc.baseFileName(formData.fileName);
+                            const path = `${pathValue}${baseFileName}/`;
                             const pathFile = `${path}${formData.fileName}`;
 
                             Fs.mkdir(path, { recursive: true }, (error) => {

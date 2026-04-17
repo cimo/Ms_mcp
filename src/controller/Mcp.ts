@@ -188,7 +188,7 @@ export default class Mcp {
             } else if (typeof sessionId === "string" && request.body.method === "terminate") {
                 this.sessionObject[sessionId].rpc.close();
 
-                this.toolRag.delete().content({}, { sessionId });
+                this.toolRag.delete().content({ fileName: "" }, { sessionId });
 
                 helperSrc.responseBody(sessionId, "", response, 200);
 
@@ -229,23 +229,26 @@ export default class Mcp {
                     .then((result) => {
                         const fileName = result[0].fileName;
 
-                        /*const fileExtension = fileName.split(".").pop();
+                        this.toolDocument
+                            .parse()
+                            .content({ fileName, format: "markdown" }, { sessionId })
+                            .then((resultDocumentParser) => {
+                                this.toolRag
+                                    .search()
+                                    .content({ mode: "document", fileName, input: "" }, { sessionId })
+                                    .then(() => {
+                                        this.toolRag
+                                            .store()
+                                            .content({ fileName, fileContent: resultDocumentParser.content[0].text }, { sessionId })
+                                            .then(() => {
+                                                const baseFileName = helperSrc.baseFileName(fileName);
 
-                        if (fileExtension && fileExtension.toLowerCase() === "pdf") {
-                            this.toolDocument
-                                .parse()
-                                .content({ fileName, format: "markdown" }, { sessionId })
-                                .then((resultDocumentParser) => {
-                                    this.toolRag
-                                        .store()
-                                        .content({ fileContent: resultDocumentParser.content[0].text }, { sessionId })
-                                        .then(() => {
-                                            const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${fileName}.lock`;
+                                                const mdFilePath = `${input}${baseFileName}/${baseFileName}.md`;
 
-                                            helperSrc.fileWriteStream(input, Buffer.from([]), () => {});
-                                        });
-                                });
-                        }*/
+                                                helperSrc.fileWriteStream(mdFilePath, Buffer.from(resultDocumentParser.content[0].text), () => {});
+                                            });
+                                    });
+                            });
 
                         helperSrc.responseBody(fileName, "", response, 200);
                     })
@@ -261,25 +264,41 @@ export default class Mcp {
             }
         });
 
+        this.app.get("/api/embedding-check", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const sessionId = request.headers["mcp-session-id"];
+            const fileName = request.query["fileName"];
+
+            if (typeof sessionId === "string" && typeof fileName === "string" && fileName.trim() !== "") {
+                const baseFileName = helperSrc.baseFileName(fileName);
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${baseFileName}/`;
+
+                helperSrc.findFileInDirectoryRecursive(input, ".*", (list) => {
+                    const fileLock = `${baseFileName}.md`;
+                    let embeddingFinished = false;
+
+                    for (const file of list) {
+                        if (file.endsWith(fileLock)) {
+                            embeddingFinished = true;
+
+                            break;
+                        }
+                    }
+
+                    helperSrc.responseBody(embeddingFinished.toString(), "", response, 200);
+                });
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - get(/api/embedding-check) - Error", "Missing or invalid header or fileName.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
         this.app.get("/api/file-uploaded", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
 
             if (typeof sessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/`;
-
-                helperSrc.findFileInDirectoryRecursive(input, ".*", (list) => {
-                    const resultList = [];
-
-                    for (let a = 0; a < list.length; a++) {
-                        const nameList = list[a].split("/");
-                        const name = nameList[nameList.length - 1];
-
-                        if (name.toLowerCase() !== "screenshot.jpg") {
-                            resultList.push(name);
-                        }
-                    }
-
-                    helperSrc.responseBody(JSON.stringify(resultList), "", response, 200);
+                helperSrc.uploadedFileList(sessionId, ".*").then((fileList) => {
+                    helperSrc.responseBody(JSON.stringify(fileList), "", response, 200);
                 });
             } else {
                 helperSrc.writeLog("Mcp.ts - api() - get(/api/file-uploaded) - Error", "Missing or invalid header.");
@@ -290,10 +309,10 @@ export default class Mcp {
 
         this.app.post("/api/file-uploaded-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelMcp.IfileUploadedDelete;
+            const body = request.body as modelMcp.Ifile;
 
             if (typeof sessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${body.fileName}`;
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${body.baseFileName}/`;
 
                 helperSrc.fileOrFolderDelete(input, (result) => {
                     if (typeof result !== "boolean") {
@@ -303,7 +322,47 @@ export default class Mcp {
                     }
                 });
 
+                this.toolRag.delete().content({ fileName: body.fileName }, { sessionId });
+
                 helperSrc.responseBody("ok", "", response, 200);
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/file-uploaded-delete) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
+        this.app.post("/api/file-read", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const sessionId = request.headers["mcp-session-id"];
+            const body = request.body as modelMcp.Ifile;
+
+            if (typeof sessionId === "string") {
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${body.baseFileName}/`;
+
+                helperSrc.findFileInDirectoryRecursive(input, ".html", (list) => {
+                    for (const file of list) {
+                        const fileName = file.split("/").pop() || "";
+
+                        if (fileName === body.fileName) {
+                            helperSrc.fileReadStream(file, (resultFileReadStream) => {
+                                if (Buffer.isBuffer(resultFileReadStream)) {
+                                    const readResult = {
+                                        fileContent: resultFileReadStream.toString("base64"),
+                                        pageTotal: list.length
+                                    };
+
+                                    helperSrc.responseBody(JSON.stringify(readResult), "", response, 200);
+                                } else {
+                                    helperSrc.writeLog("Mcp.ts - api() - post(/api/file-read) - fileReadStream()", resultFileReadStream.toString());
+
+                                    helperSrc.responseBody("", resultFileReadStream.toString(), response, 500);
+                                }
+                            });
+
+                            break;
+                        }
+                    }
+                });
             } else {
                 helperSrc.writeLog("Mcp.ts - api() - post(/api/file-uploaded-delete) - Error", "Missing or invalid header.");
 

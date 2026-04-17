@@ -27,8 +27,9 @@ export interface Irpc<TSchema extends z.ZodTypeAny> {
     }>;
 }
 
-export interface IfileUploadedDelete {
+export interface Ifile {
     fileName: string;
+    baseFileName: string;
 }
 
 export interface Itool {

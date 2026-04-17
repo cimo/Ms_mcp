@@ -296,6 +296,40 @@ export const findFileInDirectoryRecursive = (path: string, extension: string, ca
     });
 };
 
+export const uploadedFileList = async (sessionId: string, extension: string): Promise<string[]> => {
+    return new Promise<string[]>((resolve) => {
+        const input = `${PATH_ROOT}${PATH_FILE}input/${sessionId}/`;
+
+        findFileInDirectoryRecursive(input, extension, (list) => {
+            const resultList = [];
+
+            for (let a = 0; a < list.length; a++) {
+                const nameList = list[a].split("/");
+                const name = nameList[nameList.length - 1];
+
+                if (
+                    name.toLowerCase() !== "screenshot.jpg" &&
+                    !name.toLowerCase().endsWith(".md") &&
+                    !name.toLowerCase().endsWith(".html") &&
+                    !name.toLowerCase().endsWith("_copy.pdf")
+                ) {
+                    resultList.push(name);
+                }
+            }
+
+            resolve(resultList);
+        });
+    });
+};
+
+export const baseFileName = (fileName: string): string => {
+    const nameList = fileName.split("/");
+    const nameWithExtension = nameList[nameList.length - 1];
+    const baseName = nameWithExtension.trim().replace(/.[^/.]+$/, "");
+
+    return baseName;
+};
+
 export const headerBearerToken = (request: Request): string => {
     const authorization = request.headers["authorization"];
 

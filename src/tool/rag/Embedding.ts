@@ -5,8 +5,9 @@ import * as sqliteVec from "sqlite-vec";
 import * as helperSrc from "../../HelperSrc.js";
 import * as modelHelperSrc from "../../model/HelperSrc.js";
 import * as instance from "./Instance.js";
-import * as model from "./Model.js";
+import * as modelRag from "./Model.js";
 import * as semantic from "./Semantic.js";
+import * as svg from "../document/Svg.js";
 
 let db: DatabaseSync | null = null;
 
@@ -33,8 +34,8 @@ const login = async (uniqueId: string): Promise<string> => {
     return result;
 };
 
-const embedding = async (uniqueId: string, text: string | string[]): Promise<model.IapiEmbeddingData[]> => {
-    let result: model.IapiEmbeddingData[] = [];
+const embedding = async (uniqueId: string, text: string | string[]): Promise<modelRag.IapiEmbeddingData[]> => {
+    let result: modelRag.IapiEmbeddingData[] = [];
 
     await instance.api
         .post<modelHelperSrc.IresponseBody>(
@@ -50,13 +51,36 @@ const embedding = async (uniqueId: string, text: string | string[]): Promise<mod
             }
         )
         .then((resultApi) => {
-            result = JSON.parse(resultApi.data.response.stdout) as model.IapiEmbeddingData[];
+            result = JSON.parse(resultApi.data.response.stdout).data as modelRag.IapiEmbeddingData[];
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Rag.ts - embedding() - catch()", error.message);
         });
 
     return result;
+};
+
+const tableName = (sessionId: string, fileName: string): string => {
+    return `${sessionId}_${fileName}`.replace(/"/g, '""');
+};
+
+const tableNameList = (sessionId: string): string[] => {
+    if (!db) {
+        return [];
+    }
+
+    const escapedSessionId = sessionId.replace(/[\\%_]/g, "\\$&");
+    const query = db.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ? ESCAPE '\\' AND sql LIKE 'CREATE VIRTUAL TABLE%USING vec0%'"
+    );
+    const rowList = query.all(`${escapedSessionId}_%`);
+
+    const tableList = [];
+    for (const row of rowList) {
+        tableList.push(String(row["name"] ?? "").replace(/"/g, '""'));
+    }
+
+    return tableList;
 };
 
 const createTable = async (tableName: string): Promise<void> => {
@@ -106,22 +130,24 @@ export const createDatabase = (): void => {
     }
 };
 
-export const store = async (tableName: string, uniqueId: string, fileContent: string): Promise<void> => {
+export const store = async (sessionId: string, uniqueId: string, fileName: string, fileContent: string): Promise<void> => {
     await instance.runWithContext(async () => {
         await login(uniqueId);
 
-        await createTable(tableName);
+        const table = tableName(sessionId, fileName);
+
+        await createTable(table);
 
         const chunkList = semantic.chunkList(fileContent, {
-            maxChars: 2000,
+            maxChars: 300,
             overlapSentences: 1
         });
 
         for (let chunk of chunkList) {
             const data = await embedding(uniqueId, chunk);
 
-            if (data[0].embedding.length > 0) {
-                insert(tableName, chunk, data[0].embedding);
+            if (data.length > 0 && data[0].embedding.length > 0) {
+                insert(table, chunk, data[0].embedding);
             }
         }
 
@@ -129,9 +155,12 @@ export const store = async (tableName: string, uniqueId: string, fileContent: st
     });
 };
 
-export const search = async (tableName: string, uniqueId: string, input: string): Promise<string> => {
+export const searchDatabase = async (sessionId: string, uniqueId: string, fileName: string, input: string): Promise<string> => {
     return await instance.runWithContext(async () => {
-        const resultObject: Record<string, string> = {};
+        const resultObject: modelRag.IapiRagResult = {
+            type: "citation",
+            resultList: [] as modelRag.IapiRag[]
+        };
 
         await login(uniqueId);
 
@@ -140,15 +169,63 @@ export const search = async (tableName: string, uniqueId: string, input: string)
         const queryBlob = new Uint8Array(new Float32Array(data[0].embedding).buffer);
 
         if (db) {
-            const querySelect = db.prepare(`SELECT chunk FROM "${tableName}" WHERE embedding MATCH ? ORDER BY distance LIMIT 5`).all(queryBlob);
+            if (fileName.trim().toLowerCase() === "all") {
+                const tableList = tableNameList(sessionId);
+                const sessionPrefix = `${sessionId}_`;
 
-            let counter = 0;
-            for (const row of querySelect) {
-                if (row["chunk"]) {
-                    counter++;
+                let citationList: modelRag.IapiCitation[] = [];
 
-                    resultObject[`citation ${counter}`] = row["chunk"] as string;
+                for (const table of tableList) {
+                    const querySelect = db
+                        .prepare(`SELECT chunk, distance FROM "${table}" WHERE embedding MATCH ? ORDER BY distance LIMIT 5`)
+                        .all(queryBlob);
+
+                    const sourceFileName = table.startsWith(sessionPrefix) ? table.slice(sessionPrefix.length) : table;
+
+                    for (const row of querySelect) {
+                        if (row["chunk"]) {
+                            citationList.push({
+                                fileName: sourceFileName,
+                                citation: row["chunk"] as string,
+                                distance: Number(row["distance"] ?? Number.POSITIVE_INFINITY)
+                            });
+                        }
+                    }
                 }
+
+                citationList = citationList
+                    .sort((first, second) => {
+                        const firstDistance = first.distance ?? Number.POSITIVE_INFINITY;
+                        const secondDistance = second.distance ?? Number.POSITIVE_INFINITY;
+
+                        return firstDistance - secondDistance;
+                    })
+                    .slice(0, 5);
+
+                const resultList: modelRag.IapiRag[] = [];
+                for (const citation of citationList) {
+                    resultList.push({
+                        fileName: citation.fileName,
+                        citation: citation.citation
+                    });
+                }
+
+                resultObject.resultList = resultList;
+            } else {
+                const querySelect = db
+                    .prepare(`SELECT chunk FROM "${tableName(sessionId, fileName)}" WHERE embedding MATCH ? ORDER BY distance LIMIT 5`)
+                    .all(queryBlob);
+
+                const resultList: modelRag.IapiRag[] = [];
+                for (const row of querySelect) {
+                    if (row["chunk"]) {
+                        resultList.push({
+                            fileName,
+                            citation: row["chunk"] as string
+                        } as modelRag.IapiRag);
+                    }
+                }
+                resultObject.resultList = resultList;
             }
         }
 
@@ -158,8 +235,32 @@ export const search = async (tableName: string, uniqueId: string, input: string)
     });
 };
 
-export const drop = async (tableName: string): Promise<void> => {
-    if (db) {
-        db.exec(`DROP TABLE IF EXISTS "${tableName}"`);
+export const searchDocument = (sessionId: string, fileName: string, searchInput: string): modelRag.IapiRag => {
+    const baseFileName = helperSrc.baseFileName(fileName);
+    const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${baseFileName}/`;
+
+    return svg.convert(inputFolder, fileName, searchInput);
+};
+
+export const drop = async (sessionId: string, fileName: string): Promise<void> => {
+    if (!db) {
+        return;
     }
+
+    let dropSql = "";
+
+    if (fileName === "") {
+        const tableList = tableNameList(sessionId);
+
+        for (let index = 0; index < tableList.length; index++) {
+            const tableName = tableList[index];
+            const sql = `DROP TABLE IF EXISTS "${tableName}"`;
+
+            dropSql += index === 0 ? sql : `;${sql}`;
+        }
+    } else {
+        dropSql = `DROP TABLE IF EXISTS "${tableName(sessionId, fileName)}"`;
+    }
+
+    db.exec(dropSql);
 };
