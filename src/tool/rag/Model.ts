@@ -25,8 +25,8 @@ export interface IhighlightRange {
 }
 
 export type TsemanticChunkOption = {
-    maxChars: number;
-    overlapSentences?: number;
+    maxLenght: number;
+    overlapSentenceCount: number;
 };
 
 export interface IapiRag {

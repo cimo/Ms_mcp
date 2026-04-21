@@ -29,8 +29,8 @@ const flush = (buffer: string[], overlap: number, chunkList: string[]): string[]
 };
 
 export const chunkList = (text: string, options: model.TsemanticChunkOption): string[] => {
-    const maxChars = options.maxChars;
-    const overlap = options.overlapSentences ?? 2;
+    const maxLenght = options.maxLenght;
+    const overlapSentenceCount = options.overlapSentenceCount;
 
     const chunkList: string[] = [];
 
@@ -39,20 +39,20 @@ export const chunkList = (text: string, options: model.TsemanticChunkOption): st
 
     for (const paragraph of splitParagraph(text)) {
         for (const sentence of splitSentence(paragraph)) {
-            if (sentence.length > maxChars) {
-                buffer = flush(buffer, overlap, chunkList);
+            if (sentence.length > maxLenght) {
+                buffer = flush(buffer, overlapSentenceCount, chunkList);
                 bufferLen = buffer.join(" ").length;
 
-                for (let a = 0; a < sentence.length; a += maxChars) {
-                    chunkList.push(sentence.slice(a, a + maxChars).trim());
+                for (let a = 0; a < sentence.length; a += maxLenght) {
+                    chunkList.push(sentence.slice(a, a + maxLenght).trim());
                 }
 
                 continue;
             }
 
             const extra = (buffer.length ? 1 : 0) + sentence.length;
-            if (bufferLen + extra > maxChars) {
-                buffer = flush(buffer, overlap, chunkList);
+            if (bufferLen + extra > maxLenght) {
+                buffer = flush(buffer, overlapSentenceCount, chunkList);
                 bufferLen = buffer.join(" ").length;
             }
 
@@ -60,7 +60,7 @@ export const chunkList = (text: string, options: model.TsemanticChunkOption): st
             bufferLen += extra;
         }
 
-        buffer = flush(buffer, overlap, chunkList);
+        buffer = flush(buffer, overlapSentenceCount, chunkList);
         bufferLen = buffer.join(" ").length;
     }
 

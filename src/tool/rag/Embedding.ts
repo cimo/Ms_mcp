@@ -139,8 +139,8 @@ export const store = async (sessionId: string, uniqueId: string, fileName: strin
         await createTable(table);
 
         const chunkList = semantic.chunkList(fileContent, {
-            maxChars: 300,
-            overlapSentences: 1
+            maxLenght: 300,
+            overlapSentenceCount: 1
         });
 
         for (let chunk of chunkList) {

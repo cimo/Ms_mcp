@@ -15,6 +15,8 @@ do
         then
             if [ -d "${data}" ]
             then
+                bash "${PATH_ROOT}${MS_M_PATH_SCRIPT}rag_delete_database.sh" "${data}/"
+                
                 rm -rf "${data}"
 
                 echo -e "\nFolder '${data}' deleted."
