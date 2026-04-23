@@ -9,31 +9,30 @@ export default class Document {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
-    inputSchema;
+    inputSchemaParse;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchema = z.object({
-            fileName: z.string().default("").describe("File name."),
-            format: z.enum(["json", "markdown", "html"]).default("html").describe("Output format.")
+        this.inputSchemaParse = z.object({
+            fileName: z.string().default("").describe("File name.")
         });
     }
 
-    parse = (): modelMcp.Irpc<typeof this.inputSchema> => {
+    parse = (): modelMcp.Irpc<typeof this.inputSchemaParse> => {
         const name = "document_parse";
 
         const config = {
             description: "Parse docx, xlsx, pptx, pdf document and extract data.",
-            inputSchema: this.inputSchema
+            inputSchema: this.inputSchemaParse
         };
 
-        const content = async (argument: z.infer<typeof this.inputSchema>, extra: { sessionId?: string }) => {
+        const content = async (argument: z.infer<typeof this.inputSchemaParse>, extra: { sessionId?: string }) => {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                result = await documentParse.execute(extra.sessionId, argument.fileName, argument.format);
+                result = await documentParse.execute(extra.sessionId, argument.fileName);
             }
 
             return {

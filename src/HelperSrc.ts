@@ -1,4 +1,5 @@
 import Fs from "fs";
+import { exec } from "child_process";
 import { Request, Response } from "express";
 import { Ce } from "@cimo/environment/dist/src/Main.js";
 
@@ -300,18 +301,21 @@ export const uploadedFileList = async (sessionId: string, extension: string): Pr
     return new Promise<string[]>((resolve) => {
         const input = `${PATH_ROOT}${PATH_FILE}input/${sessionId}/`;
 
-        findFileInDirectoryRecursive(input, extension, (list) => {
+        findFileInDirectoryRecursive(input, extension, (pathFileList) => {
             const resultList = [];
 
-            for (let a = 0; a < list.length; a++) {
-                const nameList = list[a].split("/");
+            for (let a = 0; a < pathFileList.length; a++) {
+                const nameList = pathFileList[a].split("/");
                 const name = nameList[nameList.length - 1];
 
                 if (
                     name.toLowerCase() !== "screenshot.jpg" &&
                     !name.toLowerCase().endsWith(".md") &&
                     !name.toLowerCase().endsWith(".html") &&
-                    !name.toLowerCase().endsWith("_copy.pdf")
+                    !name.toLowerCase().endsWith("_copy.pdf") &&
+                    !name.toLowerCase().endsWith(".svg") &&
+                    !name.toLowerCase().endsWith(".json") &&
+                    !name.toLowerCase().endsWith(".done")
                 ) {
                     resultList.push(name);
                 }
@@ -404,4 +408,16 @@ export const readMimeType = (byteList: Uint8Array): modelHelperSrc.ImimeType => 
     }
 
     return { content: "", extension: "" };
+};
+
+export const terminalExecution = async (command: string): Promise<void> => {
+    await new Promise<void>((resolve, reject) => {
+        exec(command, (error) => {
+            if (error) {
+                reject(error);
+            } else {
+                resolve();
+            }
+        });
+    });
 };

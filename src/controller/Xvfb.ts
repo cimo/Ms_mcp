@@ -1,4 +1,4 @@
-import { exec, fork } from "child_process";
+import { fork } from "child_process";
 
 // Source
 import * as helperSrc from "../HelperSrc.js";
@@ -26,7 +26,7 @@ export default class Xvfb {
         this.sessionObject = sessionObject;
     }
 
-    start = (sessionId: string): void => {
+    start = async (sessionId: string): Promise<void> => {
         const session = this.sessionObject[sessionId];
 
         if (session && session.runtimeWorker && typeof session.display === "number") {
@@ -37,7 +37,7 @@ export default class Xvfb {
 
         helperSrc.writeLog("Xvfb.ts - start()", `Display: ${display} - sessionId: ${sessionId}`);
 
-        exec(`Xvfb :${display} -screen 0 1920x1080x24 >> "${helperSrc.PATH_ROOT}${helperSrc.PATH_LOG}xvfb.log" 2>&1`);
+        await helperSrc.terminalExecution(`Xvfb :${display} -screen 0 1920x1080x24 >> "${helperSrc.PATH_ROOT}${helperSrc.PATH_LOG}xvfb.log" 2>&1`);
 
         const runtimeWorker = fork(`${helperSrc.PATH_ROOT}dist/src/controller/RuntimeWorker.js`, [], {
             silent: true,
@@ -67,7 +67,7 @@ export default class Xvfb {
         };
     };
 
-    stop = (sessionId: string): void => {
+    stop = async (sessionId: string): Promise<void> => {
         if (this.sessionObject[sessionId] && this.sessionObject[sessionId].runtimeWorker) {
             const display = this.sessionObject[sessionId].display;
 
@@ -75,10 +75,10 @@ export default class Xvfb {
 
             this.sessionObject[sessionId].runtimeWorker.kill();
 
-            exec(`pkill -f "Xvfb :${display}"`);
+            await helperSrc.terminalExecution(`pkill -f "Xvfb :${display}"`);
 
-            exec(`rm -rf /tmp/.X11-unix/X${display}`);
-            exec(`rm -rf /tmp/.X${display}-lock`);
+            await helperSrc.terminalExecution(`rm -rf /tmp/.X11-unix/X${display}`);
+            await helperSrc.terminalExecution(`rm -rf /tmp/.X${display}-lock`);
         }
     };
 }

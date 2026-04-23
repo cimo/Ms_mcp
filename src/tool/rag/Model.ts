@@ -8,26 +8,16 @@ export interface IapiEmbeddingData {
     index: number;
 }
 
-export interface IapiCitation {
-    fileName: string;
-    citation: string;
-    distance?: number;
-}
-
-export interface IsearchIndex {
-    partIndex: number;
-    textOffset: number;
-}
-
-export interface IhighlightRange {
-    start: number;
-    end: number;
-}
-
 export type TsemanticChunkOption = {
     maxLenght: number;
     overlapSentenceCount: number;
 };
+
+export interface IapiCitation {
+    fileName: string;
+    citation: string;
+    distance: number;
+}
 
 export interface IapiRag {
     fileName: string;

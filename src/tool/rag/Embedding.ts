@@ -7,7 +7,6 @@ import * as modelHelperSrc from "../../model/HelperSrc.js";
 import * as instance from "./Instance.js";
 import * as modelRag from "./Model.js";
 import * as semantic from "./Semantic.js";
-import * as svg from "../document/Svg.js";
 
 let db: DatabaseSync | null = null;
 
@@ -130,7 +129,7 @@ export const createDatabase = (): void => {
     }
 };
 
-export const store = async (sessionId: string, uniqueId: string, fileName: string, fileContent: string): Promise<void> => {
+export const store = async (sessionId: string, uniqueId: string, fileName: string): Promise<void> => {
     await instance.runWithContext(async () => {
         await login(uniqueId);
 
@@ -138,24 +137,33 @@ export const store = async (sessionId: string, uniqueId: string, fileName: strin
 
         await createTable(table);
 
-        const chunkList = semantic.chunkList(fileContent, {
-            maxLenght: 300,
-            overlapSentenceCount: 1
-        });
+        const baseFileName = helperSrc.baseFileName(fileName);
+        const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${baseFileName}/`;
 
-        for (let chunk of chunkList) {
-            const data = await embedding(uniqueId, chunk);
+        helperSrc.fileReadStream(`${inputFolder}Markdown.md`, async (resultFileReadStream) => {
+            if (Buffer.isBuffer(resultFileReadStream)) {
+                const chunkList = semantic.chunkList(resultFileReadStream.toString(), {
+                    maxLenght: 300,
+                    overlapSentenceCount: 1
+                });
 
-            if (data.length > 0 && data[0].embedding.length > 0) {
-                insert(table, chunk, data[0].embedding);
+                for (let chunk of chunkList) {
+                    const data = await embedding(uniqueId, chunk);
+
+                    if (data.length > 0 && data[0].embedding.length > 0) {
+                        insert(table, chunk, data[0].embedding);
+                    }
+                }
+            } else {
+                helperSrc.writeLog(`Embedding.ts - store() - fileReadStream()`, resultFileReadStream.toString());
             }
-        }
 
-        await logout(uniqueId);
+            await logout(uniqueId);
+        });
     });
 };
 
-export const searchDatabase = async (sessionId: string, uniqueId: string, fileName: string, input: string): Promise<string> => {
+export const searchDatabase = async (sessionId: string, uniqueId: string, prompt: string): Promise<string> => {
     return await instance.runWithContext(async () => {
         const resultObject: modelRag.IapiRagResult = {
             type: "citation",
@@ -164,82 +172,58 @@ export const searchDatabase = async (sessionId: string, uniqueId: string, fileNa
 
         await login(uniqueId);
 
-        const data = await embedding(uniqueId, input);
+        const data = await embedding(uniqueId, prompt);
 
         const queryBlob = new Uint8Array(new Float32Array(data[0].embedding).buffer);
 
         if (db) {
-            if (fileName.trim().toLowerCase() === "all") {
-                const tableList = tableNameList(sessionId);
-                const sessionPrefix = `${sessionId}_`;
+            const tableList = tableNameList(sessionId);
+            const sessionPrefix = `${sessionId}_`;
 
-                let citationList: modelRag.IapiCitation[] = [];
+            let citationList: modelRag.IapiCitation[] = [];
 
-                for (const table of tableList) {
-                    const querySelect = db
-                        .prepare(`SELECT chunk, distance FROM "${table}" WHERE embedding MATCH ? ORDER BY distance LIMIT 5`)
-                        .all(queryBlob);
-
-                    const sourceFileName = table.startsWith(sessionPrefix) ? table.slice(sessionPrefix.length) : table;
-
-                    for (const row of querySelect) {
-                        if (row["chunk"]) {
-                            citationList.push({
-                                fileName: sourceFileName,
-                                citation: row["chunk"] as string,
-                                distance: Number(row["distance"] ?? Number.POSITIVE_INFINITY)
-                            });
-                        }
-                    }
-                }
-
-                citationList = citationList
-                    .sort((first, second) => {
-                        const firstDistance = first.distance ?? Number.POSITIVE_INFINITY;
-                        const secondDistance = second.distance ?? Number.POSITIVE_INFINITY;
-
-                        return firstDistance - secondDistance;
-                    })
-                    .slice(0, 5);
-
-                const resultList: modelRag.IapiRag[] = [];
-                for (const citation of citationList) {
-                    resultList.push({
-                        fileName: citation.fileName,
-                        citation: citation.citation
-                    });
-                }
-
-                resultObject.resultList = resultList;
-            } else {
+            for (const table of tableList) {
                 const querySelect = db
-                    .prepare(`SELECT chunk FROM "${tableName(sessionId, fileName)}" WHERE embedding MATCH ? ORDER BY distance LIMIT 5`)
+                    .prepare(`SELECT chunk, distance FROM "${table}" WHERE embedding MATCH ? ORDER BY distance LIMIT 5`)
                     .all(queryBlob);
 
-                const resultList: modelRag.IapiRag[] = [];
+                const sourceFileName = table.startsWith(sessionPrefix) ? table.slice(sessionPrefix.length) : table;
+
                 for (const row of querySelect) {
                     if (row["chunk"]) {
-                        resultList.push({
-                            fileName,
-                            citation: row["chunk"] as string
-                        } as modelRag.IapiRag);
+                        citationList.push({
+                            fileName: sourceFileName,
+                            citation: row["chunk"] as string,
+                            distance: Number(row["distance"] ?? Number.POSITIVE_INFINITY)
+                        });
                     }
                 }
-                resultObject.resultList = resultList;
             }
+
+            citationList = citationList
+                .sort((a, b) => {
+                    const distanceOne = a.distance ?? Number.POSITIVE_INFINITY;
+                    const distanceTwo = b.distance ?? Number.POSITIVE_INFINITY;
+
+                    return distanceOne - distanceTwo;
+                })
+                .slice(0, 5);
+
+            const resultList: modelRag.IapiRag[] = [];
+            for (const citation of citationList) {
+                resultList.push({
+                    fileName: citation.fileName,
+                    citation: citation.citation
+                });
+            }
+
+            resultObject.resultList = resultList;
         }
 
         await logout(uniqueId);
 
         return JSON.stringify(resultObject);
     });
-};
-
-export const searchDocument = (sessionId: string, fileName: string, searchInput: string): modelRag.IapiRag => {
-    const baseFileName = helperSrc.baseFileName(fileName);
-    const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${baseFileName}/`;
-
-    return svg.convert(inputFolder, fileName, searchInput);
 };
 
 export const drop = async (sessionId: string, fileName: string): Promise<void> => {

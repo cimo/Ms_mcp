@@ -4,7 +4,6 @@ import { z } from "zod";
 import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import * as modelMcp from "../model/Mcp.js";
-import * as modelRag from "./rag/Model.js";
 import * as ragEmbedding from "./rag/Embedding.js";
 
 export default class Rag {
@@ -20,14 +19,11 @@ export default class Rag {
         this.sessionObject = sessionObject;
 
         this.inputSchemaStore = z.object({
-            fileName: z.string().default("").describe("File name."),
-            fileContent: z.string().default("").describe("File content.")
+            fileName: z.string().default("").describe("File name.")
         });
 
         this.inputSchemaSearch = z.object({
-            mode: z.string().default("").describe("Search mode: <database|document>."),
-            fileName: z.string().default("").describe("File name: <filename|All>."),
-            input: z.string().default("").describe("Search input: <input>.")
+            prompt: z.string().default("").describe("Search prompt.")
         });
 
         this.inputSchemaDelete = z.object({
@@ -51,7 +47,7 @@ export default class Rag {
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const uniqueId = helperSrc.generateUniqueId();
 
-                await ragEmbedding.store(extra.sessionId, uniqueId, argument.fileName, argument.fileContent);
+                await ragEmbedding.store(extra.sessionId, uniqueId, argument.fileName);
             }
 
             return {
@@ -72,9 +68,7 @@ export default class Rag {
 
         const config = {
             description:
-                "Search text in the vector database or document.\n" +
-                "Use the prompt: \n" +
-                "Search mode: <database|document>. File name: <filename|All>. Search input: <input>.",
+                "Search text in the vector database or document.\n" + "Use the prompt: \n" + "File name: <filename|All>. Search input: <input>.",
             inputSchema: this.inputSchemaSearch
         };
 
@@ -82,51 +76,14 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const fileName = argument.fileName.trim().replace(/\.+$/, "");
-                const mode = argument.mode.trim().replace(/\.+$/, "");
-                const input = argument.input.trim().replace(/\.+$/, "");
-
-                const searchFileName = fileName.toLowerCase() === "all" ? ".*" : fileName;
-
-                const fileList = await helperSrc.uploadedFileList(extra.sessionId, searchFileName);
+                const fileList = await helperSrc.uploadedFileList(extra.sessionId, ".*");
 
                 if (fileList.length > 0) {
-                    if (mode.toLowerCase() === "database") {
-                        const uniqueId = helperSrc.generateUniqueId();
+                    const uniqueId = helperSrc.generateUniqueId();
 
-                        result = await ragEmbedding.searchDatabase(extra.sessionId, uniqueId, fileName, input);
-                    } else if (mode.toLowerCase() === "document") {
-                        const resultList: modelRag.IapiRag[] = [];
-                        const baseFileNameList: string[] = [];
-
-                        for (const fileName of fileList) {
-                            const baseFileName = helperSrc.baseFileName(fileName);
-
-                            if (!baseFileNameList.includes(baseFileName)) {
-                                const searchResult = await ragEmbedding.searchDocument(extra.sessionId, fileName, input);
-
-                                resultList.push({
-                                    fileName,
-                                    pageNumber: searchResult.pageNumber
-                                });
-
-                                baseFileNameList.push(baseFileName);
-                            }
-                        }
-
-                        if (resultList.length === 0) {
-                            result = "Not found in document(s).";
-                        } else {
-                            result = JSON.stringify({
-                                type: "html",
-                                resultList
-                            } as modelRag.IapiRagResult);
-                        }
-                    } else {
-                        result = `Error: Invalid search mode: ${mode}. Please use "database" or "document".`;
-                    }
+                    result = await ragEmbedding.searchDatabase(extra.sessionId, uniqueId, argument.prompt);
                 } else {
-                    result = fileName.toLowerCase() === "all" ? "Error: No uploaded file." : `Error: File does not exist: ${fileName}.`;
+                    result = "Error: No uploaded file.";
                 }
             }
 

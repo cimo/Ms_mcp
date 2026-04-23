@@ -27,11 +27,6 @@ export interface Irpc<TSchema extends z.ZodTypeAny> {
     }>;
 }
 
-export interface Ifile {
-    fileName: string;
-    baseFileName: string;
-}
-
 export interface Itool {
     name: string;
     argumentObject: Record<string, string>;
