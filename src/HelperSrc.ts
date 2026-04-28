@@ -1,5 +1,5 @@
 import Fs from "fs";
-import { exec } from "child_process";
+import { exec, ExecException } from "child_process";
 import { Request, Response } from "express";
 import { Ce } from "@cimo/environment/dist/src/Main.js";
 
@@ -315,7 +315,8 @@ export const uploadedFileList = async (sessionId: string, extension: string): Pr
                     !name.toLowerCase().endsWith("_copy.pdf") &&
                     !name.toLowerCase().endsWith(".svg") &&
                     !name.toLowerCase().endsWith(".json") &&
-                    !name.toLowerCase().endsWith(".done")
+                    !name.toLowerCase().endsWith(".done") &&
+                    !name.toLowerCase().endsWith(".fail")
                 ) {
                     resultList.push(name);
                 }
@@ -410,13 +411,15 @@ export const readMimeType = (byteList: Uint8Array): modelHelperSrc.ImimeType => 
     return { content: "", extension: "" };
 };
 
-export const terminalExecution = async (command: string): Promise<void> => {
-    await new Promise<void>((resolve, reject) => {
-        exec(command, (error) => {
+export const terminalExecution = async (command: string): Promise<string | ExecException> => {
+    return await new Promise<string | ExecException>((resolve) => {
+        exec(command, (error, stdout, stderr) => {
             if (error) {
-                reject(error);
+                resolve(error);
+            } else if (stderr) {
+                resolve(stderr);
             } else {
-                resolve();
+                resolve(stdout);
             }
         });
     });

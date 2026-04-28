@@ -8,13 +8,13 @@ export default class Ocr {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
-    inputSchema;
+    inputSchemaExecute;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchema = z.object({
+        this.inputSchemaExecute = z.object({
             language: z.string().default("").describe("Language of the text in the image."),
             fileName: z.string().default("").describe("Name of the image file."),
             searchText: z.string().default("").describe("Text to search in the image."),
@@ -22,22 +22,29 @@ export default class Ocr {
         });
     }
 
-    execute = (): modelMcp.Irpc<typeof this.inputSchema> => {
+    execute = (): modelMcp.Irpc<typeof this.inputSchemaExecute> => {
         const name = "ocr_execute";
 
         const config = {
             description: "Extract data from an image.",
-            inputSchema: this.inputSchema
+            inputSchema: this.inputSchemaExecute
         };
 
-        const content = async (argument: z.infer<typeof this.inputSchema>, extra: { sessionId?: string }) => {
+        const content = async (argument: z.infer<typeof this.inputSchemaExecute>, extra: { sessionId?: string }) => {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    result = await runtime.ocrExecute(extra.sessionId, argument.language, argument.fileName, argument.searchText, argument.mode);
+                    const resultOcr = await runtime.ocrExecute(
+                        extra.sessionId,
+                        argument.language,
+                        argument.fileName,
+                        argument.searchText,
+                        argument.mode
+                    );
+                    result = JSON.stringify({ name: "ocr_execute", resultList: [resultOcr] });
                 }
             }
 

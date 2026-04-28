@@ -8,33 +8,34 @@ export default class Browser {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
-    inputSchema;
+    inputSchemaChrome;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchema = z.object({
+        this.inputSchemaChrome = z.object({
             url: z.string().default("").describe("URL to open in the browser.")
         });
     }
 
-    chrome = (): modelMcp.Irpc<typeof this.inputSchema> => {
+    chrome = (): modelMcp.Irpc<typeof this.inputSchemaChrome> => {
         const name = "chrome";
 
         const config = {
             description: "Open the browser chrome application.",
-            inputSchema: this.inputSchema
+            inputSchema: this.inputSchemaChrome
         };
 
-        const content = async (argument: z.infer<typeof this.inputSchema>, extra: { sessionId?: string }) => {
+        const content = async (argument: z.infer<typeof this.inputSchemaChrome>, extra: { sessionId?: string }) => {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    await runtime.chrome(extra.sessionId, argument.url);
+                    const resultChrome = await runtime.chrome(extra.sessionId, argument.url);
+                    result = JSON.stringify({ name: "chrome", resultList: [resultChrome] });
                 }
             }
 

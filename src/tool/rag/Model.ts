@@ -19,13 +19,7 @@ export interface IapiCitation {
     distance: number;
 }
 
-export interface IapiRag {
+export interface Isearch {
     fileName: string;
-    pageNumber?: number;
-    citation?: string;
-}
-
-export interface IapiRagResult {
-    type: string;
-    resultList: IapiRag[];
+    citation: string;
 }

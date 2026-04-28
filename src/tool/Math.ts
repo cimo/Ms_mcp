@@ -9,30 +9,31 @@ export default class Math {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
-    inputSchema;
+    inputSchemaExpression;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchema = z.object({
+        this.inputSchemaExpression = z.object({
             input: z.string().default("").describe("A math expression.")
         });
     }
 
-    expression = (): modelMcp.Irpc<typeof this.inputSchema> => {
+    expression = (): modelMcp.Irpc<typeof this.inputSchemaExpression> => {
         const name = "math_expression";
 
         const config = {
             description: "Evaluate expression.",
-            inputSchema: this.inputSchema
+            inputSchema: this.inputSchemaExpression
         };
 
-        const content = async (argument: z.infer<typeof this.inputSchema>, extra: { sessionId?: string }) => {
+        const content = async (argument: z.infer<typeof this.inputSchemaExpression>, extra: { sessionId?: string }) => {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                result = mathExpression.execute(argument.input).toString();
+                const resultExpression = mathExpression.execute(argument.input).toString();
+                result = JSON.stringify({ name: "math_expression", resultList: [resultExpression] });
             }
 
             return {

@@ -39,7 +39,8 @@ export default class Automate {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    await runtime.automateScreenshot(extra.sessionId);
+                    const resultScreenshot = await runtime.automateScreenshot(extra.sessionId);
+                    result = JSON.stringify({ name: "automate_screenshot", resultList: [resultScreenshot] });
                 }
             }
 
@@ -71,7 +72,8 @@ export default class Automate {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    await runtime.automateMouseMove(extra.sessionId, argument.x, argument.y);
+                    const resultMouseMove = await runtime.automateMouseMove(extra.sessionId, argument.x, argument.y);
+                    result = JSON.stringify({ name: "automate_mouse_move", resultList: [resultMouseMove] });
                 }
             }
 
@@ -103,7 +105,8 @@ export default class Automate {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    await runtime.automateMouseClick(extra.sessionId, argument.button);
+                    const resultMouseClick = await runtime.automateMouseClick(extra.sessionId, argument.button);
+                    result = JSON.stringify({ name: "automate_mouse_click", resultList: [resultMouseClick] });
                 }
             }
 

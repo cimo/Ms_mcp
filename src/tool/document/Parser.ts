@@ -4,6 +4,7 @@ import Fs from "fs";
 import * as helperSrc from "../../HelperSrc.js";
 import * as instance from "./Instance.js";
 import * as modelHelperSrc from "../../model/HelperSrc.js";
+import * as modelDocument from "./Model.js";
 
 const login = async (): Promise<string> => {
     let result = "";
@@ -26,8 +27,8 @@ const login = async (): Promise<string> => {
     return result;
 };
 
-const convertToPdf = async (inputFolder: string, fileName: string): Promise<void> => {
-    return new Promise<void>(async (resolve, reject) => {
+const convertToPdf = async (inputFolder: string, fileName: string): Promise<boolean> => {
+    return new Promise<boolean>(async (resolve) => {
         const baseFileName = helperSrc.baseFileName(fileName);
 
         if (!fileName.toLowerCase().endsWith(".pdf")) {
@@ -43,38 +44,47 @@ const convertToPdf = async (inputFolder: string, fileName: string): Promise<void
                     await instance.api
                         .post<modelHelperSrc.IresponseBody>("/api/toPdf", {}, formData)
                         .then((resultApi) => {
+                            const baseFileName = helperSrc.baseFileName(fileName);
+
                             helperSrc.fileWriteStream(
                                 `${inputFolder}${baseFileName}_copy.pdf`,
                                 Buffer.from(resultApi.data.response.stdout, "base64"),
-                                () => {
-                                    resolve();
+                                (resultFileWriteStream) => {
+                                    if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
+                                        resolve(true);
+                                    } else {
+                                        helperSrc.writeLog(
+                                            `Parser.ts - convertToPdf() - api(/toPdf) - fileWriteStream()`,
+                                            resultFileWriteStream.toString()
+                                        );
 
-                                    return;
+                                        resolve(false);
+                                    }
                                 }
                             );
                         })
                         .catch((error: Error) => {
                             helperSrc.writeLog("Parser.ts - convertToPdf() - api(/toPdf) - catch()", error.message);
 
-                            reject(new Error(error.message));
-
-                            return;
+                            resolve(false);
                         });
                 } else {
-                    reject(new Error("File read failed."));
+                    helperSrc.writeLog(`Parser.ts - convertToPdf() - fileReadStream()`, resultFileReadStream.toString());
 
-                    return;
+                    resolve(false);
                 }
             });
         } else {
             Fs.copyFile(`${inputFolder}${fileName}`, `${inputFolder}${baseFileName}_copy.pdf`, (error) => {
                 if (error) {
-                    reject(new Error(error.message));
+                    helperSrc.writeLog(`Parser.ts - convertToPdf() - copyFile()`, error.message);
+
+                    resolve(false);
 
                     return;
                 }
 
-                resolve();
+                resolve(true);
             });
         }
     });
@@ -101,21 +111,34 @@ const logout = async (): Promise<string> => {
     return result;
 };
 
-export const execute = async (sessionId: string, fileName: string): Promise<string> => {
+export const execute = async (sessionId: string, fileName: string, searchInput: string): Promise<modelDocument.Iparser> => {
     return await instance.runWithContext(async () => {
+        let result = {} as modelDocument.Iparser;
+
         await login();
 
         const baseFileName = helperSrc.baseFileName(fileName);
         const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${baseFileName}/`;
 
-        await convertToPdf(inputFolder, fileName);
+        const resultConvert = await convertToPdf(inputFolder, fileName);
 
-        await helperSrc.terminalExecution(
-            `python3 ${helperSrc.PATH_ROOT}muPdf/tool.py "${inputFolder}${baseFileName}_copy.pdf" "" "horizontal" "${inputFolder}"`
-        );
+        if (resultConvert) {
+            const resultExec = await helperSrc.terminalExecution(
+                `python3 "${helperSrc.PATH_ROOT}muPdf/tool.py" "${helperSrc.PATH_ROOT}muPdf/mutool" "${inputFolder}${baseFileName}_copy.pdf" "${searchInput}" "horizontal" "${inputFolder}"`
+            );
+
+            if (typeof resultExec !== "string") {
+                helperSrc.writeLog("Parser.ts - execute() - terminalExecution() - ExecException", resultExec);
+            } else {
+                result = {
+                    fileName,
+                    terminalExecution: resultExec
+                };
+            }
+        }
 
         await logout();
 
-        return "";
+        return result;
     });
 };

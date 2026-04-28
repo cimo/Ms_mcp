@@ -6,7 +6,6 @@ import * as helperSrc from "../../HelperSrc.js";
 import * as modelHelperSrc from "../../model/HelperSrc.js";
 import * as instance from "./Instance.js";
 import * as modelRag from "./Model.js";
-import * as semantic from "./Semantic.js";
 
 let db: DatabaseSync | null = null;
 
@@ -129,8 +128,8 @@ export const createDatabase = (): void => {
     }
 };
 
-export const store = async (sessionId: string, uniqueId: string, fileName: string): Promise<void> => {
-    await instance.runWithContext(async () => {
+export const store = async (sessionId: string, uniqueId: string, fileName: string): Promise<string> => {
+    return await instance.runWithContext(async () => {
         await login(uniqueId);
 
         const table = tableName(sessionId, fileName);
@@ -142,93 +141,101 @@ export const store = async (sessionId: string, uniqueId: string, fileName: strin
 
         helperSrc.fileReadStream(`${inputFolder}Markdown.md`, async (resultFileReadStream) => {
             if (Buffer.isBuffer(resultFileReadStream)) {
-                const chunkList = semantic.chunkList(resultFileReadStream.toString(), {
-                    maxLenght: 300,
-                    overlapSentenceCount: 1
-                });
+                const text = resultFileReadStream.toString();
+                const maxLength = 400;
 
-                for (let chunk of chunkList) {
+                for (let a = 0; a < text.length; a += maxLength) {
+                    const chunk = text.slice(a, a + maxLength);
+
                     const data = await embedding(uniqueId, chunk);
 
                     if (data.length > 0 && data[0].embedding.length > 0) {
                         insert(table, chunk, data[0].embedding);
+                    } else {
+                        helperSrc.fileWriteStream(`${inputFolder}.fail`, Buffer.from(""), () => {});
+
+                        return;
                     }
                 }
             } else {
                 helperSrc.writeLog(`Embedding.ts - store() - fileReadStream()`, resultFileReadStream.toString());
+
+                helperSrc.fileWriteStream(`${inputFolder}.fail`, Buffer.from(""), () => {});
+
+                return;
             }
 
             await logout(uniqueId);
+
+            helperSrc.fileWriteStream(`${inputFolder}.done`, Buffer.from(""), () => {});
         });
+
+        return "";
     });
 };
 
-export const searchDatabase = async (sessionId: string, uniqueId: string, prompt: string): Promise<string> => {
+export const search = async (sessionId: string, uniqueId: string, prompt: string): Promise<modelRag.Isearch[]> => {
     return await instance.runWithContext(async () => {
-        const resultObject: modelRag.IapiRagResult = {
-            type: "citation",
-            resultList: [] as modelRag.IapiRag[]
-        };
+        const resultList: modelRag.Isearch[] = [];
 
         await login(uniqueId);
 
         const data = await embedding(uniqueId, prompt);
 
-        const queryBlob = new Uint8Array(new Float32Array(data[0].embedding).buffer);
+        if (data.length > 0 && data[0].embedding.length > 0) {
+            const queryBlob = new Uint8Array(new Float32Array(data[0].embedding).buffer);
 
-        if (db) {
-            const tableList = tableNameList(sessionId);
-            const sessionPrefix = `${sessionId}_`;
+            if (db) {
+                const tableList = tableNameList(sessionId);
+                const sessionPrefix = `${sessionId}_`;
 
-            let citationList: modelRag.IapiCitation[] = [];
+                let citationList: modelRag.IapiCitation[] = [];
 
-            for (const table of tableList) {
-                const querySelect = db
-                    .prepare(`SELECT chunk, distance FROM "${table}" WHERE embedding MATCH ? ORDER BY distance LIMIT 5`)
-                    .all(queryBlob);
+                for (const table of tableList) {
+                    const querySelect = db
+                        .prepare(`SELECT chunk, distance FROM "${table}" WHERE embedding MATCH ? ORDER BY distance LIMIT 5`)
+                        .all(queryBlob);
 
-                const sourceFileName = table.startsWith(sessionPrefix) ? table.slice(sessionPrefix.length) : table;
+                    const sourceFileName = table.startsWith(sessionPrefix) ? table.slice(sessionPrefix.length) : table;
 
-                for (const row of querySelect) {
-                    if (row["chunk"]) {
-                        citationList.push({
-                            fileName: sourceFileName,
-                            citation: row["chunk"] as string,
-                            distance: Number(row["distance"] ?? Number.POSITIVE_INFINITY)
-                        });
+                    for (const row of querySelect) {
+                        if (row["chunk"]) {
+                            citationList.push({
+                                fileName: sourceFileName,
+                                citation: row["chunk"] as string,
+                                distance: Number(row["distance"] ?? Number.POSITIVE_INFINITY)
+                            });
+                        }
                     }
                 }
+
+                citationList = citationList
+                    .sort((a, b) => {
+                        const distanceOne = a.distance ?? Number.POSITIVE_INFINITY;
+                        const distanceTwo = b.distance ?? Number.POSITIVE_INFINITY;
+
+                        return distanceOne - distanceTwo;
+                    })
+                    .slice(0, 5);
+
+                for (const citation of citationList) {
+                    resultList.push({
+                        fileName: citation.fileName,
+                        citation: citation.citation
+                    });
+                }
             }
-
-            citationList = citationList
-                .sort((a, b) => {
-                    const distanceOne = a.distance ?? Number.POSITIVE_INFINITY;
-                    const distanceTwo = b.distance ?? Number.POSITIVE_INFINITY;
-
-                    return distanceOne - distanceTwo;
-                })
-                .slice(0, 5);
-
-            const resultList: modelRag.IapiRag[] = [];
-            for (const citation of citationList) {
-                resultList.push({
-                    fileName: citation.fileName,
-                    citation: citation.citation
-                });
-            }
-
-            resultObject.resultList = resultList;
         }
 
         await logout(uniqueId);
 
-        return JSON.stringify(resultObject);
+        return resultList;
     });
 };
 
-export const drop = async (sessionId: string, fileName: string): Promise<void> => {
+export const drop = async (sessionId: string, fileName: string): Promise<string> => {
     if (!db) {
-        return;
+        return "";
     }
 
     let dropSql = "";
@@ -247,4 +254,6 @@ export const drop = async (sessionId: string, fileName: string): Promise<void> =
     }
 
     db.exec(dropSql);
+
+    return "";
 };

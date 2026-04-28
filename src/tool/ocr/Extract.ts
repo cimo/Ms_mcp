@@ -26,7 +26,7 @@ const login = async (): Promise<string> => {
 };
 
 const extract = async (sessionId: string, language: string, fileName: string, searchText: string, mode: string): Promise<model.ItoolOcrResult[]> => {
-    return new Promise<model.ItoolOcrResult[]>((resolve, reject) => {
+    return new Promise<model.ItoolOcrResult[]>((resolve) => {
         const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${fileName}`;
 
         helperSrc.fileReadStream(input, async (resultFileReadStream) => {
@@ -80,12 +80,14 @@ const extract = async (sessionId: string, language: string, fileName: string, se
                     .catch((error: Error) => {
                         helperSrc.writeLog("Extract.ts - extract() - api(/extract) - catch()", error.message);
 
-                        reject(new Error(error.message));
+                        resolve([]);
 
                         return;
                     });
             } else {
-                reject(new Error("File read failed."));
+                helperSrc.writeLog(`Extract.ts - extract() - fileReadStream()`, resultFileReadStream.toString());
+
+                resolve([]);
 
                 return;
             }
@@ -120,11 +122,7 @@ export const execute = async (sessionId: string, language: string, fileName: str
 
         await login();
 
-        result = await extract(sessionId, language, fileName, searchText, mode).catch((error: Error) => {
-            helperSrc.writeLog("Extract.ts - execute() - extract() - catch()", error.message);
-
-            return [];
-        });
+        result = await extract(sessionId, language, fileName, searchText, mode);
 
         await logout();
 

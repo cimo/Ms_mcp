@@ -47,7 +47,8 @@ export default class Rag {
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const uniqueId = helperSrc.generateUniqueId();
 
-                await ragEmbedding.store(extra.sessionId, uniqueId, argument.fileName);
+                const resultStore = await ragEmbedding.store(extra.sessionId, uniqueId, argument.fileName);
+                result = JSON.stringify({ name: "rag_store", resultList: [resultStore] });
             }
 
             return {
@@ -67,8 +68,7 @@ export default class Rag {
         const name = "rag_search";
 
         const config = {
-            description:
-                "Search text in the vector database or document.\n" + "Use the prompt: \n" + "File name: <filename|All>. Search input: <input>.",
+            description: "Search text in the vector database.",
             inputSchema: this.inputSchemaSearch
         };
 
@@ -81,9 +81,10 @@ export default class Rag {
                 if (fileList.length > 0) {
                     const uniqueId = helperSrc.generateUniqueId();
 
-                    result = await ragEmbedding.searchDatabase(extra.sessionId, uniqueId, argument.prompt);
+                    const resultSearch = await ragEmbedding.search(extra.sessionId, uniqueId, argument.prompt);
+                    result = JSON.stringify({ name: "rag_search", resultList: resultSearch });
                 } else {
-                    result = "Error: No uploaded file.";
+                    result = "No uploaded file.";
                 }
             }
 
@@ -112,7 +113,8 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                ragEmbedding.drop(extra.sessionId, argument.fileName);
+                const resultDelete = await ragEmbedding.drop(extra.sessionId, argument.fileName);
+                result = JSON.stringify({ name: "rag_delete", resultList: [resultDelete] });
             }
 
             return {
