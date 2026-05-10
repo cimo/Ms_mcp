@@ -483,8 +483,6 @@ export default class Mcp {
                             helperSrc.fileOrFolderDelete(input, (resultFileDelete) => {
                                 if (typeof resultFileDelete !== "boolean") {
                                     helperSrc.writeLog("Mcp.ts - api() - post(/api/task-call) - fileOrFolderDelete()", resultFileDelete.toString());
-
-                                    helperSrc.responseBody("", resultFileDelete.toString(), response, 500);
                                 }
                             });
 
