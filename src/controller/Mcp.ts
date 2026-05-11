@@ -10,6 +10,7 @@ import * as instance from "../Instance.js";
 import * as modelServer from "../model/Server.js";
 import * as modelMcp from "../model/Mcp.js";
 import ControllerUpload from "./Upload.js";
+import ControllerAgent from "./Agent.js";
 import ToolAutomate from "../tool/Automate.js";
 import ToolBrowser from "../tool/Browser.js";
 import ToolDocument from "../tool/Document.js";
@@ -23,6 +24,7 @@ export default class Mcp {
     private limiter: RateLimitRequestHandler;
     private sessionObject: Record<string, modelServer.Isession>;
     private controllerUpload: ControllerUpload;
+    private controllerAgent: ControllerAgent;
 
     private serverName: string;
     private serverVersion: string;
@@ -40,6 +42,7 @@ export default class Mcp {
         this.limiter = limiter;
         this.sessionObject = sessionObject;
         this.controllerUpload = new ControllerUpload();
+        this.controllerAgent = new ControllerAgent();
 
         this.serverName = "Microservice mcp";
         this.serverVersion = "1.0.0";
@@ -56,6 +59,8 @@ export default class Mcp {
         const sessionId = request.headers["mcp-session-id"];
 
         if (typeof sessionId === "string" && this.sessionObject[sessionId] && this.sessionObject[sessionId].rpc) {
+            this.controllerAgent.createTable(sessionId);
+
             return sessionId;
         }
 
@@ -88,7 +93,11 @@ export default class Mcp {
                     }
                 )
                 .then((result) => {
-                    return result.headers.get("mcp-session-id") || "";
+                    const sessionId = result.headers.get("mcp-session-id") || "";
+
+                    this.controllerAgent.createTable(sessionId);
+
+                    return sessionId;
                 })
                 .catch((error: Error) => {
                     helperSrc.writeLog("Mcp.ts - login() - catch()", error.message);
@@ -218,12 +227,12 @@ export default class Mcp {
     };
 
     api = (): void => {
-        this.app.post("/api/upload", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.post("/api/document-upload", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
             const fileName = request.headers["filename"] as string;
 
             if (typeof sessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/`;
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/document/`;
 
                 this.controllerUpload.execute(request, true, input).then(async (result) => {
                     if (result) {
@@ -237,7 +246,7 @@ export default class Mcp {
                     }
                 });
             } else {
-                helperSrc.writeLog("Mcp.ts - api() - post(/api/upload) - Error", "Missing or invalid header.");
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/document-upload) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
@@ -248,7 +257,7 @@ export default class Mcp {
             const baseFileName = helperSrc.baseFileName(request.body.fileName);
 
             if (typeof sessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${baseFileName}/`;
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/document/${baseFileName}/`;
 
                 helperSrc.findFileInDirectoryRecursive(input, ".*", (pathFileList) => {
                     let embeddingFinished = "ongoing";
@@ -274,31 +283,31 @@ export default class Mcp {
             }
         });
 
-        this.app.get("/api/file-uploaded", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.get("/api/document-list", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
 
             if (typeof sessionId === "string") {
-                const fileList = await helperSrc.uploadedFileList(sessionId, ".*");
+                const fileList = await helperSrc.uploadedDocumentList(sessionId, ".*");
 
                 helperSrc.responseBody(JSON.stringify(fileList), "", response, 200);
             } else {
-                helperSrc.writeLog("Mcp.ts - api() - get(/api/file-uploaded) - Error", "Missing or invalid header.");
+                helperSrc.writeLog("Mcp.ts - api() - get(/api/document-list) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
         });
 
-        this.app.post("/api/file-uploaded-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.post("/api/document-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
             const fileName = request.body.fileName;
             const baseFileName = helperSrc.baseFileName(fileName);
 
             if (typeof sessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${baseFileName}/`;
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/document/${baseFileName}/`;
 
                 helperSrc.fileOrFolderDelete(input, async (result) => {
                     if (typeof result !== "boolean") {
-                        helperSrc.writeLog("Mcp.ts - api() - post(/api/file-uploaded-delete) - fileOrFolderDelete()", result.toString());
+                        helperSrc.writeLog("Mcp.ts - api() - post(/api/document-delete) - fileOrFolderDelete()", result.toString());
 
                         helperSrc.responseBody("", result.toString(), response, 500);
                     } else {
@@ -308,19 +317,19 @@ export default class Mcp {
                     }
                 });
             } else {
-                helperSrc.writeLog("Mcp.ts - api() - post(/api/file-uploaded-delete) - Error", "Missing or invalid header.");
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/document-delete) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
         });
 
-        this.app.post("/api/file-read", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.post("/api/document-read", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
             const baseFileName = helperSrc.baseFileName(request.body.fileName);
             const pageNumber = request.body.pageNumber;
 
             if (typeof sessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${baseFileName}/page/`;
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/document/${baseFileName}/page/`;
 
                 helperSrc.findFileInDirectoryRecursive(input, ".html", (pathFileList) => {
                     for (const pathFile of pathFileList) {
@@ -334,7 +343,10 @@ export default class Mcp {
 
                                     helperSrc.responseBody(JSON.stringify(readResult), "", response, 200);
                                 } else {
-                                    helperSrc.writeLog("Mcp.ts - api() - post(/api/file-read) - fileReadStream()", resultFileReadStream.toString());
+                                    helperSrc.writeLog(
+                                        "Mcp.ts - api() - post(/api/document-read) - fileReadStream()",
+                                        resultFileReadStream.toString()
+                                    );
 
                                     helperSrc.responseBody("", resultFileReadStream.toString(), response, 500);
                                 }
@@ -345,7 +357,97 @@ export default class Mcp {
                     }
                 });
             } else {
-                helperSrc.writeLog("Mcp.ts - api() - post(/api/file-read) - Error", "Missing or invalid header.");
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/document-read) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
+        this.app.post("/api/skill-upload", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const sessionId = request.headers["mcp-session-id"];
+            const fileName = request.headers["filename"] as string;
+
+            if (typeof sessionId === "string") {
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/skill/`;
+
+                this.controllerUpload.execute(request, true, input).then(async (result) => {
+                    if (result) {
+                        helperSrc.responseBody(JSON.stringify({ fileName, status: "Success" }), "", response, 200);
+                    } else {
+                        helperSrc.responseBody(JSON.stringify({ fileName, status: "Failed" }), "", response, 200);
+                    }
+                });
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/skill-upload) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
+        this.app.get("/api/skill-list", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const sessionId = request.headers["mcp-session-id"];
+
+            if (typeof sessionId === "string") {
+                const fileList = await helperSrc.uploadedSkillList(sessionId, ".*");
+
+                helperSrc.responseBody(JSON.stringify(fileList), "", response, 200);
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - get(/api/skill-list) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
+        this.app.post("/api/skill-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const sessionId = request.headers["mcp-session-id"];
+            const fileName = request.body.fileName;
+            const baseFileName = helperSrc.baseFileName(fileName);
+
+            if (typeof sessionId === "string") {
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/skill/${baseFileName}/`;
+
+                helperSrc.fileOrFolderDelete(input, async (result) => {
+                    if (typeof result !== "boolean") {
+                        helperSrc.writeLog("Mcp.ts - api() - post(/api/skill-delete) - fileOrFolderDelete()", result.toString());
+
+                        helperSrc.responseBody("", result.toString(), response, 500);
+                    } else {
+                        helperSrc.responseBody("ok", "", response, 200);
+                    }
+                });
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/skill-delete) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
+        this.app.post("/api/skill-read", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const sessionId = request.headers["mcp-session-id"];
+            const baseFileName = helperSrc.baseFileName(request.body.fileName);
+
+            if (typeof sessionId === "string") {
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/skill/${baseFileName}/`;
+
+                helperSrc.findFileInDirectoryRecursive(input, ".md", (pathFileList) => {
+                    for (const pathFile of pathFileList) {
+                        if (pathFile.endsWith(`${baseFileName}.md`)) {
+                            helperSrc.fileReadStream(pathFile, (resultFileReadStream) => {
+                                if (Buffer.isBuffer(resultFileReadStream)) {
+                                    helperSrc.responseBody(resultFileReadStream.toString("base64"), "", response, 200);
+                                } else {
+                                    helperSrc.writeLog("Mcp.ts - api() - post(/api/skill-read) - fileReadStream()", resultFileReadStream.toString());
+
+                                    helperSrc.responseBody("", resultFileReadStream.toString(), response, 500);
+                                }
+                            });
+
+                            break;
+                        }
+                    }
+                });
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/skill-read) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
@@ -504,6 +606,70 @@ export default class Mcp {
                 }
             } else {
                 helperSrc.writeLog("Mcp.ts - api() - post(/api/task-call) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
+        this.app.post("/api/agent-create", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const sessionId = request.headers["mcp-session-id"];
+            const name = request.body.name;
+            const description = request.body.description;
+            const skill = request.body.skill;
+
+            if (typeof sessionId === "string") {
+                const result = this.controllerAgent.insertAgent(sessionId, name, description, skill);
+
+                helperSrc.responseBody(result.toString(), "", response, 200);
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/agent-create) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
+        this.app.post("/api/agent-update", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const sessionId = request.headers["mcp-session-id"];
+            const id = request.body.id;
+            const name = request.body.name;
+            const description = request.body.description;
+            const skill = request.body.skill;
+
+            if (typeof sessionId === "string") {
+                const result = this.controllerAgent.updateAgent(sessionId, id, name, description, skill);
+
+                helperSrc.responseBody(result.toString(), "", response, 200);
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/agent-update) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
+        this.app.get("/api/agent-list", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const sessionId = request.headers["mcp-session-id"];
+
+            if (typeof sessionId === "string") {
+                const resultList = this.controllerAgent.selectAgentList(sessionId);
+
+                helperSrc.responseBody(JSON.stringify(resultList), "", response, 200);
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - get(/api/agent-list) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
+        this.app.post("/api/agent-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const sessionId = request.headers["mcp-session-id"];
+            const id = request.body.id;
+
+            if (typeof sessionId === "string") {
+                const result = this.controllerAgent.deleteAgent(sessionId, id);
+
+                helperSrc.responseBody(result.toString(), "", response, 200);
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/agent-delete) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }

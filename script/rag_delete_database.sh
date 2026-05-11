@@ -35,18 +35,17 @@ cookie="${PATH_ROOT}${MS_M_PATH_FILE}tmp/ms_mcp_cookie.txt"
 baseUrl="${protocol}://${DOMAIN}:${SERVER_PORT}"
 curl -fsSL -c "${cookie}" -H "mcp-session-id: ${sessionId}" "${baseUrl}/login" > /dev/null 2>&1
 
-for fileFolder in "${parameter1}"*
+for documentFolder in "${parameter1}"*
 do
-    baseFileName=$(basename "${fileFolder}")
+    baseFileName=$(basename "${documentFolder}")
 
     curl -fsSL -b "${cookie}" \
         -H "Content-Type: application/json" \
         -H "mcp-session-id: ${sessionId}" \
-        -X POST "${baseUrl}/api/file-uploaded-delete" \
+        -X POST "${baseUrl}/api/document-delete" \
         -d "{\"fileName\": \"\", \"baseFileName\":\"${baseFileName}\"}" > /dev/null 2>&1
 
-    echo -e "\nUploaded file folder '${fileFolder}' deleted."
+    echo -e "\nUploaded file folder '${documentFolder}' deleted."
 done
 
 rm -f "${cookie}"
- 

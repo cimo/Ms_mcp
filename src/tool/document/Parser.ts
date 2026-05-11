@@ -118,7 +118,7 @@ export const execute = async (sessionId: string, fileName: string, searchInput: 
         await login();
 
         const baseFileName = helperSrc.baseFileName(fileName);
-        const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${baseFileName}/`;
+        const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/document/${baseFileName}/`;
 
         const resultConvert = await convertToPdf(inputFolder, fileName);
 

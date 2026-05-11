@@ -76,15 +76,15 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const fileList = await helperSrc.uploadedFileList(extra.sessionId, ".*");
+                const documentList = await helperSrc.uploadedDocumentList(extra.sessionId, ".*");
 
-                if (fileList.length > 0) {
+                if (documentList.length > 0) {
                     const uniqueId = helperSrc.generateUniqueId();
 
                     const resultSearch = await ragEmbedding.search(extra.sessionId, uniqueId, argument.prompt);
                     result = JSON.stringify({ name: "rag_search", resultList: resultSearch });
                 } else {
-                    result = "No uploaded file.";
+                    result = "No uploaded document.";
                 }
             }
 

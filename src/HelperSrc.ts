@@ -297,9 +297,9 @@ export const findFileInDirectoryRecursive = (path: string, extension: string, ca
     });
 };
 
-export const uploadedFileList = async (sessionId: string, extension: string): Promise<string[]> => {
+export const uploadedDocumentList = async (sessionId: string, extension: string): Promise<string[]> => {
     return new Promise<string[]>((resolve) => {
-        const input = `${PATH_ROOT}${PATH_FILE}input/${sessionId}/`;
+        const input = `${PATH_ROOT}${PATH_FILE}input/${sessionId}/document/`;
 
         findFileInDirectoryRecursive(input, extension, (pathFileList) => {
             const resultList = [];
@@ -318,6 +318,27 @@ export const uploadedFileList = async (sessionId: string, extension: string): Pr
                     !name.toLowerCase().endsWith(".done") &&
                     !name.toLowerCase().endsWith(".fail")
                 ) {
+                    resultList.push(name);
+                }
+            }
+
+            resolve(resultList);
+        });
+    });
+};
+
+export const uploadedSkillList = async (sessionId: string, extension: string): Promise<string[]> => {
+    return new Promise<string[]>((resolve) => {
+        const input = `${PATH_ROOT}${PATH_FILE}input/${sessionId}/skill/`;
+
+        findFileInDirectoryRecursive(input, extension, (pathFileList) => {
+            const resultList = [];
+
+            for (let a = 0; a < pathFileList.length; a++) {
+                const nameList = pathFileList[a].split("/");
+                const name = nameList[nameList.length - 1];
+
+                if (name.toLowerCase().endsWith(".md")) {
                     resultList.push(name);
                 }
             }

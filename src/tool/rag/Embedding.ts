@@ -137,7 +137,7 @@ export const store = async (sessionId: string, uniqueId: string, fileName: strin
         await createTable(table);
 
         const baseFileName = helperSrc.baseFileName(fileName);
-        const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${baseFileName}/`;
+        const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/document/${baseFileName}/`;
 
         helperSrc.fileReadStream(`${inputFolder}Markdown.md`, async (resultFileReadStream) => {
             if (Buffer.isBuffer(resultFileReadStream)) {
