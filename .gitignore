@@ -55,6 +55,7 @@ src/tool/*
 !src/tool/math
 !src/tool/ocr
 !src/tool/rag
+!src/tool/security
 !src/tool/.gitkeep
 !src/tool/Automate.ts
 !src/tool/Browser.ts
@@ -62,4 +63,5 @@ src/tool/*
 !src/tool/Math.ts
 !src/tool/Ocr.ts
 !src/tool/Rag.ts
+!src/tool/Security.ts
 package-lock.json

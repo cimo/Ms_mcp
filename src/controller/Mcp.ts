@@ -17,6 +17,7 @@ import ToolDocument from "../tool/Document.js";
 import ToolMath from "../tool/Math.js";
 import ToolOcr from "../tool/Ocr.js";
 import ToolRag from "../tool/Rag.js";
+import ToolSecurity from "../tool/Security.js";
 
 export default class Mcp {
     // Variable
@@ -35,6 +36,7 @@ export default class Mcp {
     private toolMath: ToolMath;
     private toolOcr: ToolOcr;
     private toolRag: ToolRag;
+    private toolSecurity: ToolSecurity;
 
     // Method
     constructor(app: Express.Express, limiter: RateLimitRequestHandler, sessionObject: Record<string, modelServer.Isession>) {
@@ -53,6 +55,7 @@ export default class Mcp {
         this.toolMath = new ToolMath(this.sessionObject);
         this.toolOcr = new ToolOcr(this.sessionObject);
         this.toolRag = new ToolRag(this.sessionObject);
+        this.toolSecurity = new ToolSecurity(this.sessionObject);
     }
 
     login = async (request: Request, response: Response): Promise<string> => {
@@ -163,6 +166,7 @@ export default class Mcp {
         server.registerTool(this.toolRag.store().name, this.toolRag.store().config, this.toolRag.store().content);
         server.registerTool(this.toolRag.search().name, this.toolRag.search().config, this.toolRag.search().content);
         server.registerTool(this.toolRag.delete().name, this.toolRag.delete().config, this.toolRag.delete().content);
+        server.registerTool(this.toolSecurity.scanner().name, this.toolSecurity.scanner().config, this.toolSecurity.scanner().content);
     };
 
     rpc = (): void => {
@@ -481,6 +485,12 @@ export default class Mcp {
                         argumentObject: this.toolRag.inputSchemaSearch.parse({}),
                         icon: "rag.png",
                         description: this.toolRag.search().config.description
+                    },
+                    {
+                        name: this.toolSecurity.scanner().name,
+                        argumentObject: this.toolSecurity.inputSchemaParser.parse({}),
+                        icon: "security.png",
+                        description: this.toolSecurity.scanner().config.description
                     }
                 ];
 
@@ -565,7 +575,7 @@ export default class Mcp {
                             /*if (tool.name === "automate_mouse_move") {
                                 await runtime.automateMouseMove(sessionId, parseInt(tool.argumentObject["x"]), parseInt(tool.argumentObject["y"]));
                             }
-
+ 
                             if (tool.name === "automate_mouse_click") {
                                 await runtime.automateMouseClick(sessionId, parseInt(tool.argumentObject["button"]));
                             }*/
