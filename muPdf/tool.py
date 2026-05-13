@@ -457,14 +457,14 @@ class Tool:
         subprocess.run(commandList, check=True)
 
     def build(self):
-        for filename in os.listdir(self.pathAnalyze):
-            with open(f"{self.pathAnalyze}{filename}", "r", encoding="utf-8") as file:
+        for fileName in os.listdir(self.pathAnalyze):
+            with open(f"{self.pathAnalyze}{fileName}", "r", encoding="utf-8") as file:
                 pageData = json.load(file)
 
             characterList = pageData.get("characterList", [])
             lineList = self._groupCharacterIntoLine(characterList, 3.0)
 
-            pageNumber = int(os.path.splitext(filename)[0])
+            pageNumber = int(os.path.splitext(fileName)[0])
 
             svgWidth, svgHeight = self._svgSize(pageNumber)
 
