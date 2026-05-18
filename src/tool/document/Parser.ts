@@ -123,16 +123,28 @@ export const execute = async (sessionId: string, fileName: string, searchInput: 
         const resultConvert = await convertToPdf(inputFolder, fileName);
 
         if (resultConvert) {
-            const resultExec = await helperSrc.terminalExecution(
-                `python3 "${helperSrc.PATH_ROOT}muPdf/tool.py" "${helperSrc.PATH_ROOT}muPdf/mutool" "${inputFolder}${baseFileName}_copy.pdf" "${searchInput}" "horizontal" "${inputFolder}"`
+            let resultExecute = await helperSrc.terminalExecution(
+                `python3 "${helperSrc.PATH_ROOT}muPdf/parser.py" "${helperSrc.PATH_ROOT}muPdf/mutool" "${inputFolder}${baseFileName}_copy.pdf" "${inputFolder}" "${searchInput}" "wholeWord,caseSensitive,both" >> "${helperSrc.PATH_LOG}muPdf_parser.log" 2>&1`
             );
 
-            if (typeof resultExec !== "string") {
-                helperSrc.writeLog("Parser.ts - execute() - terminalExecution() - ExecException", resultExec);
+            if (typeof resultExecute === "string") {
+                resultExecute = await helperSrc.terminalExecution(
+                    `python3 "${helperSrc.PATH_ROOT}paddle/layout.py" "${helperSrc.PATH_ROOT}paddle/pp-doclayout_plus-l.inference.onnx" "${inputFolder}image/" "${inputFolder}layout/" >> "${helperSrc.PATH_LOG}paddle_layout.log" 2>&1`
+                );
+            }
+
+            if (typeof resultExecute === "string") {
+                resultExecute = await helperSrc.terminalExecution(
+                    `python3 "${helperSrc.PATH_ROOT}muPdf/markdown.py" "${inputFolder}layout/data/" "${inputFolder}cleaned.pdf" "${inputFolder}" >> "${helperSrc.PATH_LOG}muPdf_markdown.log" 2>&1`
+                );
+            }
+
+            if (typeof resultExecute !== "string") {
+                helperSrc.writeLog("Parser.ts - execute() - terminalExecution() - ExecException", resultExecute);
             } else {
                 result = {
                     fileName,
-                    terminalExecution: resultExec
+                    terminalExecution: resultExecute
                 };
             }
         }

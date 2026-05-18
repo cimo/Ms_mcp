@@ -25,6 +25,11 @@ ENV HISTFILE="/home/node/.bash_history"
 ENV NODE_OPTIONS=--use-openssl-ca
 ENV NODE_EXTRA_CA_CERTS="${PATH_CERTIFICATE_PEM}"
 ENV NPM_CONFIG_USERCONFIG="/home/node/.npmrc"
+ENV PATH="${PATH_ROOT}.venv/bin/:${PATH_ROOT}.local/bin/:${PATH}"
+ENV PYTHONPATH="${PATH_ROOT}"
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV WAYLAND_DISPLAY=wayland-0
 ENV XDG_SESSION_TYPE=wayland
 ENV XDG_RUNTIME_DIR="/mnt/wslg/runtime-dir/"
@@ -65,6 +70,10 @@ RUN cd ~ \
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get update && apt-get install -y \
     nodejs \
+    # Python
+    && apt-get update && apt-get install -y \
+    python3-venv \
+    python3-pip \
     # Wslg
     && groupadd -g 110 render || true \
     && groupadd -g 44 video || true \
@@ -126,6 +135,6 @@ RUN \
     # Npm    
     bash ${PATH_ROOT}script/npm.sh "build"
 
-CMD ["sh", "-c", "bash ${PATH_ROOT}script/dbus.sh && bash ${PATH_ROOT}script/nodejs.sh"]
+CMD ["sh", "-c", "bash ${PATH_ROOT}script/dbus.sh && bash ${PATH_ROOT}script/pip.sh && bash ${PATH_ROOT}script/nodejs.sh"]
 
 EXPOSE ${SERVER_PORT}

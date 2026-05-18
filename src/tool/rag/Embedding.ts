@@ -139,7 +139,7 @@ export const store = async (sessionId: string, uniqueId: string, fileName: strin
         const baseFileName = helperSrc.baseFileName(fileName);
         const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/document/${baseFileName}/`;
 
-        helperSrc.fileReadStream(`${inputFolder}Markdown.md`, async (resultFileReadStream) => {
+        helperSrc.fileReadStream(`${inputFolder}result.md`, async (resultFileReadStream) => {
             if (Buffer.isBuffer(resultFileReadStream)) {
                 const text = resultFileReadStream.toString();
                 const maxLength = 400;

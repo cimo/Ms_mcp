@@ -1,0 +1,2 @@
+pymupdf==1.27.2.3
+opencv-python-headless==4.13.0.92
