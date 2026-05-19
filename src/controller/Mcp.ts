@@ -343,11 +343,11 @@ export default class Mcp {
 
                 if (helperSrc.filterMimeType(fileName) === "application") {
                     input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/document/${baseFileName}/page/`;
-                    inputExtension = ".html";
-                    inputFileName = `${pageNumber}${inputExtension}`;
+                    inputExtension = "html";
+                    inputFileName = `${pageNumber}.${inputExtension}`;
                 } else if (helperSrc.filterMimeType(fileName) === "image") {
                     input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/document/${baseFileName}/`;
-                    inputExtension = fileName.toLowerCase().trim().split(".").pop();
+                    inputExtension = `${fileName.toLowerCase().trim().split(".").pop()}`;
                     inputFileName = fileName;
                 }
 

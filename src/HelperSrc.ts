@@ -393,9 +393,9 @@ export const uploadedDocumentList = async (sessionId: string, extension: string)
 
                 if (
                     name.toLowerCase() !== "screenshot.jpg" &&
+                    !name.toLowerCase().endsWith("converted.pdf") &&
                     !name.toLowerCase().endsWith(".md") &&
                     !name.toLowerCase().endsWith(".html") &&
-                    !name.toLowerCase().endsWith("_copy.pdf") &&
                     !name.toLowerCase().endsWith(".svg") &&
                     !name.toLowerCase().endsWith(".json") &&
                     !name.toLowerCase().endsWith(".done") &&

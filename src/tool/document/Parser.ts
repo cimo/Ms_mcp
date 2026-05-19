@@ -29,8 +29,6 @@ const login = async (): Promise<string> => {
 
 const convertToPdf = async (inputFolder: string, fileName: string): Promise<boolean> => {
     return new Promise<boolean>(async (resolve) => {
-        const baseFileName = helperSrc.baseFileName(fileName);
-
         if (!fileName.toLowerCase().endsWith(".pdf")) {
             helperSrc.fileReadStream(`${inputFolder}${fileName}`, async (resultFileReadStream) => {
                 if (Buffer.isBuffer(resultFileReadStream)) {
@@ -44,10 +42,8 @@ const convertToPdf = async (inputFolder: string, fileName: string): Promise<bool
                     await instance.api
                         .post<modelHelperSrc.IresponseBody>("/api/toPdf", {}, formData)
                         .then((resultApi) => {
-                            const baseFileName = helperSrc.baseFileName(fileName);
-
                             helperSrc.fileWriteStream(
-                                `${inputFolder}${baseFileName}_copy.pdf`,
+                                `${inputFolder}converted.pdf`,
                                 Buffer.from(resultApi.data.response.stdout, "base64"),
                                 (resultFileWriteStream) => {
                                     if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
@@ -75,7 +71,7 @@ const convertToPdf = async (inputFolder: string, fileName: string): Promise<bool
                 }
             });
         } else {
-            Fs.copyFile(`${inputFolder}${fileName}`, `${inputFolder}${baseFileName}_copy.pdf`, (error) => {
+            Fs.copyFile(`${inputFolder}${fileName}`, `${inputFolder}converted.pdf`, (error) => {
                 if (error) {
                     helperSrc.writeLog(`Parser.ts - convertToPdf() - copyFile()`, error.message);
 
@@ -124,7 +120,7 @@ export const execute = async (sessionId: string, fileName: string, searchInput: 
 
         if (resultConvert) {
             let resultExecute = await helperSrc.terminalExecution(
-                `python3 "${helperSrc.PATH_ROOT}muPdf/parser.py" "${helperSrc.PATH_ROOT}muPdf/mutool" "${inputFolder}${baseFileName}_copy.pdf" "${inputFolder}" "${searchInput}" "wholeWord,caseSensitive,both" >> "${helperSrc.PATH_LOG}muPdf_parser.log" 2>&1`
+                `python3 "${helperSrc.PATH_ROOT}muPdf/parser.py" "${helperSrc.PATH_ROOT}muPdf/mutool" "${inputFolder}converted.pdf" "${inputFolder}" "${searchInput}" "wholeWord,caseSensitive,both" >> "${helperSrc.PATH_LOG}muPdf_parser.log" 2>&1`
             );
 
             if (typeof resultExecute === "string") {
