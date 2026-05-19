@@ -3,7 +3,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { ChildProcess } from "child_process";
 
 // Source
-import ControllerRuntime from "src/controller/Runtime.js";
+import ControllerRuntime from "../controller/Runtime.js";
 
 export interface Icors {
     originList: string[];

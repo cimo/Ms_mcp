@@ -16,7 +16,7 @@ export default class Document {
         this.sessionObject = sessionObject;
 
         this.inputSchemaParser = z.object({
-            fileName: z.string().default("").describe("File name."),
+            fileName: z.string().default("").describe("Filename."),
             searchInput: z.string().default("").describe("Search input.")
         });
     }
