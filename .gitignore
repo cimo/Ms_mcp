@@ -23,7 +23,8 @@ pnpm-debug.log*
 # cimo +
 .Identifier
 .cache
-.config
+.config/**
+!.config/.gitkeep
 .local
 .npm
 .npmrc

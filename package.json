@@ -24,7 +24,7 @@
         "@cimo/form-data_parser": "1.1.40",
         "@cimo/request": "1.7.40",
         "express": "5.2.1",
-        "express-rate-limit": "8.3.1",
+        "express-rate-limit": "8.5.2",
         "cookie-parser": "1.4.7",
         "cors": "2.8.6",
         "@modelcontextprotocol/sdk": "1.26.0",
