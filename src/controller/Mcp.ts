@@ -2,6 +2,7 @@ import Express, { Request, Response } from "express";
 import { RateLimitRequestHandler } from "express-rate-limit";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import AdmZip from "adm-zip";
 import { Ca } from "@cimo/authentication/dist/src/Main.js";
 
 // Source
@@ -240,9 +241,11 @@ export default class Mcp {
 
                 this.controllerUpload.execute(request, true, input).then(async (result) => {
                     if (result) {
-                        await this.toolDocument.parser().content({ fileName, searchInput: "" }, { sessionId });
+                        if (helperSrc.filterMimeType(fileName) === "application") {
+                            await this.toolDocument.parser().content({ fileName, searchInput: "" }, { sessionId });
 
-                        this.toolRag.store().content({ fileName }, { sessionId });
+                            this.toolRag.store().content({ fileName }, { sessionId });
+                        }
 
                         helperSrc.responseBody(JSON.stringify({ fileName, status: "Success" }), "", response, 200);
                     } else {
@@ -329,15 +332,28 @@ export default class Mcp {
 
         this.app.post("/api/document-read", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
-            const baseFileName = helperSrc.baseFileName(request.body.fileName);
+            const fileName = request.body.fileName;
+            const baseFileName = helperSrc.baseFileName(fileName);
             const pageNumber = request.body.pageNumber;
 
             if (typeof sessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/document/${baseFileName}/page/`;
+                let input = "";
+                let inputExtension = "";
+                let inputFileName = "";
 
-                helperSrc.findFileInDirectoryRecursive(input, ".html", (pathFileList) => {
+                if (helperSrc.filterMimeType(fileName) === "application") {
+                    input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/document/${baseFileName}/page/`;
+                    inputExtension = ".html";
+                    inputFileName = `${pageNumber}${inputExtension}`;
+                } else if (helperSrc.filterMimeType(fileName) === "image") {
+                    input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/document/${baseFileName}/`;
+                    inputExtension = fileName.toLowerCase().trim().split(".").pop();
+                    inputFileName = fileName;
+                }
+
+                helperSrc.findFileInDirectoryRecursive(input, inputExtension, (pathFileList) => {
                     for (const pathFile of pathFileList) {
-                        if (pathFile.endsWith(`${pageNumber}.html`)) {
+                        if (pathFile.endsWith(inputFileName)) {
                             helperSrc.fileReadStream(pathFile, (resultFileReadStream) => {
                                 if (Buffer.isBuffer(resultFileReadStream)) {
                                     const readResult = {
@@ -370,12 +386,51 @@ export default class Mcp {
         this.app.post("/api/skill-upload", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
             const fileName = request.headers["filename"] as string;
+            const baseFileName = helperSrc.baseFileName(fileName);
+            const extension = fileName.toLowerCase().trim().split(".").pop();
+
+            if (extension === "zip" && !/^[a-z0-9_.]+$/.test(baseFileName)) {
+                helperSrc.responseBody(JSON.stringify({ fileName, status: "Failed" }), "", response, 200);
+
+                return;
+            }
 
             if (typeof sessionId === "string") {
                 const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/skill/`;
 
                 this.controllerUpload.execute(request, true, input).then(async (result) => {
                     if (result) {
+                        if (extension === "zip") {
+                            const zip = new AdmZip(`${input}${baseFileName}/${fileName}`);
+                            const entryList = zip.getEntries();
+
+                            let isSkillMd = false;
+                            let isAssetFolder = false;
+                            let isScriptFolder = false;
+
+                            for (const entry of entryList) {
+                                if (entry.entryName === `skill.md`) {
+                                    isSkillMd = true;
+                                } else if (entry.entryName === `asset/`) {
+                                    isAssetFolder = true;
+                                } else if (entry.entryName === `script/`) {
+                                    isScriptFolder = true;
+                                }
+                            }
+
+                            if (isSkillMd && isAssetFolder && isScriptFolder) {
+                                zip.extractAllTo(`${input}${baseFileName}`, true);
+                            }
+
+                            helperSrc.fileOrFolderDelete(`${input}${baseFileName}/${fileName}`, (inputZip) => {
+                                if (typeof inputZip !== "boolean") {
+                                    helperSrc.writeLog("Mcp.ts - api() - post(/api/skill-upload) - Error", inputZip.message);
+                                }
+
+                                return;
+                            });
+                        }
+
                         helperSrc.responseBody(JSON.stringify({ fileName, status: "Success" }), "", response, 200);
                     } else {
                         helperSrc.responseBody(JSON.stringify({ fileName, status: "Failed" }), "", response, 200);
@@ -405,10 +460,9 @@ export default class Mcp {
         this.app.post("/api/skill-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
             const fileName = request.body.fileName;
-            const baseFileName = helperSrc.baseFileName(fileName);
 
             if (typeof sessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/skill/${baseFileName}/`;
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/skill/${fileName}/`;
 
                 helperSrc.fileOrFolderDelete(input, async (result) => {
                     if (typeof result !== "boolean") {
@@ -428,14 +482,14 @@ export default class Mcp {
 
         this.app.post("/api/skill-read", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const sessionId = request.headers["mcp-session-id"];
-            const baseFileName = helperSrc.baseFileName(request.body.fileName);
+            const fileName = request.body.fileName;
 
             if (typeof sessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/skill/${baseFileName}/`;
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/skill/${fileName}/`;
 
                 helperSrc.findFileInDirectoryRecursive(input, ".md", (pathFileList) => {
                     for (const pathFile of pathFileList) {
-                        if (pathFile.endsWith(`${baseFileName}.md`)) {
+                        if (pathFile.endsWith("skill.md")) {
                             helperSrc.fileReadStream(pathFile, (resultFileReadStream) => {
                                 if (Buffer.isBuffer(resultFileReadStream)) {
                                     helperSrc.responseBody(resultFileReadStream.toString("base64"), "", response, 200);

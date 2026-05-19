@@ -1,6 +1,6 @@
 import Fs from "fs";
-import { exec, ExecException } from "child_process";
 import { Request, Response } from "express";
+import { exec, ExecException } from "child_process";
 import { Ce } from "@cimo/environment/dist/src/Main.js";
 
 // Source
@@ -296,65 +296,6 @@ export const findFileInDirectoryRecursive = (path: string, extension: string, ca
     });
 };
 
-export const uploadedDocumentList = async (sessionId: string, extension: string): Promise<string[]> => {
-    return new Promise<string[]>((resolve) => {
-        const input = `${PATH_ROOT}${PATH_FILE}input/${sessionId}/document/`;
-
-        findFileInDirectoryRecursive(input, extension, (pathFileList) => {
-            const resultList = [];
-
-            for (let a = 0; a < pathFileList.length; a++) {
-                const nameList = pathFileList[a].split("/");
-                const name = nameList[nameList.length - 1];
-
-                if (
-                    name.toLowerCase() !== "screenshot.jpg" &&
-                    !name.toLowerCase().endsWith(".md") &&
-                    !name.toLowerCase().endsWith(".html") &&
-                    !name.toLowerCase().endsWith("_copy.pdf") &&
-                    !name.toLowerCase().endsWith(".svg") &&
-                    !name.toLowerCase().endsWith(".json") &&
-                    !name.toLowerCase().endsWith(".done") &&
-                    !name.toLowerCase().endsWith(".fail")
-                ) {
-                    resultList.push(name);
-                }
-            }
-
-            resolve(resultList);
-        });
-    });
-};
-
-export const uploadedSkillList = async (sessionId: string, extension: string): Promise<string[]> => {
-    return new Promise<string[]>((resolve) => {
-        const input = `${PATH_ROOT}${PATH_FILE}input/${sessionId}/skill/`;
-
-        findFileInDirectoryRecursive(input, extension, (pathFileList) => {
-            const resultList = [];
-
-            for (let a = 0; a < pathFileList.length; a++) {
-                const nameList = pathFileList[a].split("/");
-                const name = nameList[nameList.length - 1];
-
-                if (name.toLowerCase().endsWith(".md")) {
-                    resultList.push(name);
-                }
-            }
-
-            resolve(resultList);
-        });
-    });
-};
-
-export const baseFileName = (fileName: string): string => {
-    const nameList = fileName.split("/");
-    const nameWithExtension = nameList[nameList.length - 1];
-    const baseName = nameWithExtension.trim().replace(/.[^/.]+$/, "");
-
-    return baseName;
-};
-
 export const headerBearerToken = (request: Request): string => {
     const authorization = request.headers["authorization"];
 
@@ -431,6 +372,66 @@ export const readMimeType = (byteList: Uint8Array): modelHelperSrc.ImimeType => 
     return { content: "", extension: "" };
 };
 
+export const baseFileName = (fileName: string): string => {
+    const nameList = fileName.split("/");
+    const nameWithExtension = nameList[nameList.length - 1];
+    const baseName = nameWithExtension.trim().replace(/.[^/.]+$/, "");
+
+    return baseName;
+};
+
+export const uploadedDocumentList = async (sessionId: string, extension: string): Promise<string[]> => {
+    return new Promise<string[]>((resolve) => {
+        const input = `${PATH_ROOT}${PATH_FILE}input/${sessionId}/document/`;
+
+        findFileInDirectoryRecursive(input, extension, (pathFileList) => {
+            const resultList = [];
+
+            for (let a = 0; a < pathFileList.length; a++) {
+                const nameList = pathFileList[a].split("/");
+                const name = nameList[nameList.length - 1];
+
+                if (
+                    name.toLowerCase() !== "screenshot.jpg" &&
+                    !name.toLowerCase().endsWith(".md") &&
+                    !name.toLowerCase().endsWith(".html") &&
+                    !name.toLowerCase().endsWith("_copy.pdf") &&
+                    !name.toLowerCase().endsWith(".svg") &&
+                    !name.toLowerCase().endsWith(".json") &&
+                    !name.toLowerCase().endsWith(".done") &&
+                    !name.toLowerCase().endsWith(".fail")
+                ) {
+                    resultList.push(name);
+                }
+            }
+
+            resolve(resultList);
+        });
+    });
+};
+
+export const uploadedSkillList = async (sessionId: string, extension: string): Promise<string[]> => {
+    return new Promise<string[]>((resolve) => {
+        const input = `${PATH_ROOT}${PATH_FILE}input/${sessionId}/skill/`;
+
+        findFileInDirectoryRecursive(input, extension, (pathFileList) => {
+            const resultList: string[] = [];
+
+            for (let a = 0; a < pathFileList.length; a++) {
+                const pathRelative = pathFileList[a].replace(input, "");
+                const directoryList = pathRelative.split("/");
+                const name = directoryList[0];
+
+                if (name !== "" && !resultList.includes(name)) {
+                    resultList.push(name);
+                }
+            }
+
+            resolve(resultList);
+        });
+    });
+};
+
 export const terminalExecution = async (command: string): Promise<string | ExecException> => {
     return await new Promise<string | ExecException>((resolve) => {
         exec(command, (error, stdout, stderr) => {
@@ -443,4 +444,31 @@ export const terminalExecution = async (command: string): Promise<string | ExecE
             }
         });
     });
+};
+
+export const filterMimeType = (fileName: string): string => {
+    let result = "";
+
+    const extension = fileName.toLowerCase().trim().split(".").pop();
+    const mimeTypeList = JSON.parse(MIME_TYPE) as string[];
+
+    for (const mimeType of mimeTypeList) {
+        const [left, rightRaw] = mimeType.toLowerCase().split("/", 2);
+
+        let right = rightRaw;
+
+        if (right === "vnd.openxmlformats-officedocument.wordprocessingml.document") {
+            right = "docx";
+        } else if (right === "vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
+            right = "xlsx";
+        } else if (right === "vnd.openxmlformats-officedocument.presentationml.presentation") {
+            right = "pptx";
+        }
+
+        if (extension === right) {
+            result = left;
+        }
+    }
+
+    return result;
 };
