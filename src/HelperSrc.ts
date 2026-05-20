@@ -388,20 +388,11 @@ export const uploadedDocumentList = async (sessionId: string, extension: string)
             const resultList = [];
 
             for (let a = 0; a < pathFileList.length; a++) {
-                const nameList = pathFileList[a].split("/");
-                const name = nameList[nameList.length - 1];
+                const pathRelative = pathFileList[a].replace(input, "");
+                const pathList = pathRelative.split("/");
 
-                if (
-                    name.toLowerCase() !== "screenshot.jpg" &&
-                    !name.toLowerCase().endsWith("converted.pdf") &&
-                    !name.toLowerCase().endsWith(".md") &&
-                    !name.toLowerCase().endsWith(".html") &&
-                    !name.toLowerCase().endsWith(".svg") &&
-                    !name.toLowerCase().endsWith(".json") &&
-                    !name.toLowerCase().endsWith(".done") &&
-                    !name.toLowerCase().endsWith(".fail")
-                ) {
-                    resultList.push(name);
+                if (pathList.length > 1 && pathList[1].startsWith(pathList[0])) {
+                    resultList.push(pathList[1]);
                 }
             }
 
