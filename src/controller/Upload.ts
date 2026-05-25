@@ -37,7 +37,7 @@ export default class Upload {
 
     constructor() {}
 
-    execute = (request: Request, isFileExists: boolean, pathValue: string): Promise<boolean> => {
+    execute = (request: Request, isFileExists: boolean, isDecode: boolean, pathValue: string): Promise<boolean> => {
         return new Promise((resolve) => {
             const chunkList: Buffer[] = [];
 
@@ -46,7 +46,7 @@ export default class Upload {
             });
 
             request.on("end", () => {
-                const contentType = request.headers["content-type"];
+                const contentType = request.headers["content-type"] as string;
 
                 const buffer = Buffer.concat(chunkList);
                 const formDataList = Cfdp.readInput(buffer, contentType);
@@ -56,9 +56,10 @@ export default class Upload {
                 if (resultCheckRequest === "") {
                     for (const formData of formDataList) {
                         if (formData.name === "file" && formData.fileName && formData.buffer) {
-                            const baseFileName = helperSrc.baseFileName(formData.fileName);
+                            const fileName = isDecode ? decodeURIComponent(formData.fileName) : formData.fileName;
+                            const baseFileName = helperSrc.baseFileName(fileName);
                             const path = `${pathValue}${baseFileName}/`;
-                            const pathFile = `${path}${formData.fileName}`;
+                            const pathFile = `${path}${fileName}`;
 
                             Fs.mkdir(path, { recursive: true }, (error) => {
                                 if (!error) {

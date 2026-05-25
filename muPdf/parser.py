@@ -432,7 +432,7 @@ class Parser:
         highlightList = []
 
         if not self.textSearch:
-            return highlightList
+            return ""
 
         rectangleList = []
 

@@ -30,7 +30,7 @@ export default class Rag {
             fileName: z.string().default("").describe("File name.")
         });
 
-        ragEmbedding.createDatabase();
+        ragEmbedding.databaseCreate();
     }
 
     store = (): modelMcp.Irpc<typeof this.inputSchemaStore> => {
@@ -47,7 +47,8 @@ export default class Rag {
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const uniqueId = helperSrc.generateUniqueId();
 
-                const resultStore = await ragEmbedding.store(extra.sessionId, uniqueId, argument.fileName);
+                const resultStore = await ragEmbedding.databaseStore(extra.sessionId, uniqueId, argument.fileName);
+
                 result = JSON.stringify({ name: "rag_store", resultList: [resultStore] });
             }
 
@@ -81,8 +82,14 @@ export default class Rag {
                 if (documentList.length > 0) {
                     const uniqueId = helperSrc.generateUniqueId();
 
-                    const resultSearch = await ragEmbedding.search(extra.sessionId, uniqueId, argument.prompt);
-                    result = JSON.stringify({ name: "rag_search", resultList: resultSearch });
+                    const resultSearch = await ragEmbedding.databaseSearch(extra.sessionId, uniqueId, argument.prompt);
+                    const citationList = resultSearch.citationList;
+                    const relationList = resultSearch.relationList;
+
+                    result = JSON.stringify({
+                        name: "rag_search",
+                        resultList: [{ citationList, relationList }]
+                    });
                 } else {
                     result = "No uploaded document.";
                 }
@@ -113,7 +120,8 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultDelete = await ragEmbedding.drop(extra.sessionId, argument.fileName);
+                const resultDelete = await ragEmbedding.databaseDelete(extra.sessionId, argument.fileName);
+
                 result = JSON.stringify({ name: "rag_delete", resultList: [resultDelete] });
             }
 

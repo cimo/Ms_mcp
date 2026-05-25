@@ -25,30 +25,28 @@ const login = async (): Promise<string> => {
 };
 
 const scan = async (mode: string, target: string): Promise<string> => {
-    return new Promise<string>(async (resolve) => {
-        await instance.api
-            .post<modelHelperSrc.IresponseBody>(
-                "/api/check",
-                {
-                    headers: {
-                        "Content-Type": "application/json"
-                    }
-                },
-                { mode, target }
-            )
-            .then((resultApi) => {
-                resolve(Buffer.from(resultApi.data.response.stdout, "base64").toString("utf-8"));
+    let result = "";
 
-                return;
-            })
-            .catch((error: Error) => {
-                helperSrc.writeLog("Scanner.ts - scan() - api(/api/check) - catch()", error.message);
+    await instance.api
+        .post<modelHelperSrc.IresponseBody>(
+            "/api/check",
+            {
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            },
+            { mode, target }
+        )
+        .then((resultApi) => {
+            result = Buffer.from(resultApi.data.response.stdout, "base64").toString("utf-8");
+        })
+        .catch((error: Error) => {
+            helperSrc.writeLog("Scanner.ts - scan() - api(/api/check) - catch()", error.message);
 
-                resolve("");
+            result = "ko";
+        });
 
-                return;
-            });
-    });
+    return result;
 };
 
 const logout = async (): Promise<string> => {

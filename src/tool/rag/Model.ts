@@ -2,24 +2,29 @@ export interface IinstanceContext {
     cookie?: string;
 }
 
-export interface IapiEmbeddingData {
+export interface IapiEmbedding {
     object: string;
     embedding: number[];
     index: number;
 }
 
-export type TsemanticChunkOption = {
-    maxLenght: number;
-    overlapSentenceCount: number;
-};
+export interface IapiExtract {
+    relationList: Irelation[];
+}
 
-export interface IapiCitation {
+export interface Icitation {
     fileName: string;
-    citation: string;
+    chunk: string;
     distance: number;
 }
 
-export interface Isearch {
-    fileName: string;
-    citation: string;
+export interface Irelation {
+    source: string;
+    verb: string;
+    target: string;
+}
+
+export interface IsearchOutput {
+    citationList: Icitation[];
+    relationList: Irelation[];
 }

@@ -5,16 +5,18 @@ import * as modelAgent from "../model/Agent.js";
 
 export default class Agent {
     // Variable
-    private databaseAgent: DatabaseSync;
+    private database: DatabaseSync;
 
     // Method
     constructor() {
-        this.databaseAgent = new DatabaseSync(":memory:");
+        this.database = new DatabaseSync(":memory:");
     }
 
-    createTable = (sessionId: string): boolean => {
+    tableCreate = (sessionId: string): boolean => {
+        let result = false;
+
         if (sessionId !== "") {
-            this.databaseAgent.exec(`
+            this.database.exec(`
                 CREATE TABLE IF NOT EXISTS "${sessionId}_agent" (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
@@ -23,20 +25,33 @@ export default class Agent {
                 );
             `);
 
-            return true;
+            result = true;
         }
 
-        return false;
+        return result;
     };
 
-    insertAgent = (sessionId: string, name: string, description: string, skill: string): boolean => {
+    tableDrop = (sessionId: string): boolean => {
         let result = false;
 
         if (sessionId !== "") {
-            const queryInsert = this.databaseAgent.prepare(`INSERT INTO "${sessionId}_agent" (name, description, skill) VALUES (?, ?, ?);`);
-            const resultInsert = queryInsert.run(name, description, skill);
+            this.database.exec(`DROP TABLE IF EXISTS "${sessionId}_agent";`);
 
-            if (resultInsert && resultInsert.changes > 0) {
+            result = true;
+        }
+
+        return result;
+    };
+
+    tableInsert = (sessionId: string, name: string, description: string, skill: string): boolean => {
+        let result = false;
+
+        if (sessionId !== "") {
+            const queryRun = this.database
+                .prepare(`INSERT INTO "${sessionId}_agent" (name, description, skill) VALUES (?, ?, ?);`)
+                .run(name, description, skill);
+
+            if (queryRun && queryRun.changes > 0) {
                 result = true;
             }
         }
@@ -44,14 +59,15 @@ export default class Agent {
         return result;
     };
 
-    updateAgent = (sessionId: string, id: number, name: string, description: string, skill: string): boolean => {
+    tableUpdate = (sessionId: string, id: number, name: string, description: string, skill: string): boolean => {
         let result = false;
 
         if (sessionId !== "") {
-            const queryUpdate = this.databaseAgent.prepare(`UPDATE "${sessionId}_agent" SET name = ?, description = ?, skill = ? WHERE id = ?;`);
-            const resultUpdate = queryUpdate.run(name, description, skill, id);
+            const queryRun = this.database
+                .prepare(`UPDATE "${sessionId}_agent" SET name = ?, description = ?, skill = ? WHERE id = ?;`)
+                .run(name, description, skill, id);
 
-            if (resultUpdate && resultUpdate.changes > 0) {
+            if (queryRun && queryRun.changes > 0) {
                 result = true;
             }
         }
@@ -59,47 +75,36 @@ export default class Agent {
         return result;
     };
 
-    selectAgentList = (sessionId: string): modelAgent.Iagent[] => {
-        const result: modelAgent.Iagent[] = [];
+    tableSelectList = (sessionId: string): modelAgent.Iagent[] => {
+        const resultList: modelAgent.Iagent[] = [];
 
         if (sessionId !== "") {
-            const querySelect = this.databaseAgent.prepare(`SELECT id, name, description, skill FROM "${sessionId}_agent";`).all();
+            const queryList = this.database.prepare(`SELECT id, name, description, skill FROM "${sessionId}_agent";`).all();
 
-            for (const row of querySelect) {
-                result.push({
-                    id: row["id"] as number,
-                    name: row["name"] as string,
-                    description: row["description"] as string,
-                    skill: row["skill"] as string
+            for (const query of queryList) {
+                resultList.push({
+                    id: query["id"] as number,
+                    name: query["name"] as string,
+                    description: query["description"] as string,
+                    skill: query["skill"] as string
                 });
             }
         }
 
-        return result;
+        return resultList;
     };
 
-    deleteAgent = (sessionId: string, id: number): boolean => {
+    tableDelete = (sessionId: string, id: number): boolean => {
         let result = false;
 
         if (sessionId !== "") {
-            const queryDelete = this.databaseAgent.prepare(`DELETE FROM "${sessionId}_agent" WHERE id = ?;`);
-            const resultDelete = queryDelete.run(id);
+            const queryRun = this.database.prepare(`DELETE FROM "${sessionId}_agent" WHERE id = ?;`).run(id);
 
-            if (resultDelete && resultDelete.changes > 0) {
+            if (queryRun && queryRun.changes > 0) {
                 result = true;
             }
         }
 
         return result;
-    };
-
-    dropTable = (sessionId: string): boolean => {
-        if (sessionId !== "") {
-            this.databaseAgent.exec(`DROP TABLE IF EXISTS "${sessionId}_agent";`);
-
-            return true;
-        }
-
-        return false;
     };
 }

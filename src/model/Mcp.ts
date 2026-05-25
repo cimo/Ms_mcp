@@ -1,10 +1,5 @@
 import { z } from "zod";
 
-export interface Iupload {
-    fileName: string;
-    status: string;
-}
-
 export interface IruntimeHandlerData {
     id: string;
     result?: string;
@@ -39,19 +34,19 @@ export interface ItoolResponse {
 
 export interface Itool {
     name: string;
-    argumentObject: Record<string, string>;
+    argumentObject: Record<string, unknown>;
     icon: string;
     description: string;
 }
 
 export interface ItoolCall {
     name: string;
-    argumentObject: Record<string, string>;
+    argumentObject: Record<string, unknown>;
 }
 
 export interface Itask {
     name: string;
-    argumentObject: Record<string, string>;
+    argumentObject: Record<string, unknown>;
     icon: string;
     description: string;
 }

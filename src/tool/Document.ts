@@ -25,7 +25,7 @@ export default class Document {
         const name = "document_parser";
 
         const config = {
-            description: "Parse docx, xlsx, pptx, pdf document and extract data.",
+            description: "Parse pdf document and extract data.",
             inputSchema: this.inputSchemaParser
         };
 

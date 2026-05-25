@@ -74,22 +74,16 @@ const extract = async (sessionId: string, language: string, fileName: string, se
                         }
 
                         resolve(resultList);
-
-                        return;
                     })
                     .catch((error: Error) => {
                         helperSrc.writeLog("Extract.ts - extract() - api(/extract) - catch()", error.message);
 
                         resolve([]);
-
-                        return;
                     });
             } else {
                 helperSrc.writeLog(`Extract.ts - extract() - fileReadStream()`, resultFileReadStream.toString());
 
                 resolve([]);
-
-                return;
             }
         });
     });
