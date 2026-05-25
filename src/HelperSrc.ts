@@ -299,7 +299,7 @@ export const findFileInDirectoryRecursive = (path: string, extension: string, ca
 export const headerBearerToken = (request: Request): string => {
     const authorization = request.headers["authorization"] as string;
 
-    return authorization ? authorization.substring(7) : "";
+    return authorization.substring(7);
 };
 
 export const readClientIp = (request: Request): string => {
