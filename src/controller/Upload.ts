@@ -37,8 +37,8 @@ export default class Upload {
 
     constructor() {}
 
-    execute = (request: Request, isFileExists: boolean, isDecode: boolean, pathValue: string): Promise<boolean> => {
-        return new Promise((resolve) => {
+    execute = (request: Request, isFileExists: boolean, isDecode: boolean, pathValue: string): Promise<CfdpModel.Iinput[]> => {
+        return new Promise((resolve, reject) => {
             const chunkList: Buffer[] = [];
 
             request.on("data", (data: Buffer) => {
@@ -66,9 +66,7 @@ export default class Upload {
                                     if (isFileExists) {
                                         Fs.access(pathFile, Fs.constants.F_OK, (error) => {
                                             if (!error) {
-                                                helperSrc.writeLog("Upload.ts - execute() - request.on() - access() - Error", "File exists.");
-
-                                                resolve(false);
+                                                reject(new Error("File exists."));
 
                                                 return;
                                             }
@@ -77,16 +75,11 @@ export default class Upload {
 
                                     helperSrc.fileWriteStream(pathFile, formData.buffer, (resultFileWriteStream) => {
                                         if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
-                                            resolve(true);
+                                            resolve(formDataList);
 
                                             return;
                                         } else {
-                                            helperSrc.writeLog(
-                                                "Upload.ts - execute() - request.on() - fileWriteStream() - Error",
-                                                "File write failed."
-                                            );
-
-                                            resolve(false);
+                                            reject(new Error("File write failed."));
 
                                             return;
                                         }
@@ -94,7 +87,7 @@ export default class Upload {
                                 } else {
                                     helperSrc.writeLog("Upload.ts - execute() - request.on() - mkdir() - Error", error.message);
 
-                                    resolve(false);
+                                    reject(new Error("Directory creation failed."));
 
                                     return;
                                 }
@@ -104,9 +97,7 @@ export default class Upload {
                         }
                     }
                 } else {
-                    helperSrc.writeLog("Upload.ts - execute() - request.on() - checkRequest() - Error", resultCheckRequest);
-
-                    resolve(false);
+                    reject(new Error(resultCheckRequest));
 
                     return;
                 }
@@ -115,7 +106,7 @@ export default class Upload {
             request.on("error", (error: Error) => {
                 helperSrc.writeLog("Upload.ts - execute() - request.on() - Error", error.message);
 
-                resolve(false);
+                reject(new Error(error.message));
 
                 return;
             });

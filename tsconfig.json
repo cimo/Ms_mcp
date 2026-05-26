@@ -18,7 +18,8 @@
         "removeComments": true,
         "sourceMap": true,
         "noPropertyAccessFromIndexSignature": true,
-        "isolatedModules": true
+        "isolatedModules": true,
+        "types": ["node"]
     },
     "include": [
         "eslint.customRule.ts",

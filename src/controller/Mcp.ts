@@ -406,8 +406,8 @@ export default class Mcp {
 
                 this.controllerUpload
                     .execute(request, true, true, input)
-                    .then(async (result) => {
-                        if (result) {
+                    .then((resultControllerUploadList) => {
+                        if (resultControllerUploadList.length > 0) {
                             const zip = new AdmZip(`${input}${baseFileName}/${fileName}`);
                             const entryList = zip.getEntries();
 
@@ -440,7 +440,7 @@ export default class Mcp {
                         helperSrc.responseBody("", "ko", response, 500);
                     });
             } else {
-                helperSrc.writeLog("Mcp.ts - api() - post(/api/skill-upload) - Error", "Missing or invalid header.");
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/skill-upload) - Error", `${response}`);
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
