@@ -1,11 +1,5 @@
 import { z } from "zod";
 
-export interface IfileDetail {
-    fileName: string;
-    dateModified: string;
-    size: string;
-}
-
 export interface IruntimeHandlerData {
     id: string;
     result?: string;

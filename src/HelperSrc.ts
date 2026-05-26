@@ -5,7 +5,6 @@ import { Ce } from "@cimo/environment/dist/src/Main.js";
 
 // Source
 import * as modelHelperSrc from "./model/HelperSrc.js";
-import * as modelMcp from "./model/Mcp.js";
 
 export const ENV_NAME = Ce.checkVariable("ENV_NAME") || (process.env["ENV_NAME"] as string);
 
@@ -399,6 +398,37 @@ export const filterMimeType = (fileName: string): string => {
     return result;
 };
 
+export const fileDetail = (pathFile: string): Promise<modelHelperSrc.IfileDetail> => {
+    return new Promise<modelHelperSrc.IfileDetail>((resolve) => {
+        Fs.stat(pathFile, (error, stat) => {
+            if (error) {
+                resolve({ fileName: "", dateModified: "", size: "" });
+            } else {
+                const kb = 1024;
+                const mb = kb * 1024;
+                const gb = mb * 1024;
+
+                const byte = stat.size;
+                let size = `${byte} B`;
+
+                if (byte < mb) {
+                    size = `${Math.round(byte / kb)} KB`;
+                } else if (byte < gb) {
+                    size = `${Math.round(byte / mb)} MB`;
+                } else if (byte >= gb) {
+                    size = `${Math.round(byte / gb)} GB`;
+                }
+
+                resolve({
+                    fileName: pathFile.split("/").pop() || pathFile,
+                    dateModified: localeFormat(stat.mtime) || stat.mtime.toLocaleString(),
+                    size
+                });
+            }
+        });
+    });
+};
+
 export const readClientIp = (request: Request): string => {
     let result = "";
 
@@ -426,12 +456,12 @@ export const responseBody = (stdoutValue: string, stderrValue: string | Error, r
 };
 
 // Custom
-export const uploadedDocumentList = async (sessionId: string, extension: string): Promise<modelMcp.IfileDetail[]> => {
-    return new Promise<modelMcp.IfileDetail[]>((resolve) => {
+export const uploadedDocumentList = async (sessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
+    return new Promise<modelHelperSrc.IfileDetail[]>((resolve) => {
         const input = `${PATH_ROOT}${PATH_FILE}input/${sessionId}/document/`;
 
         findFileInDirectoryRecursive(input, extension, async (pathFileList) => {
-            const resultList: modelMcp.IfileDetail[] = [];
+            const resultList: modelHelperSrc.IfileDetail[] = [];
 
             for (let a = 0; a < pathFileList.length; a++) {
                 const pathRelative = pathFileList[a].replace(input, "");
@@ -453,12 +483,12 @@ export const uploadedDocumentList = async (sessionId: string, extension: string)
     });
 };
 
-export const uploadedSkillList = async (sessionId: string, extension: string): Promise<modelMcp.IfileDetail[]> => {
-    return new Promise<modelMcp.IfileDetail[]>((resolve) => {
+export const uploadedSkillList = async (sessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
+    return new Promise<modelHelperSrc.IfileDetail[]>((resolve) => {
         const input = `${PATH_ROOT}${PATH_FILE}input/${sessionId}/skill/`;
 
         findFileInDirectoryRecursive(input, extension, async (pathFileList) => {
-            const resultList: modelMcp.IfileDetail[] = [];
+            const resultList: modelHelperSrc.IfileDetail[] = [];
 
             for (let a = 0; a < pathFileList.length; a++) {
                 if (pathFileList[a].endsWith("skill.md")) {
@@ -479,37 +509,6 @@ export const uploadedSkillList = async (sessionId: string, extension: string): P
             }
 
             resolve(resultList);
-        });
-    });
-};
-
-export const fileDetail = (pathFile: string): Promise<modelMcp.IfileDetail> => {
-    return new Promise<modelMcp.IfileDetail>((resolve) => {
-        Fs.stat(pathFile, (error, stat) => {
-            if (error) {
-                resolve({ fileName: "", dateModified: "", size: "" });
-            } else {
-                const kb = 1024;
-                const mb = kb * 1024;
-                const gb = mb * 1024;
-
-                const byte = stat.size;
-                let size = `${byte} B`;
-
-                if (byte < mb) {
-                    size = `${Math.round(byte / kb)} KB`;
-                } else if (byte < gb) {
-                    size = `${Math.round(byte / mb)} MB`;
-                } else if (byte >= gb) {
-                    size = `${Math.round(byte / gb)} GB`;
-                }
-
-                resolve({
-                    fileName: pathFile.split("/").pop() || pathFile,
-                    dateModified: localeFormat(stat.mtime) || stat.mtime.toLocaleString(),
-                    size
-                });
-            }
         });
     });
 };
