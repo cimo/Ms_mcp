@@ -522,31 +522,31 @@ export default class Mcp {
                     {
                         name: this.toolDocument.parser().name,
                         argumentObject: this.toolDocument.inputSchemaParser.parse({}),
-                        icon: "document.png",
+                        icon: "document.svg",
                         description: this.toolDocument.parser().config.description
                     },
                     {
                         name: this.toolMath.expression().name,
                         argumentObject: this.toolMath.inputSchemaExpression.parse({}),
-                        icon: "math.png",
+                        icon: "math.svg",
                         description: this.toolMath.expression().config.description
                     },
                     {
                         name: this.toolOcr.execute().name,
                         argumentObject: this.toolOcr.inputSchemaExecute.parse({}),
-                        icon: "ocr.png",
+                        icon: "ocr.svg",
                         description: this.toolOcr.execute().config.description
                     },
                     {
                         name: this.toolRag.search().name,
                         argumentObject: this.toolRag.inputSchemaSearch.parse({}),
-                        icon: "rag.png",
+                        icon: "rag.svg",
                         description: this.toolRag.search().config.description
                     },
                     {
                         name: this.toolSecurity.scanner().name,
                         argumentObject: this.toolSecurity.inputSchemaParser.parse({}),
-                        icon: "security.png",
+                        icon: "security.svg",
                         description: this.toolSecurity.scanner().config.description
                     }
                 ];
@@ -600,7 +600,7 @@ export default class Mcp {
                     {
                         name: "automate_browser",
                         argumentObject: { url: "..." },
-                        icon: "automate_browser.png",
+                        icon: "automate_browser.svg",
                         description: "Interact with the browser and execute the instructions in a loop until the requests are completed."
                     }
                 ];
