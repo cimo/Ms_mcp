@@ -1,6 +1,6 @@
 import Fs from "fs";
-import { exec, ExecException } from "child_process";
 import { Request, Response } from "express";
+import type { ExecException } from "child_process";
 import { Ce } from "@cimo/environment/dist/src/Main.js";
 
 // Source
@@ -358,16 +358,22 @@ export const baseFileName = (fileName: string): string => {
 };
 
 export const terminalExecution = async (command: string): Promise<string | ExecException> => {
-    return await new Promise<string | ExecException>((resolve) => {
-        exec(command, (error, stdout, stderr) => {
-            if (error) {
-                resolve(error);
-            } else if (stderr) {
-                resolve(stderr);
-            } else {
-                resolve(stdout);
-            }
-        });
+    return await new Promise((resolve) => {
+        import(/* webpackIgnore: true */ "node:child_process")
+            .then(({ exec }) => {
+                exec(command, (error, stdout, stderr) => {
+                    if (error) {
+                        resolve(error);
+                    } else if (stderr) {
+                        resolve(stderr);
+                    } else {
+                        resolve(stdout);
+                    }
+                });
+            })
+            .catch((error) => {
+                resolve(error as ExecException);
+            });
     });
 };
 

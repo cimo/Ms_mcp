@@ -50,5 +50,7 @@
         "eslint": "9.31.0",
         "eslint-plugin-prettier": "5.2.1"
     },
-    "resolutions": {}
+    "resolutions": {
+        "file-type": "22.0.1"
+    }
 }
