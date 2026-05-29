@@ -6,8 +6,8 @@ import sharp, { Channels } from "sharp";
 // Source
 import * as helperSrc from "../../HelperSrc.js";
 
-const drawCursor = async (sessionId: string, buffer: Buffer): Promise<void> => {
-    const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/screenshot.jpg`;
+const drawCursor = async (mcpSessionId: string, buffer: Buffer): Promise<void> => {
+    const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/screenshot.jpg`;
 
     const directory = Path.dirname(input);
     Fs.mkdirSync(directory, { recursive: true });
@@ -21,7 +21,7 @@ const drawCursor = async (sessionId: string, buffer: Buffer): Promise<void> => {
         .toFile(input);
 };
 
-export const screenshot = async (sessionId: string): Promise<string> => {
+export const screenshot = async (mcpSessionId: string): Promise<string> => {
     const imagePixel = await screen.grab();
     const imageRbg = await imagePixel.toRGB();
     const imageBuffer = await sharp(imageRbg.data, {
@@ -36,7 +36,7 @@ export const screenshot = async (sessionId: string): Promise<string> => {
         .toBuffer();
 
     if (helperSrc.IS_DEBUG) {
-        await drawCursor(sessionId, imageBuffer);
+        await drawCursor(mcpSessionId, imageBuffer);
     }
 
     return imageBuffer.toString("base64");

@@ -7,7 +7,7 @@ import * as modelHelperSrc from "../../model/HelperSrc.js";
 import * as instance from "./Instance.js";
 import * as modelRag from "./Model.js";
 
-let database: DatabaseSync | null = null;
+let database: DatabaseSync | undefined = undefined;
 const chunkLength = 400;
 
 // Method
@@ -111,10 +111,10 @@ const tableNameReplace = (name: string): string => {
     return name.replace(/"/g, '""');
 };
 
-const tableCitationCreate = async (sessionId: string, fileName: string): Promise<boolean> => {
+const tableCitationCreate = async (mcpSessionId: string, fileName: string): Promise<boolean> => {
     let result = false;
 
-    const tableName = tableNameReplace(`${sessionId}_${fileName}`);
+    const tableName = tableNameReplace(`${mcpSessionId}_${fileName}`);
 
     if (database) {
         database.exec(
@@ -127,7 +127,7 @@ const tableCitationCreate = async (sessionId: string, fileName: string): Promise
     return result;
 };
 
-const tableCitationSelectList = (sessionId: string): string[] => {
+const tableCitationSelectList = (mcpSessionId: string): string[] => {
     const resultList: string[] = [];
 
     if (!database) {
@@ -136,9 +136,11 @@ const tableCitationSelectList = (sessionId: string): string[] => {
 
     const queryList = database
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ? ESCAPE '\\' AND sql LIKE 'CREATE VIRTUAL TABLE%USING vec0%'")
-        .all(`${sessionId}_%`);
+        .all(`${mcpSessionId}_%`);
 
-    for (const query of queryList) {
+    for (let a = 0; a < queryList.length; a++) {
+        const query = queryList[a];
+
         const tableName = tableNameReplace(query["name"] as string);
 
         resultList.push(tableName);
@@ -147,10 +149,10 @@ const tableCitationSelectList = (sessionId: string): string[] => {
     return resultList;
 };
 
-const tableCitationInsert = (sessionId: string, fileName: string, chunk: string, embedding: number[]): boolean => {
+const tableCitationInsert = (mcpSessionId: string, fileName: string, chunk: string, embedding: number[]): boolean => {
     let result = false;
 
-    const tableName = tableNameReplace(`${sessionId}_${fileName}`);
+    const tableName = tableNameReplace(`${mcpSessionId}_${fileName}`);
 
     if (database) {
         database
@@ -163,11 +165,11 @@ const tableCitationInsert = (sessionId: string, fileName: string, chunk: string,
     return result;
 };
 
-const tableRelationInsert = (sessionId: string, source: string, verb: string, target: string): boolean => {
+const tableRelationInsert = (mcpSessionId: string, source: string, verb: string, target: string): boolean => {
     let result = false;
 
     if (database) {
-        database.prepare("INSERT INTO relation (session_id, source, verb, target) VALUES (?, ?, ?, ?)").run(sessionId, source, verb, target);
+        database.prepare("INSERT INTO relation (session_id, source, verb, target) VALUES (?, ?, ?, ?)").run(mcpSessionId, source, verb, target);
 
         result = true;
     }
@@ -175,7 +177,7 @@ const tableRelationInsert = (sessionId: string, source: string, verb: string, ta
     return result;
 };
 
-const tableRelationSearch = (sessionId: string, query: string): modelRag.Irelation[] => {
+const tableRelationSearch = (mcpSessionId: string, query: string): modelRag.Irelation[] => {
     if (!database) {
         return [];
     }
@@ -193,12 +195,16 @@ const tableRelationSearch = (sessionId: string, query: string): modelRag.Irelati
 
     const resultObject: Record<string, modelRag.Irelation> = {};
 
-    for (const term of termList) {
+    for (let a = 0; a < termList.length; a++) {
+        const term = termList[a];
+
         const queryList = database
             .prepare("SELECT source, verb, target FROM relation WHERE session_id = ? AND (LOWER(source) LIKE ? OR LOWER(target) LIKE ?)")
-            .all(sessionId, `%${term}%`, `%${term}%`);
+            .all(mcpSessionId, `%${term}%`, `%${term}%`);
 
-        for (const query of queryList) {
+        for (let b = 0; b < queryList.length; b++) {
+            const query = queryList[b];
+
             const key = `${query["source"]}|${query["verb"]}|${query["target"]}`;
 
             if (!resultObject[key]) {
@@ -239,14 +245,15 @@ export const databaseCreate = (): boolean => {
     return result;
 };
 
-export const databaseStore = async (sessionId: string, uniqueId: string, fileName: string): Promise<string> => {
+export const databaseStore = async (mcpSessionId: string, uniqueId: string, fileName: string): Promise<string> => {
     return await instance.runWithContext(async () => {
         await login(uniqueId);
 
-        await tableCitationCreate(sessionId, fileName);
+        await tableCitationCreate(mcpSessionId, fileName);
 
-        const baseFileName = helperSrc.baseFileName(fileName);
-        const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/document/${baseFileName}/`;
+        const fileDetail = helperSrc.fileDetail(fileName);
+
+        const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
 
         helperSrc.fileReadStream(`${inputFolder}result.md`, async (resultFileReadStream) => {
             if (Buffer.isBuffer(resultFileReadStream)) {
@@ -258,13 +265,15 @@ export const databaseStore = async (sessionId: string, uniqueId: string, fileNam
                     const data = await embedding(uniqueId, chunk);
 
                     if (data.length > 0 && data[0].embedding.length > 0) {
-                        tableCitationInsert(sessionId, fileName, chunk, data[0].embedding);
+                        tableCitationInsert(mcpSessionId, fileName, chunk, data[0].embedding);
 
                         const graphData = await graphifyExtract(uniqueId, chunk);
 
                         if (Array.isArray(graphData.relationList)) {
-                            for (const graphRelation of graphData.relationList) {
-                                tableRelationInsert(sessionId, graphRelation.source, graphRelation.verb, graphRelation.target);
+                            for (let b = 0; b < graphData.relationList.length; b++) {
+                                const graphRelation = graphData.relationList[b];
+
+                                tableRelationInsert(mcpSessionId, graphRelation.source, graphRelation.verb, graphRelation.target);
                             }
                         }
                     } else {
@@ -294,7 +303,7 @@ export const databaseStore = async (sessionId: string, uniqueId: string, fileNam
     });
 };
 
-export const databaseSearch = async (sessionId: string, uniqueId: string, prompt: string): Promise<modelRag.IsearchOutput> => {
+export const databaseSearch = async (mcpSessionId: string, uniqueId: string, prompt: string): Promise<modelRag.IsearchOutput> => {
     return await instance.runWithContext(async () => {
         const resultCitationList: modelRag.Icitation[] = [];
 
@@ -306,19 +315,23 @@ export const databaseSearch = async (sessionId: string, uniqueId: string, prompt
             const buffer = new Uint8Array(new Float32Array(data[0].embedding).buffer);
 
             if (database) {
-                const tableList = tableCitationSelectList(sessionId);
-                const sessionPrefix = `${sessionId}_`;
+                const tableList = tableCitationSelectList(mcpSessionId);
+                const sessionPrefix = `${mcpSessionId}_`;
                 const totalLimit = Math.max(6, tableList.length);
                 const limitPerTable = Math.max(2, Math.ceil(totalLimit / Math.max(1, tableList.length)));
 
                 let citationCleanedList: modelRag.Icitation[] = [];
 
-                for (const table of tableList) {
+                for (let a = 0; a < tableList.length; a++) {
+                    const table = tableList[a];
+
                     const queryList = database
                         .prepare(`SELECT chunk, distance FROM "${table}" WHERE embedding MATCH ? ORDER BY distance LIMIT ${limitPerTable}`)
                         .all(buffer);
 
-                    for (const query of queryList) {
+                    for (let b = 0; b < queryList.length; b++) {
+                        const query = queryList[b];
+
                         if (query["chunk"]) {
                             citationCleanedList.push({
                                 fileName: table.startsWith(sessionPrefix) ? table.slice(sessionPrefix.length) : table,
@@ -343,11 +356,21 @@ export const databaseSearch = async (sessionId: string, uniqueId: string, prompt
                 let termList = termCandidateList;
 
                 if (termCandidateList.length > 0 && citationCleanedList.length >= 6) {
-                    const termFilteredList = termCandidateList.filter((term) => {
-                        const documentCount = citationCleanedList.filter((citation) => citation.chunk.toLowerCase().includes(term)).length;
+                    const termFilteredList = [];
 
-                        return documentCount / citationCleanedList.length < 0.7;
-                    });
+                    for (let a = 0; a < termCandidateList.length; a++) {
+                        let documentCount = 0;
+
+                        for (let b = 0; b < citationCleanedList.length; b++) {
+                            if (citationCleanedList[b].chunk.toLowerCase().includes(termCandidateList[a])) {
+                                documentCount++;
+                            }
+                        }
+
+                        if (documentCount / citationCleanedList.length < 0.7) {
+                            termFilteredList.push(termCandidateList[a]);
+                        }
+                    }
 
                     if (termFilteredList.length > 0) {
                         termList = termFilteredList;
@@ -355,11 +378,21 @@ export const databaseSearch = async (sessionId: string, uniqueId: string, prompt
                 }
 
                 if (termList.length > 0) {
-                    citationCleanedList = citationCleanedList.filter((citation) => {
-                        const chunkLower = citation.chunk.toLowerCase();
+                    const citationFilteredList = [];
 
-                        return termList.some((term) => chunkLower.includes(term));
-                    });
+                    for (let a = 0; a < citationCleanedList.length; a++) {
+                        const chunkLower = citationCleanedList[a].chunk.toLowerCase();
+
+                        for (let b = 0; b < termList.length; b++) {
+                            if (chunkLower.includes(termList[b])) {
+                                citationFilteredList.push(citationCleanedList[a]);
+
+                                break;
+                            }
+                        }
+                    }
+
+                    citationCleanedList = citationFilteredList;
                 }
 
                 citationCleanedList = citationCleanedList
@@ -371,7 +404,9 @@ export const databaseSearch = async (sessionId: string, uniqueId: string, prompt
                     })
                     .slice(0, totalLimit);
 
-                for (const citation of citationCleanedList) {
+                for (let a = 0; a < citationCleanedList.length; a++) {
+                    const citation = citationCleanedList[a];
+
                     resultCitationList.push({
                         fileName: citation.fileName,
                         chunk: citation.chunk,
@@ -383,11 +418,11 @@ export const databaseSearch = async (sessionId: string, uniqueId: string, prompt
 
         await logout(uniqueId);
 
-        return { citationList: resultCitationList, relationList: tableRelationSearch(sessionId, prompt) };
+        return { citationList: resultCitationList, relationList: tableRelationSearch(mcpSessionId, prompt) };
     });
 };
 
-export const databaseDelete = async (sessionId: string, fileName: string): Promise<string> => {
+export const databaseDelete = async (mcpSessionId: string, fileName: string): Promise<string> => {
     let result = "";
 
     if (!database) {
@@ -397,7 +432,7 @@ export const databaseDelete = async (sessionId: string, fileName: string): Promi
     if (fileName === "") {
         let query = "";
 
-        const tableList = tableCitationSelectList(sessionId);
+        const tableList = tableCitationSelectList(mcpSessionId);
 
         for (let a = 0; a < tableList.length; a++) {
             const sql = `DROP TABLE IF EXISTS "${tableList[a]}"`;
@@ -409,9 +444,9 @@ export const databaseDelete = async (sessionId: string, fileName: string): Promi
             database.exec(query);
         }
 
-        database.prepare("DELETE FROM relation WHERE session_id = ?").run(sessionId);
+        database.prepare("DELETE FROM relation WHERE session_id = ?").run(mcpSessionId);
     } else {
-        const tableName = tableNameReplace(`${sessionId}_${fileName}`);
+        const tableName = tableNameReplace(`${mcpSessionId}_${fileName}`);
 
         database.exec(`DROP TABLE IF EXISTS "${tableName}"`);
     }

@@ -13,7 +13,11 @@ export default class Xvfb {
     private lastDisplay = (): number => {
         let result = 0;
 
-        for (const session of Object.values(this.sessionObject)) {
+        const sessionList = Object.values(this.sessionObject);
+
+        for (let a = 0; a < sessionList.length; a++) {
+            const session = sessionList[a];
+
             if (typeof session.display === "number" && session.display > result) {
                 result = session.display;
             }
@@ -26,8 +30,8 @@ export default class Xvfb {
         this.sessionObject = sessionObject;
     }
 
-    start = async (sessionId: string): Promise<void> => {
-        const session = this.sessionObject[sessionId];
+    start = async (mcpSessionId: string): Promise<void> => {
+        const session = this.sessionObject[mcpSessionId];
 
         if (session && session.runtimeWorker && typeof session.display === "number") {
             return;
@@ -35,7 +39,7 @@ export default class Xvfb {
 
         const display = this.lastDisplay();
 
-        helperSrc.writeLog("Xvfb.ts - start()", `Display: ${display} - sessionId: ${sessionId}`);
+        helperSrc.writeLog("Xvfb.ts - start()", `Display: ${display} - mcpSessionId: ${mcpSessionId}`);
 
         await helperSrc.terminalExecution(`Xvfb :${display} -screen 0 1920x1080x24 >> "${helperSrc.PATH_ROOT}${helperSrc.PATH_LOG}xvfb.log" 2>&1`);
 
@@ -59,21 +63,21 @@ export default class Xvfb {
             });
         }
 
-        this.sessionObject[sessionId] = {
-            ...this.sessionObject[sessionId],
+        this.sessionObject[mcpSessionId] = {
+            ...this.sessionObject[mcpSessionId],
             display,
             runtimeWorker,
             runtime: new ControllerRuntime(runtimeWorker)
         };
     };
 
-    stop = async (sessionId: string): Promise<void> => {
-        if (this.sessionObject[sessionId] && this.sessionObject[sessionId].runtimeWorker) {
-            const display = this.sessionObject[sessionId].display;
+    stop = async (mcpSessionId: string): Promise<void> => {
+        if (this.sessionObject[mcpSessionId] && this.sessionObject[mcpSessionId].runtimeWorker) {
+            const display = this.sessionObject[mcpSessionId].display;
 
-            helperSrc.writeLog("Xvfb.ts - stop()", `Display: ${display} sessionId: ${sessionId}`);
+            helperSrc.writeLog("Xvfb.ts - stop()", `Display: ${display} mcpSessionId: ${mcpSessionId}`);
 
-            this.sessionObject[sessionId].runtimeWorker.kill();
+            this.sessionObject[mcpSessionId].runtimeWorker.kill();
 
             await helperSrc.terminalExecution(`pkill -f "Xvfb :${display}"`);
 

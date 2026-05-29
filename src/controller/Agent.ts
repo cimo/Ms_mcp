@@ -12,12 +12,12 @@ export default class Agent {
         this.database = new DatabaseSync(":memory:");
     }
 
-    tableCreate = (sessionId: string): boolean => {
+    tableCreate = (mcpSessionId: string): boolean => {
         let result = false;
 
-        if (sessionId !== "") {
+        if (mcpSessionId !== "") {
             this.database.exec(`
-                CREATE TABLE IF NOT EXISTS "${sessionId}_agent" (
+                CREATE TABLE IF NOT EXISTS "${mcpSessionId}_agent" (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
                     description TEXT,
@@ -31,11 +31,11 @@ export default class Agent {
         return result;
     };
 
-    tableDrop = (sessionId: string): boolean => {
+    tableDrop = (mcpSessionId: string): boolean => {
         let result = false;
 
-        if (sessionId !== "") {
-            this.database.exec(`DROP TABLE IF EXISTS "${sessionId}_agent";`);
+        if (mcpSessionId !== "") {
+            this.database.exec(`DROP TABLE IF EXISTS "${mcpSessionId}_agent";`);
 
             result = true;
         }
@@ -43,12 +43,12 @@ export default class Agent {
         return result;
     };
 
-    tableInsert = (sessionId: string, name: string, description: string, skill: string): boolean => {
+    tableInsert = (mcpSessionId: string, name: string, description: string, skill: string): boolean => {
         let result = false;
 
-        if (sessionId !== "") {
+        if (mcpSessionId !== "") {
             const queryRun = this.database
-                .prepare(`INSERT INTO "${sessionId}_agent" (name, description, skill) VALUES (?, ?, ?);`)
+                .prepare(`INSERT INTO "${mcpSessionId}_agent" (name, description, skill) VALUES (?, ?, ?);`)
                 .run(name, description, skill);
 
             if (queryRun && queryRun.changes > 0) {
@@ -59,12 +59,12 @@ export default class Agent {
         return result;
     };
 
-    tableUpdate = (sessionId: string, id: number, name: string, description: string, skill: string): boolean => {
+    tableUpdate = (mcpSessionId: string, id: number, name: string, description: string, skill: string): boolean => {
         let result = false;
 
-        if (sessionId !== "") {
+        if (mcpSessionId !== "") {
             const queryRun = this.database
-                .prepare(`UPDATE "${sessionId}_agent" SET name = ?, description = ?, skill = ? WHERE id = ?;`)
+                .prepare(`UPDATE "${mcpSessionId}_agent" SET name = ?, description = ?, skill = ? WHERE id = ?;`)
                 .run(name, description, skill, id);
 
             if (queryRun && queryRun.changes > 0) {
@@ -75,13 +75,15 @@ export default class Agent {
         return result;
     };
 
-    tableSelectList = (sessionId: string): modelAgent.Iagent[] => {
+    tableSelectList = (mcpSessionId: string): modelAgent.Iagent[] => {
         const resultList: modelAgent.Iagent[] = [];
 
-        if (sessionId !== "") {
-            const queryList = this.database.prepare(`SELECT id, name, description, skill FROM "${sessionId}_agent";`).all();
+        if (mcpSessionId !== "") {
+            const queryList = this.database.prepare(`SELECT id, name, description, skill FROM "${mcpSessionId}_agent";`).all();
 
-            for (const query of queryList) {
+            for (let a = 0; a < queryList.length; a++) {
+                const query = queryList[a];
+
                 resultList.push({
                     id: query["id"] as number,
                     name: query["name"] as string,
@@ -94,11 +96,11 @@ export default class Agent {
         return resultList;
     };
 
-    tableDelete = (sessionId: string, id: number): boolean => {
+    tableDelete = (mcpSessionId: string, id: number): boolean => {
         let result = false;
 
-        if (sessionId !== "") {
-            const queryRun = this.database.prepare(`DELETE FROM "${sessionId}_agent" WHERE id = ?;`).run(id);
+        if (mcpSessionId !== "") {
+            const queryRun = this.database.prepare(`DELETE FROM "${mcpSessionId}_agent" WHERE id = ?;`).run(id);
 
             if (queryRun && queryRun.changes > 0) {
                 result = true;

@@ -25,19 +25,26 @@ const login = async (): Promise<string> => {
     return result;
 };
 
-const extract = async (sessionId: string, language: string, fileName: string, searchText: string, mode: string): Promise<model.ItoolOcrResult[]> => {
+const extract = async (
+    mcpSessionId: string,
+    language: string,
+    fileName: string,
+    searchText: string,
+    mode: string
+): Promise<model.ItoolOcrResult[]> => {
     return new Promise<model.ItoolOcrResult[]>((resolve) => {
-        const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/${fileName}`;
+        const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/${fileName}`;
+
+        const fileDetail = helperSrc.fileDetail(fileName);
 
         helperSrc.fileReadStream(input, async (resultFileReadStream) => {
             if (Buffer.isBuffer(resultFileReadStream)) {
                 const buffer = Buffer.from(resultFileReadStream);
-                const mimeType = helperSrc.readMimeType(buffer);
-                const blob = new Blob([buffer], { type: mimeType.content });
+                const blob = new Blob([buffer], { type: fileDetail.mimeType });
 
                 const formData = new FormData();
                 formData.append("language", language);
-                formData.append("file", blob, `${fileName}`);
+                formData.append("file", blob, fileDetail.fileName);
                 formData.append("searchText", searchText);
                 formData.append("mode", mode);
 
@@ -48,11 +55,15 @@ const extract = async (sessionId: string, language: string, fileName: string, se
 
                         const stdoutList: model.ItoolOcrResponse[] = JSON.parse(resultApi.data.response.stdout);
 
-                        for (const stdout of stdoutList) {
+                        for (let a = 0; a < stdoutList.length; a++) {
+                            const stdout = stdoutList[a];
+
                             const x: number[] = [];
                             const y: number[] = [];
 
-                            for (const point of stdout.polygon) {
+                            for (let b = 0; b < stdout.polygon.length; b++) {
+                                const point = stdout.polygon[b];
+
                                 x.push(point[0]);
                                 y.push(point[1]);
                             }
@@ -110,13 +121,13 @@ const logout = async (): Promise<string> => {
     return result;
 };
 
-export const execute = async (sessionId: string, language: string, fileName: string, searchText: string, mode: string): Promise<string> => {
+export const execute = async (mcpSessionId: string, language: string, fileName: string, searchText: string, mode: string): Promise<string> => {
     return await instance.runWithContext(async () => {
         let result: model.ItoolOcrResult[] = [];
 
         await login();
 
-        result = await extract(sessionId, language, fileName, searchText, mode);
+        result = await extract(mcpSessionId, language, fileName, searchText, mode);
 
         await logout();
 

@@ -29,15 +29,16 @@ const login = async (): Promise<string> => {
 
 const convertToPdf = async (inputFolder: string, fileName: string): Promise<boolean> => {
     return new Promise<boolean>(async (resolve) => {
-        if (!fileName.toLowerCase().endsWith(".pdf")) {
-            helperSrc.fileReadStream(`${inputFolder}${fileName}`, async (resultFileReadStream) => {
+        const fileDetail = helperSrc.fileDetail(fileName);
+
+        if (fileDetail.extension !== "pdf") {
+            helperSrc.fileReadStream(`${inputFolder}${fileDetail.fileName}`, async (resultFileReadStream) => {
                 if (Buffer.isBuffer(resultFileReadStream)) {
                     const buffer = Buffer.from(resultFileReadStream);
-                    const mimeType = helperSrc.readMimeType(buffer);
-                    const blob = new Blob([buffer], { type: mimeType.content });
+                    const blob = new Blob([buffer], { type: fileDetail.mimeType });
 
                     const formData = new FormData();
-                    formData.append("file", blob, `${fileName}`);
+                    formData.append("file", blob, fileDetail.fileName);
 
                     await instance.api
                         .post<modelHelperSrc.IresponseBody>("/api/toPdf", {}, formData)
@@ -107,14 +108,15 @@ const logout = async (): Promise<string> => {
     return result;
 };
 
-export const execute = async (sessionId: string, fileName: string, searchInput: string): Promise<modelDocument.Iparser> => {
+export const execute = async (mcpSessionId: string, fileName: string, searchInput: string): Promise<modelDocument.Iparser> => {
     return await instance.runWithContext(async () => {
         let result = {} as modelDocument.Iparser;
 
         await login();
 
-        const baseFileName = helperSrc.baseFileName(fileName);
-        const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${sessionId}/document/${baseFileName}/`;
+        const fileDetail = helperSrc.fileDetail(fileName);
+
+        const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
 
         const resultConvert = await convertToPdf(inputFolder, fileName);
 

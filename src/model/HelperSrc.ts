@@ -1,17 +1,16 @@
+export interface IfileDetail {
+    fileName: string;
+    baseName: string;
+    mimeType: string;
+    extension: string;
+    category: string;
+    size: string;
+    dateModified: string;
+}
+
 export interface IresponseBody {
     response: {
         stdout: string;
         stderr: string | Error;
     };
-}
-
-export interface IfileDetail {
-    fileName: string;
-    dateModified: string;
-    size: string;
-}
-
-export interface ImimeType {
-    extension: string;
-    content: string;
 }

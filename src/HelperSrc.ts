@@ -34,6 +34,30 @@ export const FILE_SIZE_MB = Ce.checkVariable("MS_M_FILE_SIZE_MB") || (process.en
 // Custom
 // Custom
 
+const fileSize = (value: Uint8Array | number, isOnlyByte = true): string => {
+    let result = "";
+
+    const byte = typeof value === "number" ? value : value.length;
+
+    if (isOnlyByte) {
+        return byte.toString();
+    }
+
+    if (byte < 1024) {
+        result = byte + " B";
+    } else if (byte < 1048576) {
+        result = (byte / 1024).toFixed(1) + " KB";
+    } else if (byte < 1073741824) {
+        result = (byte / 1048576).toFixed(1) + " MB";
+    } else if (byte < 1099511627776) {
+        result = (byte / 1073741824).toFixed(1) + " GB";
+    } else {
+        result = (byte / 1099511627776).toFixed(1) + " TB";
+    }
+
+    return result;
+};
+
 Ce.loadFile(`./env/${ENV_NAME}.secret.env`);
 
 export const localeConfiguration: Record<string, { locale: string; currency: string; dateFormat: string }> = {
@@ -136,12 +160,263 @@ export const writeLog = (tag: string, value: string | Record<string, unknown> | 
     }
 };
 
-export const keepProcess = (): void => {
-    for (const event of ["uncaughtException", "unhandledRejection"]) {
-        process.on(event, (error: Error) => {
-            writeLog("HelperSrc.ts - keepProcess()", `Event: "${event}" - ${error.message}`);
-        });
+export const generateUniqueId = (): string => {
+    const timestamp = Date.now().toString(36);
+    const randomPart = crypto.getRandomValues(new Uint32Array(1))[0].toString(36);
+
+    return `${timestamp}-${randomPart}`;
+};
+
+export const isJson = (value: string): boolean => {
+    try {
+        JSON.parse(value);
+
+        return true;
+    } catch {
+        return false;
     }
+};
+
+export const fileDetail = (value: string, buffer?: Uint8Array, isOnlyByte = true): modelHelperSrc.IfileDetail => {
+    let result = {} as modelHelperSrc.IfileDetail;
+
+    if (!value) {
+        return result;
+    }
+
+    const fileNameWithExtension = value.includes("/") ? value.split("/").pop()! : value;
+    const baseName = fileNameWithExtension.trim().replace(/\.[^/.]+$/, "");
+
+    if (value.includes("/") && Fs.existsSync(value)) {
+        const stat = Fs.statSync(value);
+
+        result = {
+            ...result,
+            size: fileSize(stat.size, isOnlyByte),
+            dateModified: localeFormat(stat.mtime) || ""
+        };
+    }
+
+    const signatureList: { mimeType: string; extension: string; category: string; magicByteList?: { offset: number; bytes: number[] }[] }[] = [
+        { mimeType: "text/javascript", extension: "js", category: "code" },
+        { mimeType: "text/javascript", extension: "jsx", category: "code" },
+        { mimeType: "text/javascript", extension: "mjs", category: "code" },
+        { mimeType: "text/typescript", extension: "ts", category: "code" },
+        { mimeType: "text/typescript", extension: "tsx", category: "code" },
+        { mimeType: "text/x-python", extension: "py", category: "code" },
+        { mimeType: "text/css", extension: "css", category: "code" },
+        { mimeType: "text/html", extension: "html", category: "code" },
+        { mimeType: "text/html", extension: "htm", category: "code" },
+        { mimeType: "text/csv", extension: "csv", category: "text" },
+        { mimeType: "text/plain", extension: "txt", category: "text" },
+        { mimeType: "text/xml", extension: "xml", category: "code" },
+        { mimeType: "text/markdown", extension: "md", category: "code" },
+        { mimeType: "text/yaml", extension: "yaml", category: "code" },
+        { mimeType: "text/yaml", extension: "yml", category: "code" },
+        { mimeType: "text/x-sh", extension: "sh", category: "code" },
+        { mimeType: "font/ttf", extension: "ttf", category: "font", magicByteList: [{ offset: 0, bytes: [0x00, 0x01, 0x00, 0x00, 0x00] }] },
+        { mimeType: "font/otf", extension: "otf", category: "font", magicByteList: [{ offset: 0, bytes: [0x4f, 0x54, 0x54, 0x4f] }] },
+        { mimeType: "font/woff", extension: "woff", category: "font", magicByteList: [{ offset: 0, bytes: [0x77, 0x4f, 0x46, 0x46] }] },
+        { mimeType: "font/woff2", extension: "woff2", category: "font", magicByteList: [{ offset: 0, bytes: [0x77, 0x4f, 0x46, 0x32] }] },
+        { mimeType: "image/jpeg", extension: "jpg", category: "image", magicByteList: [{ offset: 0, bytes: [0xff, 0xd8, 0xff] }] },
+        { mimeType: "image/jpeg", extension: "jpeg", category: "image" },
+        {
+            mimeType: "image/png",
+            extension: "png",
+            category: "image",
+            magicByteList: [{ offset: 0, bytes: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] }]
+        },
+        { mimeType: "image/gif", extension: "gif", category: "image", magicByteList: [{ offset: 0, bytes: [0x47, 0x49, 0x46, 0x38] }] },
+        {
+            mimeType: "image/webp",
+            extension: "webp",
+            category: "image",
+            magicByteList: [
+                { offset: 0, bytes: [0x52, 0x49, 0x46, 0x46] },
+                { offset: 8, bytes: [0x57, 0x45, 0x42, 0x50] }
+            ]
+        },
+        { mimeType: "image/bmp", extension: "bmp", category: "image", magicByteList: [{ offset: 0, bytes: [0x42, 0x4d] }] },
+        { mimeType: "image/tiff", extension: "tiff", category: "image", magicByteList: [{ offset: 0, bytes: [0x49, 0x49, 0x2a, 0x00] }] },
+        { mimeType: "image/tiff", extension: "tiff", category: "image", magicByteList: [{ offset: 0, bytes: [0x4d, 0x4d, 0x00, 0x2a] }] },
+        { mimeType: "image/x-icon", extension: "ico", category: "image", magicByteList: [{ offset: 0, bytes: [0x00, 0x00, 0x01, 0x00] }] },
+        {
+            mimeType: "image/avif",
+            extension: "avif",
+            category: "image",
+            magicByteList: [{ offset: 4, bytes: [0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66] }]
+        },
+        {
+            mimeType: "image/avif",
+            extension: "avif",
+            category: "image",
+            magicByteList: [{ offset: 4, bytes: [0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x73] }]
+        },
+        { mimeType: "image/svg+xml", extension: "svg", category: "image" },
+        { mimeType: "audio/mpeg", extension: "mp3", category: "audio", magicByteList: [{ offset: 0, bytes: [0x49, 0x44, 0x33] }] },
+        { mimeType: "audio/mpeg", extension: "mp3", category: "audio", magicByteList: [{ offset: 0, bytes: [0xff, 0xfb] }] },
+        {
+            mimeType: "audio/wav",
+            extension: "wav",
+            category: "audio",
+            magicByteList: [
+                { offset: 0, bytes: [0x52, 0x49, 0x46, 0x46] },
+                { offset: 8, bytes: [0x57, 0x41, 0x56, 0x45] }
+            ]
+        },
+        { mimeType: "audio/ogg", extension: "ogg", category: "audio", magicByteList: [{ offset: 0, bytes: [0x4f, 0x67, 0x67, 0x53] }] },
+        { mimeType: "audio/flac", extension: "flac", category: "audio", magicByteList: [{ offset: 0, bytes: [0x66, 0x4c, 0x61, 0x43] }] },
+        { mimeType: "video/mp4", extension: "mp4", category: "video", magicByteList: [{ offset: 4, bytes: [0x66, 0x74, 0x79, 0x70] }] },
+        {
+            mimeType: "video/avi",
+            extension: "avi",
+            category: "video",
+            magicByteList: [
+                { offset: 0, bytes: [0x52, 0x49, 0x46, 0x46] },
+                { offset: 8, bytes: [0x41, 0x56, 0x49, 0x20] }
+            ]
+        },
+        { mimeType: "video/webm", extension: "webm", category: "video", magicByteList: [{ offset: 0, bytes: [0x1a, 0x45, 0xdf, 0xa3] }] },
+        { mimeType: "application/pdf", extension: "pdf", category: "document", magicByteList: [{ offset: 0, bytes: [0x25, 0x50, 0x44, 0x46] }] },
+        { mimeType: "application/msword", extension: "doc", category: "document" },
+        { mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "docx", category: "document" },
+        { mimeType: "application/vnd.ms-excel", extension: "xls", category: "document" },
+        { mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", extension: "xlsx", category: "document" },
+        { mimeType: "application/vnd.ms-powerpoint", extension: "ppt", category: "document" },
+        { mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", extension: "pptx", category: "document" },
+        { mimeType: "application/vnd.oasis.opendocument.text", extension: "odt", category: "document" },
+        { mimeType: "application/vnd.oasis.opendocument.spreadsheet", extension: "ods", category: "document" },
+        { mimeType: "application/vnd.oasis.opendocument.presentation", extension: "odp", category: "document" },
+        { mimeType: "application/zip", extension: "zip", category: "archive", magicByteList: [{ offset: 0, bytes: [0x50, 0x4b, 0x03, 0x04] }] },
+        {
+            mimeType: "application/x-rar-compressed",
+            extension: "rar",
+            category: "archive",
+            magicByteList: [{ offset: 0, bytes: [0x52, 0x61, 0x72, 0x21, 0x1a, 0x07] }]
+        },
+        {
+            mimeType: "application/x-7z-compressed",
+            extension: "7z",
+            category: "archive",
+            magicByteList: [{ offset: 0, bytes: [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c] }]
+        },
+        { mimeType: "application/gzip", extension: "gz", category: "archive", magicByteList: [{ offset: 0, bytes: [0x1f, 0x8b] }] },
+        { mimeType: "application/x-bzip2", extension: "bz2", category: "archive", magicByteList: [{ offset: 0, bytes: [0x42, 0x5a, 0x68] }] },
+        {
+            mimeType: "application/x-xz",
+            extension: "xz",
+            category: "archive",
+            magicByteList: [{ offset: 0, bytes: [0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00] }]
+        },
+        { mimeType: "application/json", extension: "json", category: "code" },
+        { mimeType: "application/x-msdownload", extension: "exe", category: "executable", magicByteList: [{ offset: 0, bytes: [0x4d, 0x5a] }] },
+        {
+            mimeType: "application/x-elf",
+            extension: "elf",
+            category: "executable",
+            magicByteList: [{ offset: 0, bytes: [0x7f, 0x45, 0x4c, 0x46] }]
+        },
+        {
+            mimeType: "application/wasm",
+            extension: "wasm",
+            category: "executable",
+            magicByteList: [{ offset: 0, bytes: [0x00, 0x61, 0x73, 0x6d] }]
+        },
+        {
+            mimeType: "application/x-sqlite3",
+            extension: "db",
+            category: "database",
+            magicByteList: [{ offset: 0, bytes: [0x53, 0x51, 0x4c, 0x69, 0x74, 0x65, 0x20] }]
+        }
+    ];
+
+    if (buffer) {
+        for (let a = 0; a < signatureList.length; a++) {
+            const magicByteList = signatureList[a].magicByteList;
+
+            if (!magicByteList) {
+                continue;
+            }
+
+            let isMatched = false;
+
+            for (let b = 0; b < magicByteList.length; b++) {
+                const check = magicByteList[b];
+
+                if (buffer.length < check.offset + check.bytes.length) {
+                    isMatched = false;
+
+                    break;
+                }
+
+                isMatched = true;
+
+                for (let c = 0; c < check.bytes.length; c++) {
+                    if (buffer[check.offset + c] !== check.bytes[c]) {
+                        isMatched = false;
+
+                        break;
+                    }
+                }
+
+                if (!isMatched) {
+                    break;
+                }
+            }
+
+            if (isMatched) {
+                result = {
+                    ...result,
+                    fileName: fileNameWithExtension,
+                    baseName,
+                    mimeType: signatureList[a].mimeType,
+                    extension: signatureList[a].extension,
+                    category: signatureList[a].category,
+                    size: fileSize(buffer, isOnlyByte)
+                };
+            }
+        }
+    }
+
+    if ((!result.mimeType || result.mimeType === "application/zip") && value !== "") {
+        const extensionIndex = value.lastIndexOf(".");
+        const extension = extensionIndex !== -1 ? value.slice(extensionIndex + 1).toLowerCase() : "";
+
+        for (let a = 0; a < signatureList.length; a++) {
+            if (signatureList[a].extension === extension) {
+                result = {
+                    ...result,
+                    fileName: fileNameWithExtension,
+                    baseName,
+                    mimeType: signatureList[a].mimeType,
+                    extension: signatureList[a].extension,
+                    category: signatureList[a].category
+                };
+
+                break;
+            }
+        }
+    }
+
+    return result;
+};
+
+export const fileCheckMimeType = (value: string): boolean => {
+    if (MIME_TYPE && MIME_TYPE.includes(value)) {
+        return true;
+    }
+
+    return false;
+};
+
+export const fileCheckSize = (byte: number): boolean => {
+    const maxSizeByte = parseInt(FILE_SIZE_MB) * 1024 * 1024;
+
+    if (byte > maxSizeByte) {
+        return false;
+    }
+
+    return true;
 };
 
 export const fileWriteStream = (filePath: string, buffer: Buffer, callback: (result: NodeJS.ErrnoException | boolean) => void): void => {
@@ -205,48 +480,25 @@ export const fileOrFolderDelete = (path: string, callback: (result: NodeJS.Errno
     });
 };
 
-export const fileCheckMimeType = (value: string): boolean => {
-    if (MIME_TYPE && MIME_TYPE.includes(value)) {
-        return true;
-    }
+export const keepProcess = (): void => {
+    const eventList = ["uncaughtException", "unhandledRejection"];
 
-    return false;
-};
+    for (let a = 0; a < eventList.length; a++) {
+        const event = eventList[a];
 
-export const fileCheckSize = (byte: number): boolean => {
-    const maxSizeByte = parseInt(FILE_SIZE_MB) * 1024 * 1024;
-
-    if (byte > maxSizeByte) {
-        return false;
-    }
-
-    return true;
-};
-
-export const isJson = (value: string): boolean => {
-    try {
-        JSON.parse(value);
-
-        return true;
-    } catch {
-        return false;
+        process.on(event, (error: Error) => {
+            writeLog("HelperSrc.ts - keepProcess()", `Event: "${event}" - ${error.message}`);
+        });
     }
 };
 
-export const deleteAnsiEscape = (text: string): string => {
+export const ansiEscapeDelete = (text: string): string => {
     const regex = new RegExp(["\x1b", "[", "[0-9;]*", "[a-zA-Z]"].join(""), "g");
 
     return text.replace(regex, "");
 };
 
-export const generateUniqueId = (): string => {
-    const timestamp = Date.now().toString(36);
-    const randomPart = crypto.getRandomValues(new Uint32Array(1))[0].toString(36);
-
-    return `${timestamp}-${randomPart}`;
-};
-
-export const findFileInDirectoryRecursive = (path: string, extension: string, callback: (resultList: string[]) => void): void => {
+export const findInDirectoryRecursive = (path: string, extension: string, callback: (resultList: string[]) => void): void => {
     const resultList: string[] = [];
 
     Fs.access(path, Fs.constants.F_OK, (errorAccess) => {
@@ -271,8 +523,10 @@ export const findFileInDirectoryRecursive = (path: string, extension: string, ca
 
                 Fs.stat(pathData, (errorStat, statData) => {
                     if (!errorStat && statData.isDirectory()) {
-                        findFileInDirectoryRecursive(`${pathData}/`, extension, (dataSubList) => {
-                            for (const dataSub of dataSubList) {
+                        findInDirectoryRecursive(`${pathData}/`, extension, (dataSubList) => {
+                            for (let a = 0; a < dataSubList.length; a++) {
+                                const dataSub = dataSubList[a];
+
                                 resultList.push(dataSub);
                             }
 
@@ -291,70 +545,6 @@ export const findFileInDirectoryRecursive = (path: string, extension: string, ca
             next();
         });
     });
-};
-
-export const readMimeType = (byteList: Uint8Array): modelHelperSrc.ImimeType => {
-    const toHex = (byteList: Uint8Array) => {
-        let out = "";
-        for (let i = 0; i < byteList.length; i++) {
-            out += byteList[i].toString(16).padStart(2, "0");
-        }
-        return out;
-    };
-
-    const toLatin1 = (byteList: Uint8Array) => {
-        const chunk = 0x8000;
-
-        let result = "";
-
-        for (let a = 0; a < byteList.length; a += chunk) {
-            const subChunk = byteList.subarray(a, a + chunk);
-
-            result += String.fromCharCode(...subChunk);
-        }
-
-        return result;
-    };
-
-    if (toHex(byteList.subarray(0, 3)) === "ffd8ff") {
-        return { content: "image/jpeg", extension: "jpg" };
-    } else if (toHex(byteList.subarray(0, 8)) === "89504e470d0a1a0a") {
-        return { content: "image/png", extension: "png" };
-    } else if (toHex(byteList.subarray(0, 4)) === "49492a00" || toHex(byteList.subarray(0, 4)) === "4d4d002a") {
-        return { content: "image/tiff", extension: "tiff" };
-    } else if (toHex(byteList.subarray(0, 4)) === "25504446") {
-        return { content: "application/pdf", extension: "pdf" };
-    } else if (toHex(byteList.subarray(0, 2)) === "504b") {
-        const headBytes = byteList.subarray(0, Math.min(byteList.length, 64 * 1024));
-        const head = toLatin1(headBytes);
-
-        if (head.includes("word/")) {
-            return {
-                content: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                extension: "docx"
-            };
-        } else if (head.includes("xl/")) {
-            return {
-                content: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                extension: "xlsx"
-            };
-        } else if (head.includes("ppt/")) {
-            return {
-                content: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                extension: "pptx"
-            };
-        }
-    }
-
-    return { content: "", extension: "" };
-};
-
-export const baseFileName = (fileName: string): string => {
-    const nameList = fileName.split("/");
-    const nameWithExtension = nameList[nameList.length - 1];
-    const baseName = nameWithExtension.trim().replace(/.[^/.]+$/, "");
-
-    return baseName;
 };
 
 export const terminalExecution = async (command: string): Promise<string | ExecException> => {
@@ -377,68 +567,10 @@ export const terminalExecution = async (command: string): Promise<string | ExecE
     });
 };
 
-export const filterMimeType = (fileName: string): string => {
+export const headerClientIp = (request: Request): string => {
     let result = "";
 
-    const extension = fileName.toLowerCase().trim().split(".").pop() as string;
-    const mimeTypeList = JSON.parse(MIME_TYPE) as string[];
-
-    for (const mimeType of mimeTypeList) {
-        const [left, rightRaw] = mimeType.toLowerCase().split("/", 2);
-
-        let right = rightRaw;
-
-        if (right === "vnd.openxmlformats-officedocument.wordprocessingml.document") {
-            right = "docx";
-        } else if (right === "vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
-            right = "xlsx";
-        } else if (right === "vnd.openxmlformats-officedocument.presentationml.presentation") {
-            right = "pptx";
-        }
-
-        if (extension === right) {
-            result = left;
-        }
-    }
-
-    return result;
-};
-
-export const fileDetail = (pathFile: string): Promise<modelHelperSrc.IfileDetail> => {
-    return new Promise<modelHelperSrc.IfileDetail>((resolve) => {
-        Fs.stat(pathFile, (error, stat) => {
-            if (error) {
-                resolve({ fileName: "", dateModified: "", size: "" });
-            } else {
-                const kb = 1024;
-                const mb = kb * 1024;
-                const gb = mb * 1024;
-
-                const byte = stat.size;
-                let size = `${byte} B`;
-
-                if (byte < mb) {
-                    size = `${Math.round(byte / kb)} KB`;
-                } else if (byte < gb) {
-                    size = `${Math.round(byte / mb)} MB`;
-                } else if (byte >= gb) {
-                    size = `${Math.round(byte / gb)} GB`;
-                }
-
-                resolve({
-                    fileName: pathFile.split("/").pop() || pathFile,
-                    dateModified: localeFormat(stat.mtime) || stat.mtime.toLocaleString(),
-                    size
-                });
-            }
-        });
-    });
-};
-
-export const readClientIp = (request: Request): string => {
-    let result = "";
-
-    const forwarded = request.headers["x-forwarded-for"] as string | string[];
+    const forwarded = request.headers["x-forwarded-for"];
 
     if (typeof forwarded === "string") {
         result = forwarded;
@@ -450,9 +582,9 @@ export const readClientIp = (request: Request): string => {
 };
 
 export const headerBearerToken = (request: Request): string => {
-    const authorization = request.headers["authorization"] as string;
+    const authorization = request.headers["authorization"];
 
-    return authorization.substring(7);
+    return authorization ? authorization.substring(7) : "";
 };
 
 export const responseBody = (stdoutValue: string, stderrValue: string | Error, response: Response, mode: number): void => {
@@ -462,11 +594,11 @@ export const responseBody = (stdoutValue: string, stderrValue: string | Error, r
 };
 
 // Custom
-export const uploadedDocumentList = async (sessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
+export const uploadedDocumentList = async (mcpSessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
     return new Promise<modelHelperSrc.IfileDetail[]>((resolve) => {
-        const input = `${PATH_ROOT}${PATH_FILE}input/${sessionId}/document/`;
+        const input = `${PATH_ROOT}${PATH_FILE}input/${mcpSessionId}/document/`;
 
-        findFileInDirectoryRecursive(input, extension, async (pathFileList) => {
+        findInDirectoryRecursive(input, extension, (pathFileList) => {
             const resultList: modelHelperSrc.IfileDetail[] = [];
 
             for (let a = 0; a < pathFileList.length; a++) {
@@ -474,10 +606,14 @@ export const uploadedDocumentList = async (sessionId: string, extension: string)
                 const pathList = pathRelative.split("/");
 
                 if (pathList.length > 1 && pathList[1].startsWith(pathList[0])) {
-                    const detail = await fileDetail(pathFileList[a]);
+                    const detail = fileDetail(pathFileList[a], undefined, false);
 
                     resultList.push({
                         fileName: pathList[1],
+                        baseName: detail.baseName,
+                        mimeType: detail.mimeType,
+                        extension: detail.extension,
+                        category: detail.category,
                         dateModified: detail.dateModified,
                         size: detail.size
                     });
@@ -489,11 +625,11 @@ export const uploadedDocumentList = async (sessionId: string, extension: string)
     });
 };
 
-export const uploadedSkillList = async (sessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
+export const uploadedSkillList = async (mcpSessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
     return new Promise<modelHelperSrc.IfileDetail[]>((resolve) => {
-        const input = `${PATH_ROOT}${PATH_FILE}input/${sessionId}/skill/`;
+        const input = `${PATH_ROOT}${PATH_FILE}input/${mcpSessionId}/skill/`;
 
-        findFileInDirectoryRecursive(input, extension, async (pathFileList) => {
+        findInDirectoryRecursive(input, extension, (pathFileList) => {
             const resultList: modelHelperSrc.IfileDetail[] = [];
 
             for (let a = 0; a < pathFileList.length; a++) {
@@ -502,11 +638,25 @@ export const uploadedSkillList = async (sessionId: string, extension: string): P
                     const directoryList = pathRelative.split("/");
                     const name = directoryList[0];
 
-                    if (name !== "" && !resultList.some((item) => item.fileName === name)) {
-                        const detail = await fileDetail(pathFileList[a]);
+                    let isAlreadyInList = false;
+
+                    for (let b = 0; b < resultList.length; b++) {
+                        if (resultList[b].fileName === name) {
+                            isAlreadyInList = true;
+
+                            break;
+                        }
+                    }
+
+                    if (name !== "" && !isAlreadyInList) {
+                        const detail = fileDetail(pathFileList[a], undefined, false);
 
                         resultList.push({
                             fileName: name,
+                            baseName: detail.baseName,
+                            mimeType: detail.mimeType,
+                            extension: detail.extension,
+                            category: detail.category,
                             dateModified: detail.dateModified,
                             size: detail.size
                         });

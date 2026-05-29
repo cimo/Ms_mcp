@@ -14,15 +14,19 @@ export default class Upload {
 
         const parameterList: string[] = [];
 
-        for (const formData of formDataList) {
+        for (let a = 0; a < formDataList.length; a++) {
+            const formData = formDataList[a];
+
             parameterList.push(formData.name);
 
             if (formData.name === "file") {
-                if (formData.fileName === "" || formData.mimeType === "" || formData.size === "") {
+                const fileDetail = helperSrc.fileDetail(formData.fileName, formData.buffer);
+
+                if (fileDetail.fileName === "" || fileDetail.mimeType === "" || fileDetail.size === "") {
                     result += "File input empty.";
-                } else if (!helperSrc.fileCheckMimeType(formData.mimeType)) {
+                } else if (!helperSrc.fileCheckMimeType(fileDetail.mimeType)) {
                     result += "Mime type are not allowed.";
-                } else if (!helperSrc.fileCheckSize(parseInt(formData.size))) {
+                } else if (!helperSrc.fileCheckSize(parseInt(fileDetail.size))) {
                     result += "File size exceeds limit.";
                 }
             }
@@ -46,7 +50,7 @@ export default class Upload {
             });
 
             request.on("end", () => {
-                const contentType = request.headers["content-type"] as string;
+                const contentType = request.headers["content-type"];
 
                 const buffer = Buffer.concat(chunkList);
                 const formDataList = Cfdp.readInput(buffer, contentType);
@@ -54,12 +58,14 @@ export default class Upload {
                 const resultCheckRequest = this.checkRequest(formDataList);
 
                 if (resultCheckRequest === "") {
-                    for (const formData of formDataList) {
+                    for (let a = 0; a < formDataList.length; a++) {
+                        const formData = formDataList[a];
+
                         if (formData.name === "file" && formData.fileName && formData.buffer) {
                             const fileName = isDecode ? decodeURIComponent(formData.fileName) : formData.fileName;
-                            const baseFileName = helperSrc.baseFileName(fileName);
-                            const path = `${pathValue}${baseFileName}/`;
-                            const pathFile = `${path}${fileName}`;
+                            const fileDetail = helperSrc.fileDetail(fileName, formData.buffer);
+                            const path = `${pathValue}${fileDetail.baseName}/`;
+                            const pathFile = `${path}${fileDetail.fileName}`;
 
                             Fs.mkdir(path, { recursive: true }, (error) => {
                                 if (!error) {

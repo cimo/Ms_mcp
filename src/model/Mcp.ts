@@ -8,7 +8,7 @@ export interface IruntimeHandlerData {
 
 export interface IruntimeWorkerMessageData {
     id: string;
-    sessionId: string;
+    mcpSessionId: string;
     tool: string;
     argumentList: unknown[];
 }

@@ -65,7 +65,7 @@ RUN cd ~ \
     && apt-get update && apt-get install -y ca-certificates tzdata curl media-types jq gettext-base \
     && update-ca-certificates \
     && ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && echo ${TZ} > /etc/timezone \
-    && echo "application/typescript ts" >> /etc/mime.types \
+    && echo "text/typescript ts" >> /etc/mime.types \
     # NodeJs
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get update && apt-get install -y \

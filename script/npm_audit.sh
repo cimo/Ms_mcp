@@ -70,7 +70,9 @@ if (entryList.length === 0) {
 
 console.log("\nVulnerability details:");
 
-for (const [key, value] of entryList) {
+for (let a = 0; a < entryList.length; a++) {
+    const [key, value] = entryList[a];
+
     const severity = value.severity || "unknown";
     const direct = value.isDirect ? "Direct" : "Transitive";
     const range = value.range || "n/d";
@@ -88,7 +90,9 @@ for (const [key, value] of entryList) {
     let causeList = [];
 
     if (Array.isArray(value.via)) {
-        for (const valueVia of value.via) {
+        for (let b = 0; b < value.via.length; b++) {
+            const valueVia = value.via[b];
+
             if (typeof valueVia === "string") {
                 causeList.push(valueVia);
             } else {
@@ -115,7 +119,9 @@ console.log(`\nPackage with available fix: ${fixableList.length}/${entryList.len
 if (fixableList.length > 0) {
     console.log("\nList:");
 
-    for (const [key, value] of fixableList) {
+    for (let a = 0; a < fixableList.length; a++) {
+        const [key, value] = fixableList[a];
+
         if (value.fixAvailable && typeof value.fixAvailable === "object") {
             console.log(`- ${key} -> ${value.fixAvailable.name || key}@${value.fixAvailable.version || "latest"}`);
         } else {

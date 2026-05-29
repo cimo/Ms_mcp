@@ -11,7 +11,7 @@ process.on("message", async (data: modelMcp.IruntimeWorkerMessageData) => {
 
     if (data.tool === "automateScreenshot") {
         await automateDisplay
-            .screenshot(data.sessionId)
+            .screenshot(data.mcpSessionId)
             .then((result) => {
                 resultProcess = { id: data.id, result };
 
@@ -96,7 +96,7 @@ process.on("message", async (data: modelMcp.IruntimeWorkerMessageData) => {
     } else if (data.tool === "ocrExecute") {
         await ocrExtract
             .execute(
-                data.sessionId,
+                data.mcpSessionId,
                 data.argumentList[0] as string,
                 data.argumentList[1] as string,
                 data.argumentList[2] as string,

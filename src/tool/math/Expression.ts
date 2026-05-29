@@ -115,7 +115,9 @@ const toRpn = (tokenList: model.Ttoken[]): model.Ttoken[] => {
     const operatorPrecedence: Record<string, number> = { "+": 1, "-": 1, "*": 2, "/": 2, "^": 3 };
     const operatorAssociativity: Record<string, boolean> = { "^": true };
 
-    for (const token of tokenList) {
+    for (let a = 0; a < tokenList.length; a++) {
+        const token = tokenList[a];
+
         if (typeof token === "number") {
             result.push(token);
 
@@ -176,30 +178,32 @@ const toRpn = (tokenList: model.Ttoken[]): model.Ttoken[] => {
 const evaluate = (rpnList: model.Ttoken[]): number => {
     const stack: number[] = [];
 
-    for (const rpn of rpnList) {
+    for (let a = 0; a < rpnList.length; a++) {
+        const rpn = rpnList[a];
+
         if (typeof rpn === "number") {
             stack.push(rpn);
 
             continue;
         }
 
-        const b = stack.pop() as number;
-        const a = stack.pop() as number;
+        const stackB = stack.pop() as number;
+        const stackA = stack.pop() as number;
 
-        if (typeof a !== "number" || typeof b !== "number") {
+        if (typeof stackA !== "number" || typeof stackB !== "number") {
             throw new Error("Insufficient operands.");
         }
 
         if (rpn === "+") {
-            stack.push(a + b);
+            stack.push(stackA + stackB);
         } else if (rpn === "-") {
-            stack.push(a - b);
+            stack.push(stackA - stackB);
         } else if (rpn === "*") {
-            stack.push(a * b);
+            stack.push(stackA * stackB);
         } else if (rpn === "/") {
-            stack.push(a / b);
+            stack.push(stackA / stackB);
         } else if (rpn === "^") {
-            stack.push(Math.pow(a, b));
+            stack.push(Math.pow(stackA, stackB));
         } else {
             throw new Error(`Unknown operator ${String(rpn)}`);
         }
