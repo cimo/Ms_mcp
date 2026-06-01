@@ -16,8 +16,8 @@ export default class Document {
         this.sessionObject = sessionObject;
 
         this.inputSchemaParser = z.object({
-            fileName: z.string().default("").describe("Filename."),
-            searchInput: z.string().default("").describe("Search input.")
+            fileName: z.string().default("").describe("Is the word ending with the document file extension."),
+            searchInput: z.string().default("").describe("Is the word/phrase that the user is asking to look/find/search.")
         });
     }
 
@@ -25,7 +25,13 @@ export default class Document {
         const name = "document_parser";
 
         const config = {
-            description: "Parse pdf document and extract data.",
+            description: ["Parse document and extract data."].join("\n"),
+            example: ["- In the file 'Document.docx' search for 'Test'."].join("\n"),
+            inputInstruction: [
+                "You MUST need to extract, from the user prompt, ONLY the following schema:",
+                `Parameter 1 fileName: ${this.inputSchemaParser.shape.fileName.description}`,
+                `Parameter 2 searchInput: ${this.inputSchemaParser.shape.searchInput.description}`
+            ].join("\n"),
             inputSchema: this.inputSchemaParser
         };
 

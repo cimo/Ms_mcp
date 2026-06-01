@@ -236,40 +236,6 @@ export default class Mcp {
     };
 
     api = (): void => {
-        this.app.post("/api/embedding-check", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
-            const fileName = request.body.fileName;
-            const fileDetail = helperSrc.fileDetail(fileName);
-
-            if (typeof mcpSessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
-
-                helperSrc.findInDirectoryRecursive(input, ".*", (pathFileList) => {
-                    let status = "ongoing";
-
-                    for (let a = 0; a < pathFileList.length; a++) {
-                        const pathFile = pathFileList[a];
-
-                        if (pathFile.endsWith(".done")) {
-                            status = "done";
-
-                            break;
-                        } else if (pathFile.endsWith(".fail")) {
-                            status = "fail";
-
-                            break;
-                        }
-                    }
-
-                    helperSrc.responseBody(status, "", response, 200);
-                });
-            } else {
-                helperSrc.writeLog("Mcp.ts - api() - post(/api/embedding-check) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody("", "ko", response, 500);
-            }
-        });
-
         this.app.post("/api/document-upload", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const fileNameHeader = request.headers["filename"];
@@ -288,8 +254,6 @@ export default class Mcp {
                                 await this.toolDocument
                                     .parser()
                                     .content({ fileName: fileDetail.fileName, searchInput: "" }, { sessionId: mcpSessionId });
-
-                                await this.toolRag.store().content({ fileName: fileDetail.fileName }, { sessionId: mcpSessionId });
                             }
 
                             helperSrc.responseBody(JSON.stringify({ fileName: fileDetail.fileName, status: "Success" }), "", response, 200);
@@ -399,6 +363,66 @@ export default class Mcp {
                 });
             } else {
                 helperSrc.writeLog("Mcp.ts - api() - post(/api/document-delete) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
+        this.app.post("/api/rag-embedding-start", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const mcpSessionId = request.headers["mcp-session-id"] as string;
+
+            if (mcpSessionId !== "") {
+                const fileList = await helperSrc.uploadedDocumentList(mcpSessionId, ".*");
+
+                const documentFileNameList = [];
+
+                for (const file of fileList) {
+                    const fileDetail = helperSrc.fileDetail(file.fileName);
+
+                    if (fileDetail.category === "document") {
+                        documentFileNameList.push(fileDetail.fileName);
+
+                        this.toolRag.store().content({ fileName: fileDetail.fileName }, { sessionId: mcpSessionId });
+                    }
+                }
+
+                helperSrc.responseBody(JSON.stringify(documentFileNameList), "", response, 200);
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/rag-embedding-start) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
+        this.app.post("/api/rag-embedding-check", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const mcpSessionId = request.headers["mcp-session-id"];
+            const fileName = request.body.fileName;
+            const fileDetail = helperSrc.fileDetail(fileName);
+
+            if (typeof mcpSessionId === "string") {
+                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
+
+                helperSrc.findInDirectoryRecursive(input, ".*", (pathFileList) => {
+                    let status = "Ongoing";
+
+                    for (let a = 0; a < pathFileList.length; a++) {
+                        const pathFile = pathFileList[a];
+
+                        if (pathFile.endsWith(".done")) {
+                            status = "Success";
+
+                            break;
+                        } else if (pathFile.endsWith(".fail")) {
+                            status = "Failed";
+
+                            break;
+                        }
+                    }
+
+                    helperSrc.responseBody(status, "", response, 200);
+                });
+            } else {
+                helperSrc.writeLog("Mcp.ts - api() - post(/api/rag-embedding-check) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
@@ -542,31 +566,41 @@ export default class Mcp {
                         name: this.toolDocument.parser().name,
                         argumentObject: this.toolDocument.inputSchemaParser.parse({}),
                         icon: "document.svg",
-                        description: this.toolDocument.parser().config.description
+                        description: this.toolDocument.parser().config.description,
+                        example: this.toolDocument.parser().config.example,
+                        inputInstruction: this.toolDocument.parser().config.inputInstruction
                     },
                     {
                         name: this.toolMath.expression().name,
                         argumentObject: this.toolMath.inputSchemaExpression.parse({}),
                         icon: "math.svg",
-                        description: this.toolMath.expression().config.description
+                        description: this.toolMath.expression().config.description,
+                        example: this.toolMath.expression().config.example,
+                        inputInstruction: this.toolMath.expression().config.inputInstruction
                     },
                     {
                         name: this.toolOcr.execute().name,
                         argumentObject: this.toolOcr.inputSchemaExecute.parse({}),
                         icon: "ocr.svg",
-                        description: this.toolOcr.execute().config.description
+                        description: this.toolOcr.execute().config.description,
+                        example: this.toolOcr.execute().config.example,
+                        inputInstruction: this.toolOcr.execute().config.inputInstruction
                     },
                     {
                         name: this.toolRag.search().name,
                         argumentObject: this.toolRag.inputSchemaSearch.parse({}),
                         icon: "rag.svg",
-                        description: this.toolRag.search().config.description
+                        description: this.toolRag.search().config.description,
+                        example: this.toolRag.search().config.example,
+                        inputInstruction: this.toolRag.search().config.inputInstruction
                     },
                     {
                         name: this.toolSecurity.scanner().name,
                         argumentObject: this.toolSecurity.inputSchemaParser.parse({}),
                         icon: "security.svg",
-                        description: this.toolSecurity.scanner().config.description
+                        description: this.toolSecurity.scanner().config.description,
+                        example: this.toolSecurity.scanner().config.example,
+                        inputInstruction: this.toolSecurity.scanner().config.inputInstruction
                     }
                 ];
 
@@ -620,7 +654,9 @@ export default class Mcp {
                         name: "automate_browser",
                         argumentObject: { url: "..." },
                         icon: "automate_browser.svg",
-                        description: "Interact with the browser and execute the instructions in a loop until the requests are completed."
+                        description: "Interact with the browser and execute the instructions in a loop until the requests are completed.",
+                        example: [""].join("\n"),
+                        inputInstruction: [].join("\n")
                     }
                 ];
 

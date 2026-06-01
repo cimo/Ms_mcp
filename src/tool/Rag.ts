@@ -23,7 +23,7 @@ export default class Rag {
         });
 
         this.inputSchemaSearch = z.object({
-            prompt: z.string().default("").describe("Search prompt.")
+            prompt: z.string().default("").describe("Is the word/phrase that the user is asking to look/find/search.")
         });
 
         this.inputSchemaDelete = z.object({
@@ -37,7 +37,9 @@ export default class Rag {
         const name = "rag_store";
 
         const config = {
-            description: "Store file content in the vector database.",
+            description: ["Store file content in the vector database."].join("\n"),
+            example: [""].join("\n"),
+            inputInstruction: [].join("\n"),
             inputSchema: this.inputSchemaStore
         };
 
@@ -69,7 +71,12 @@ export default class Rag {
         const name = "rag_search";
 
         const config = {
-            description: "Search text in the vector database.",
+            description: ["Search text in the vector database."].join("\n"),
+            example: ["- Explain to me XXX."].join("\n"),
+            inputInstruction: [
+                "You MUST need to extract, from the user prompt, ONLY the following schema:",
+                `Parameter 1 prompt: ${this.inputSchemaSearch.shape.prompt.description}`
+            ].join("\n"),
             inputSchema: this.inputSchemaSearch
         };
 
@@ -112,7 +119,9 @@ export default class Rag {
         const name = "rag_delete";
 
         const config = {
-            description: "Delete the table from the vector database.",
+            description: ["Delete the table from the vector database."].join("\n"),
+            example: [""].join("\n"),
+            inputInstruction: [].join("\n"),
             inputSchema: this.inputSchemaDelete
         };
 

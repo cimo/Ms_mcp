@@ -16,7 +16,7 @@ export default class Math {
         this.sessionObject = sessionObject;
 
         this.inputSchemaExpression = z.object({
-            input: z.string().default("").describe("A math expression.")
+            input: z.string().default("").describe("Is the full math expression that needs to be evaluated.")
         });
     }
 
@@ -24,7 +24,12 @@ export default class Math {
         const name = "math_expression";
 
         const config = {
-            description: "Evaluate expression.",
+            description: ["Evaluate a math expression."].join("\n"),
+            example: ["- Calculate this expression: 1 + 2 * 3"].join("\n"),
+            inputInstruction: [
+                "You MUST need to extract, from the user prompt, ONLY the following schema:",
+                `Parameter 1 input: ${this.inputSchemaExpression.shape.input.description}`
+            ].join("\n"),
             inputSchema: this.inputSchemaExpression
         };
 

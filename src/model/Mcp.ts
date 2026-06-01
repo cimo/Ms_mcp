@@ -17,6 +17,8 @@ export interface Irpc<TSchema extends z.ZodTypeAny> {
     name: string;
     config: {
         description: string;
+        example: string;
+        inputInstruction: string;
         inputSchema: TSchema;
     };
     content: (
@@ -37,6 +39,8 @@ export interface Itool {
     argumentObject: Record<string, unknown>;
     icon: string;
     description: string;
+    example: string;
+    inputInstruction: string;
 }
 
 export interface ItoolCall {
@@ -49,6 +53,8 @@ export interface Itask {
     argumentObject: Record<string, unknown>;
     icon: string;
     description: string;
+    example: string;
+    inputInstruction: string;
 }
 
 export interface ItaskCall {

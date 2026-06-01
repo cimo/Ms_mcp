@@ -15,10 +15,10 @@ export default class Ocr {
         this.sessionObject = sessionObject;
 
         this.inputSchemaExecute = z.object({
-            language: z.string().default("").describe("Language of the text in the image."),
-            fileName: z.string().default("").describe("Name of the image file."),
-            searchText: z.string().default("").describe("Text to search in the image."),
-            mode: z.string().default("data").describe("Type of data to extract from the image.")
+            language: z.string().default("").describe("Is the locale format that indicates the language used in the file."),
+            fileName: z.string().default("").describe("Is the word ending with the image file extension."),
+            searchText: z.string().default("").describe("Is the word/phrase that the user is asking to look/find/search."),
+            mode: z.string().default("data").describe("Is the word that indicates what to extract from the file.")
         });
     }
 
@@ -26,7 +26,15 @@ export default class Ocr {
         const name = "ocr_execute";
 
         const config = {
-            description: "Extract data from an image.",
+            description: ["Extract data from an image."].join("\n"),
+            example: ["- In the file 'Image.png' search for 'Text' with the language 'en' and mode 'data'."].join("\n"),
+            inputInstruction: [
+                "You MUST need to extract, from the user prompt, ONLY the following schema:",
+                `Parameter 1 language: ${this.inputSchemaExecute.shape.language.description}`,
+                `Parameter 2 fileName: ${this.inputSchemaExecute.shape.fileName.description}`,
+                `Parameter 3 searchText: ${this.inputSchemaExecute.shape.searchText.description}`,
+                `Parameter 4 mode: ${this.inputSchemaExecute.shape.mode.description}`
+            ].join("\n"),
             inputSchema: this.inputSchemaExecute
         };
 

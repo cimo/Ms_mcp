@@ -30,7 +30,9 @@ export default class Automate {
         const name = "automate_screenshot";
 
         const config = {
-            description: "Take display screenshot and return the image in base64.",
+            description: ["Take display screenshot and return the image in base64."].join("\n"),
+            example: [""].join("\n"),
+            inputInstruction: [].join("\n"),
             inputSchema: this.inputSchemaScrreenshot
         };
 
@@ -63,7 +65,9 @@ export default class Automate {
         const name = "automate_mouse_move";
 
         const config = {
-            description: "Move mouse cursor to specific coordinates.",
+            description: ["Move mouse cursor to specific coordinates."].join("\n"),
+            example: [""].join("\n"),
+            inputInstruction: [].join("\n"),
             inputSchema: this.inputSchemaMouseMove
         };
 
@@ -96,7 +100,9 @@ export default class Automate {
         const name = "automate_mouse_click";
 
         const config = {
-            description: "Click the specific mouse button.",
+            description: ["Click the specific mouse button."].join("\n"),
+            example: [""].join("\n"),
+            inputInstruction: [].join("\n"),
             inputSchema: this.inputSchemaMouseClick
         };
 

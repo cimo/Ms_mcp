@@ -16,8 +16,8 @@ export default class Security {
         this.sessionObject = sessionObject;
 
         this.inputSchemaParser = z.object({
-            mode: z.string().default("").describe("Can be: image or repository."),
-            target: z.string().default("").describe("Can be: dockerHub tag or gitHub url.")
+            mode: z.string().default("").describe("Is the word that indicates what type of analyze need be execute."),
+            target: z.string().default("").describe("Is the docker tag or url repository that the user is asking to scan.")
         });
     }
 
@@ -25,7 +25,16 @@ export default class Security {
         const name = "security_scanner";
 
         const config = {
-            description: "Perform a security scan on the target image or repository.",
+            description: ["Perform a security scan on the docker tag image or repository."].join("\n"),
+            example: [
+                "- Scan with the mode 'image' for the target 'cimo001/ms_cronjob:1.0.0'",
+                "- Scan with the mode 'url' for the target 'https://github.com/cimo/Ms_cronjob'"
+            ].join("\n"),
+            inputInstruction: [
+                "You MUST need to extract, from the user text, ONLY the following schema:",
+                `Parameter 1 mode: ${this.inputSchemaParser.shape.mode.description}`,
+                `Parameter 2 target: ${this.inputSchemaParser.shape.target.description}`
+            ].join("\n"),
             inputSchema: this.inputSchemaParser
         };
 
