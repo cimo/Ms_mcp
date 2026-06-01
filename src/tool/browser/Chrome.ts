@@ -53,9 +53,9 @@ export const execute = async (urlPage: string): Promise<void> => {
     await new Promise((resolve, reject) => {
         let pending = "";
 
-        remotePipe.outgoing.on("error", () => reject("Chrome.ts - execute() - outgoing - onerror(): Pipe interupted."));
+        remotePipe.outgoing.on("error", () => reject("Chrome.ts - execute() - outgoing - onerror(): Pipe interrupted."));
 
-        remotePipe.incoming.on("error", () => reject("Chrome.ts - execute() - incoming - onerror(): Pipe interupted."));
+        remotePipe.incoming.on("error", () => reject("Chrome.ts - execute() - incoming - onerror(): Pipe interrupted."));
 
         remotePipe.incoming.on("close", () => reject("Chrome.ts - execute() - incoming - onclose(): Pipe closed before response."));
 
@@ -71,7 +71,11 @@ export const execute = async (urlPage: string): Promise<void> => {
 
                 end = pending.indexOf("\x00");
 
-                resolve(JSON.parse(message));
+                if (helperSrc.isJson(message)) {
+                    resolve(JSON.parse(message));
+                } else {
+                    reject("Chrome.ts - execute() - incoming - ondata(): Invalid JSON message.");
+                }
 
                 return;
             }

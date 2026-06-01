@@ -52,6 +52,12 @@ export default class Upload {
             request.on("end", () => {
                 const contentType = request.headers["content-type"];
 
+                if (typeof contentType !== "string") {
+                    reject(new Error("Content-type missing."));
+
+                    return;
+                }
+
                 const buffer = Buffer.concat(chunkList);
                 const formDataList = Cfdp.readInput(buffer, contentType);
 

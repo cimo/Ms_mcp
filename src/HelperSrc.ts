@@ -15,12 +15,12 @@ export const TIME_ZONE = Ce.checkVariable("TIME_ZONE") || (process.env["TIME_ZON
 export const LANG = Ce.checkVariable("LANG") || (process.env["LANG"] as string);
 export const SERVER_PORT = Ce.checkVariable("SERVER_PORT") || (process.env["SERVER_PORT"] as string);
 export const PATH_ROOT = Ce.checkVariable("PATH_ROOT");
-export const NAME = Ce.checkVariable("MS_M_NAME") || (process.env["MS_A_NAME"] as string);
-export const LABEL = Ce.checkVariable("MS_M_LABEL") || (process.env["MS_A_LABEL"] as string);
-export const IS_DEBUG = Ce.checkVariable("MS_M_IS_DEBUG") || (process.env["MS_A_IS_DEBUG"] as string);
-export const NODE_ENV = Ce.checkVariable("MS_M_NODE_ENV") || (process.env["MS_A_NODE_ENV"] as string);
-export const URL_ROOT = Ce.checkVariable("MS_M_URL_ROOT") || (process.env["MS_A_URL_ROOT"] as string);
-export const URL_CORS_ORIGIN = Ce.checkVariable("MS_M_URL_CORS_ORIGIN") || (process.env["MS_A_URL_CORS_ORIGIN"] as string);
+export const NAME = Ce.checkVariable("MS_M_NAME") || (process.env["MS_M_NAME"] as string);
+export const LABEL = Ce.checkVariable("MS_M_LABEL") || (process.env["MS_M_LABEL"] as string);
+export const IS_DEBUG = Ce.checkVariable("MS_M_IS_DEBUG") || (process.env["MS_M_IS_DEBUG"] as string);
+export const NODE_ENV = Ce.checkVariable("MS_M_NODE_ENV") || (process.env["MS_M_NODE_ENV"] as string);
+export const URL_ROOT = Ce.checkVariable("MS_M_URL_ROOT") || (process.env["MS_M_URL_ROOT"] as string);
+export const URL_CORS_ORIGIN = Ce.checkVariable("MS_M_URL_CORS_ORIGIN") || (process.env["MS_M_URL_CORS_ORIGIN"] as string);
 export const PATH_CERTIFICATE_KEY = Ce.checkVariable("MS_M_PATH_CERTIFICATE_KEY");
 export const PATH_CERTIFICATE_CRT = Ce.checkVariable("MS_M_PATH_CERTIFICATE_CRT");
 export const PATH_CERTIFICATE_PEM = Ce.checkVariable("MS_M_PATH_CERTIFICATE_PEM");
@@ -410,7 +410,13 @@ export const fileCheckMimeType = (value: string): boolean => {
 };
 
 export const fileCheckSize = (byte: number): boolean => {
-    const maxSizeByte = parseInt(FILE_SIZE_MB) * 1024 * 1024;
+    const fileSizeMb = parseInt(FILE_SIZE_MB);
+
+    if (isNaN(fileSizeMb)) {
+        return false;
+    }
+
+    const maxSizeByte = fileSizeMb * 1024 * 1024;
 
     if (byte > maxSizeByte) {
         return false;
@@ -584,7 +590,7 @@ export const headerClientIp = (request: Request): string => {
 export const headerBearerToken = (request: Request): string => {
     const authorization = request.headers["authorization"];
 
-    return authorization ? authorization.substring(7) : "";
+    return authorization && authorization.startsWith("Bearer ") ? authorization.substring(7) : "";
 };
 
 export const responseBody = (stdoutValue: string, stderrValue: string | Error, response: Response, mode: number): void => {

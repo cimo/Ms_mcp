@@ -35,7 +35,11 @@ api.setResponseInterceptor((response: Response) => {
 
     if (store) {
         const cookieSplit = cookie ? cookie.split(";")[0] : undefined;
-        const cookieValue = cookieSplit ? cookieSplit.split("=")[1].trim() : undefined;
+        let cookieValue: string | undefined;
+
+        if (cookieSplit && cookieSplit.includes("=")) {
+            cookieValue = cookieSplit.split("=")[1].trim();
+        }
 
         if (cookieValue) {
             store.cookie = cookieSplit;
