@@ -7,32 +7,30 @@ import * as modelHelperSrc from "../../model/HelperSrc.js";
 import * as modelDocument from "./Model.js";
 
 const login = async (): Promise<string> => {
-    let result = "";
-
-    await instance.api
+    return instance.api
         .get<modelHelperSrc.IresponseBody>("/login", {
             headers: {
                 "Content-Type": "application/json"
             }
         })
         .then((resultApi) => {
-            result = JSON.stringify(resultApi.data, null, 2);
+            const data = resultApi.data;
+
+            return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Parser.ts - login() - api(/login) - catch()", error.message);
 
-            result = "ko";
+            return "ko";
         });
-
-    return result;
 };
 
-const convertToPdf = async (inputFolder: string, fileName: string): Promise<boolean> => {
-    return new Promise<boolean>(async (resolve) => {
+const convertToPdf = (inputFolder: string, fileName: string): Promise<boolean> => {
+    return new Promise((resolve, reject) => {
         const fileDetail = helperSrc.fileDetail(fileName);
 
         if (fileDetail.extension !== "pdf") {
-            helperSrc.fileReadStream(`${inputFolder}${fileDetail.fileName}`, async (resultFileReadStream) => {
+            helperSrc.fileReadStream(`${inputFolder}${fileDetail.fileName}`, (resultFileReadStream) => {
                 if (Buffer.isBuffer(resultFileReadStream)) {
                     const buffer = Buffer.from(resultFileReadStream);
                     const blob = new Blob([buffer], { type: fileDetail.mimeType });
@@ -40,35 +38,33 @@ const convertToPdf = async (inputFolder: string, fileName: string): Promise<bool
                     const formData = new FormData();
                     formData.append("file", blob, fileDetail.fileName);
 
-                    await instance.api
+                    instance.api
                         .post<modelHelperSrc.IresponseBody>("/api/toPdf", {}, formData)
                         .then((resultApi) => {
-                            helperSrc.fileWriteStream(
-                                `${inputFolder}converted.pdf`,
-                                Buffer.from(resultApi.data.response.stdout, "base64"),
-                                (resultFileWriteStream) => {
-                                    if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
-                                        resolve(true);
-                                    } else {
-                                        helperSrc.writeLog(
-                                            `Parser.ts - convertToPdf() - api(/toPdf) - fileWriteStream()`,
-                                            resultFileWriteStream.toString()
-                                        );
+                            const stdout = resultApi.data.response.stdout;
 
-                                        resolve(false);
-                                    }
+                            helperSrc.fileWriteStream(`${inputFolder}converted.pdf`, Buffer.from(stdout, "base64"), (resultFileWriteStream) => {
+                                if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
+                                    resolve(true);
+                                } else {
+                                    helperSrc.writeLog(
+                                        `Parser.ts - convertToPdf() - api(/toPdf) - fileWriteStream()`,
+                                        resultFileWriteStream.toString()
+                                    );
+
+                                    reject(new Error(`fileWriteStream failed: ${resultFileWriteStream.toString()}`));
                                 }
-                            );
+                            });
                         })
                         .catch((error: Error) => {
                             helperSrc.writeLog("Parser.ts - convertToPdf() - api(/toPdf) - catch()", error.message);
 
-                            resolve(false);
+                            reject(new Error(error.message));
                         });
                 } else {
                     helperSrc.writeLog(`Parser.ts - convertToPdf() - fileReadStream()`, resultFileReadStream.toString());
 
-                    resolve(false);
+                    reject(new Error(`fileReadStream failed: ${resultFileReadStream.toString()}`));
                 }
             });
         } else {
@@ -76,7 +72,7 @@ const convertToPdf = async (inputFolder: string, fileName: string): Promise<bool
                 if (error) {
                     helperSrc.writeLog(`Parser.ts - convertToPdf() - copyFile()`, error.message);
 
-                    resolve(false);
+                    reject(new Error(error.message));
 
                     return;
                 }
@@ -88,29 +84,27 @@ const convertToPdf = async (inputFolder: string, fileName: string): Promise<bool
 };
 
 const logout = async (): Promise<string> => {
-    let result = "";
-
-    await instance.api
+    return instance.api
         .get<modelHelperSrc.IresponseBody>("/logout", {
             headers: {
                 "Content-Type": "application/json"
             }
         })
         .then((resultApi) => {
-            result = JSON.stringify(resultApi.data, null, 2);
+            const data = resultApi.data;
+
+            return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Parser.ts - logout() - api(/logout) - catch()", error.message);
 
-            result = "ko";
+            return "ko";
         });
-
-    return result;
 };
 
-export const execute = async (mcpSessionId: string, fileName: string, searchInput: string): Promise<modelDocument.Iparser> => {
-    return await instance.runWithContext(async () => {
-        let result = {} as modelDocument.Iparser;
+export const execute = (mcpSessionId: string, fileName: string, searchInput: string): Promise<string> => {
+    return instance.runWithContext(async () => {
+        let resultObject = {} as modelDocument.Iparser;
 
         await login();
 
@@ -118,37 +112,35 @@ export const execute = async (mcpSessionId: string, fileName: string, searchInpu
 
         const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
 
-        const resultConvert = await convertToPdf(inputFolder, fileName);
+        await convertToPdf(inputFolder, fileName);
 
-        if (resultConvert) {
-            let resultExecute = await helperSrc.terminalExecution(
-                `python3 "${helperSrc.PATH_ROOT}muPdf/parser.py" "${helperSrc.PATH_ROOT}muPdf/mutool" "${inputFolder}converted.pdf" "${inputFolder}" "${searchInput}" "wholeWord,caseSensitive,both" >> "${helperSrc.PATH_LOG}muPdf_parser.log" 2>&1`
+        let resultExecute = await helperSrc.executionTerminal(
+            `python3 "${helperSrc.PATH_ROOT}muPdf/parser.py" "${helperSrc.PATH_ROOT}muPdf/mutool" "${inputFolder}converted.pdf" "${inputFolder}" "${searchInput}" "wholeWord,caseSensitive,both" >> "${helperSrc.PATH_LOG}muPdf_parser.log" 2>&1`
+        );
+
+        if (!resultExecute.error) {
+            resultExecute = await helperSrc.executionTerminal(
+                `python3 "${helperSrc.PATH_ROOT}paddle/layout.py" "${helperSrc.PATH_ROOT}paddle/pp-doclayout_plus-l.inference.onnx" "${inputFolder}image/" "${inputFolder}layout/" >> "${helperSrc.PATH_LOG}paddle_layout.log" 2>&1`
             );
+        }
 
-            if (typeof resultExecute === "string") {
-                resultExecute = await helperSrc.terminalExecution(
-                    `python3 "${helperSrc.PATH_ROOT}paddle/layout.py" "${helperSrc.PATH_ROOT}paddle/pp-doclayout_plus-l.inference.onnx" "${inputFolder}image/" "${inputFolder}layout/" >> "${helperSrc.PATH_LOG}paddle_layout.log" 2>&1`
-                );
-            }
+        if (!resultExecute.error) {
+            resultExecute = await helperSrc.executionTerminal(
+                `python3 "${helperSrc.PATH_ROOT}muPdf/markdown.py" "${inputFolder}layout/data/" "${inputFolder}cleaned.pdf" "${inputFolder}" >> "${helperSrc.PATH_LOG}muPdf_markdown.log" 2>&1`
+            );
+        }
 
-            if (typeof resultExecute === "string") {
-                resultExecute = await helperSrc.terminalExecution(
-                    `python3 "${helperSrc.PATH_ROOT}muPdf/markdown.py" "${inputFolder}layout/data/" "${inputFolder}cleaned.pdf" "${inputFolder}" >> "${helperSrc.PATH_LOG}muPdf_markdown.log" 2>&1`
-                );
-            }
-
-            if (typeof resultExecute !== "string") {
-                helperSrc.writeLog("Parser.ts - execute() - terminalExecution() - ExecException", resultExecute);
-            } else {
-                result = {
-                    fileName,
-                    terminalExecution: resultExecute
-                };
-            }
+        if (!resultExecute.error) {
+            resultObject = {
+                fileName,
+                resultExecute: resultExecute.stdout
+            };
+        } else {
+            helperSrc.writeLog("Parser.ts - execute() - Error", resultExecute.error.message);
         }
 
         await logout();
 
-        return result;
+        return JSON.stringify(resultObject);
     });
 };

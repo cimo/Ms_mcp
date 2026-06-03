@@ -11,7 +11,7 @@ import { Cc } from "@cimo/cronjob/dist/src/Main.js";
 // Source
 import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
-import ControllerMcp from "./Mcp.js";
+import ControllerTool from "./Tool.js";
 import ControllerXvfb from "./Xvfb.js";
 
 export default class Server {
@@ -93,9 +93,9 @@ export default class Server {
         const server = creation;
 
         server.listen(helperSrc.SERVER_PORT, () => {
-            const controllerMcp = new ControllerMcp(this.app, this.limiter, this.sessionObject);
-            controllerMcp.rpc();
-            controllerMcp.api();
+            const controllerTool = new ControllerTool(this.app, this.limiter, this.sessionObject);
+            controllerTool.rpc();
+            controllerTool.api();
 
             const controllerXvfb = new ControllerXvfb(this.sessionObject);
 
@@ -116,7 +116,7 @@ export default class Server {
             this.app.get("/login", this.limiter, async (request: Request, response: Response) => {
                 Ca.writeCookie(`${helperSrc.LABEL}_authentication`, response);
 
-                const result = await controllerMcp.login(request, response);
+                const result = await controllerTool.login(request, response);
 
                 if (result !== "ko") {
                     controllerXvfb.start(result);
@@ -128,7 +128,7 @@ export default class Server {
             });
 
             this.app.get("/logout", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-                const result = await controllerMcp.logout(request);
+                const result = await controllerTool.logout(request);
 
                 Ca.deleteCookie(`${helperSrc.LABEL}_authentication`, request, response);
 

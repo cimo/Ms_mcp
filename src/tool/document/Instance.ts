@@ -11,8 +11,8 @@ export const api = new Cr(`${protocol}://${helperSrc.DOMAIN}:1043`);
 
 const requestContext = new AsyncLocalStorage<model.IinstanceContext>();
 
-export const runWithContext = async <T>(callback: () => Promise<T>): Promise<T> => {
-    return await requestContext.run({}, callback);
+export const runWithContext = <T>(callback: () => Promise<T>): Promise<T> => {
+    return requestContext.run({}, callback);
 };
 
 api.setRequestInterceptor((config: RequestInit) => {
@@ -30,11 +30,11 @@ api.setRequestInterceptor((config: RequestInit) => {
 
 api.setResponseInterceptor((response: Response) => {
     const store = requestContext.getStore();
-
     const cookie = response.headers.get("set-cookie");
 
-    if (store) {
-        const cookieSplit = cookie ? cookie.split(";")[0] : undefined;
+    if (store && cookie) {
+        const cookieSplit = cookie.split(";")[0];
+
         let cookieValue: string | undefined;
 
         if (cookieSplit && cookieSplit.includes("=")) {

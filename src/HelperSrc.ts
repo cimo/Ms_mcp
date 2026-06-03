@@ -1,6 +1,6 @@
-import Fs from "fs";
-import { Request, Response } from "express";
-import type { ExecException } from "child_process";
+import Fs from /* webpackIgnore: true */ "fs";
+import { exec, execFile, ChildProcess } from /* webpackIgnore: true */ "child_process";
+import { Request, Response } from /* webpackIgnore: true */ "express";
 import { Ce } from "@cimo/environment/dist/src/Main.js";
 
 // Source
@@ -553,24 +553,26 @@ export const findInDirectoryRecursive = (path: string, extension: string, callba
     });
 };
 
-export const terminalExecution = async (command: string): Promise<string | ExecException> => {
-    return await new Promise((resolve) => {
-        import(/* webpackIgnore: true */ "node:child_process")
-            .then(({ exec }) => {
-                exec(command, (error, stdout, stderr) => {
-                    if (error) {
-                        resolve(error);
-                    } else if (stderr) {
-                        resolve(stderr);
-                    } else {
-                        resolve(stdout);
-                    }
-                });
-            })
-            .catch((error) => {
-                resolve(error as ExecException);
-            });
+export const executionTerminal = (command: string): Promise<modelHelperSrc.Iexecution> => {
+    return new Promise((resolve) => {
+        exec(command, (error, stdout, stderr) => {
+            resolve({ error, stdout, stderr });
+        });
     });
+};
+
+export const executionFile = (argumentList: string[]): Promise<modelHelperSrc.Iexecution> & { process: ChildProcess } => {
+    let process: ChildProcess;
+
+    const promise = new Promise<modelHelperSrc.Iexecution>((resolve) => {
+        process = execFile("/bin/bash", argumentList, { encoding: "utf8" }, (error, stdout, stderr) => {
+            resolve({ error, stdout, stderr });
+        });
+    });
+
+    return Object.assign(promise, { process: process! }) as Promise<modelHelperSrc.Iexecution> & {
+        process: ChildProcess;
+    };
 };
 
 export const headerClientIp = (request: Request): string => {
@@ -600,7 +602,7 @@ export const responseBody = (stdoutValue: string, stderrValue: string | Error, r
 };
 
 // Custom
-export const uploadedDocumentList = async (mcpSessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
+export const uploadedDocumentList = (mcpSessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
     return new Promise<modelHelperSrc.IfileDetail[]>((resolve) => {
         const input = `${PATH_ROOT}${PATH_FILE}input/${mcpSessionId}/document/`;
 
@@ -631,7 +633,7 @@ export const uploadedDocumentList = async (mcpSessionId: string, extension: stri
     });
 };
 
-export const uploadedSkillList = async (mcpSessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
+export const uploadedSkillList = (mcpSessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
     return new Promise<modelHelperSrc.IfileDetail[]>((resolve) => {
         const input = `${PATH_ROOT}${PATH_FILE}input/${mcpSessionId}/skill/`;
 

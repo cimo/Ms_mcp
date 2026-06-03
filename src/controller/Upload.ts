@@ -43,6 +43,8 @@ export default class Upload {
 
     execute = (request: Request, isFileExists: boolean, isDecode: boolean, pathValue: string): Promise<CfdpModel.Iinput[]> => {
         return new Promise((resolve, reject) => {
+            const contentType = request.headers["content-type"];
+
             const chunkList: Buffer[] = [];
 
             request.on("data", (data: Buffer) => {
@@ -50,8 +52,6 @@ export default class Upload {
             });
 
             request.on("end", () => {
-                const contentType = request.headers["content-type"];
-
                 if (typeof contentType !== "string") {
                     reject(new Error("Content-type missing."));
 
@@ -91,7 +91,7 @@ export default class Upload {
 
                                             return;
                                         } else {
-                                            reject(new Error("File write failed."));
+                                            reject(new Error("Write failed."));
 
                                             return;
                                         }
@@ -99,7 +99,7 @@ export default class Upload {
                                 } else {
                                     helperSrc.writeLog("Upload.ts - execute() - request.on() - mkdir() - Error", error.message);
 
-                                    reject(new Error("Directory creation failed."));
+                                    reject(new Error(error.message));
 
                                     return;
                                 }

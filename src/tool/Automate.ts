@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // Source
 import * as modelServer from "../model/Server.js";
-import * as modelMcp from "../model/Mcp.js";
+import * as modelTool from "../model/Tool.js";
 
 export default class Automate {
     // Variable
@@ -26,7 +26,7 @@ export default class Automate {
         });
     }
 
-    screenshot = (): modelMcp.Irpc<typeof this.inputSchemaScrreenshot> => {
+    screenshot = (): modelTool.Irpc<typeof this.inputSchemaScrreenshot> => {
         const name = "automate_screenshot";
 
         const config = {
@@ -44,7 +44,7 @@ export default class Automate {
 
                 if (runtime) {
                     const resultScreenshot = await runtime.automateScreenshot(extra.sessionId);
-                    result = JSON.stringify({ name: "automate_screenshot", resultList: [resultScreenshot] });
+                    result = JSON.stringify({ name, resultList: [resultScreenshot] });
                 }
             }
 
@@ -61,7 +61,7 @@ export default class Automate {
         return { name, config, content };
     };
 
-    mouseMove = (): modelMcp.Irpc<typeof this.inputSchemaMouseMove> => {
+    mouseMove = (): modelTool.Irpc<typeof this.inputSchemaMouseMove> => {
         const name = "automate_mouse_move";
 
         const config = {
@@ -79,7 +79,7 @@ export default class Automate {
 
                 if (runtime) {
                     const resultMouseMove = await runtime.automateMouseMove(extra.sessionId, argument.x, argument.y);
-                    result = JSON.stringify({ name: "automate_mouse_move", resultList: [resultMouseMove] });
+                    result = JSON.stringify({ name, resultList: [resultMouseMove] });
                 }
             }
 
@@ -96,7 +96,7 @@ export default class Automate {
         return { name, config, content };
     };
 
-    mouseClick = (): modelMcp.Irpc<typeof this.inputSchemaMouseClick> => {
+    mouseClick = (): modelTool.Irpc<typeof this.inputSchemaMouseClick> => {
         const name = "automate_mouse_click";
 
         const config = {
@@ -114,7 +114,7 @@ export default class Automate {
 
                 if (runtime) {
                     const resultMouseClick = await runtime.automateMouseClick(extra.sessionId, argument.button);
-                    result = JSON.stringify({ name: "automate_mouse_click", resultList: [resultMouseClick] });
+                    result = JSON.stringify({ name, resultList: [resultMouseClick] });
                 }
             }
 

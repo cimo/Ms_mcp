@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // Source
 import * as modelServer from "../model/Server.js";
-import * as modelMcp from "../model/Mcp.js";
+import * as modelTool from "../model/Tool.js";
 import * as documentParser from "./document/Parser.js";
 
 export default class Document {
@@ -21,7 +21,7 @@ export default class Document {
         });
     }
 
-    parser = (): modelMcp.Irpc<typeof this.inputSchemaParser> => {
+    execute = (): modelTool.Irpc<typeof this.inputSchemaParser> => {
         const name = "document_parser";
 
         const config = {
@@ -40,7 +40,7 @@ export default class Document {
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const resultParser = await documentParser.execute(extra.sessionId, argument.fileName, argument.searchInput);
-                result = JSON.stringify({ name: "document_parser", resultList: [resultParser] });
+                result = JSON.stringify({ name, resultList: [resultParser] });
             }
 
             return {

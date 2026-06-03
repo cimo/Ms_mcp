@@ -12,9 +12,7 @@ const chunkLength = 400;
 
 // Method
 const login = async (uniqueId: string): Promise<string> => {
-    let result = "";
-
-    await instance.api
+    return instance.api
         .get<modelHelperSrc.IresponseBody>("/login", {
             headers: {
                 "Content-Type": "application/json",
@@ -22,21 +20,19 @@ const login = async (uniqueId: string): Promise<string> => {
             }
         })
         .then((resultApi) => {
-            result = JSON.stringify(resultApi.data, null, 2);
+            const data = resultApi.data;
+
+            return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Rag.ts - login() - api(/login) - catch()", error.message);
 
-            result = "ko";
+            return "ko";
         });
-
-    return result;
 };
 
 const embedding = async (uniqueId: string, text: string | string[]): Promise<modelRag.IapiEmbedding[]> => {
-    let result: modelRag.IapiEmbedding[] = [];
-
-    await instance.api
+    return instance.api
         .post<modelHelperSrc.IresponseBody>(
             "/api/embedding",
             {
@@ -50,19 +46,19 @@ const embedding = async (uniqueId: string, text: string | string[]): Promise<mod
             }
         )
         .then((resultApi) => {
-            result = JSON.parse(resultApi.data.response.stdout).data as modelRag.IapiEmbedding[];
+            const stdout = JSON.parse(resultApi.data.response.stdout);
+
+            return stdout.data as modelRag.IapiEmbedding[];
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Rag.ts - embedding() - catch()", error.message);
-        });
 
-    return result;
+            return [];
+        });
 };
 
 const graphifyExtract = async (uniqueId: string, text: string): Promise<modelRag.IapiExtract> => {
-    let result = {} as modelRag.IapiExtract;
-
-    await instance.api
+    return instance.api
         .post<modelHelperSrc.IresponseBody>(
             "/api/ragGraphifyExtract",
             {
@@ -76,19 +72,19 @@ const graphifyExtract = async (uniqueId: string, text: string): Promise<modelRag
             }
         )
         .then((resultApi) => {
-            result = JSON.parse(resultApi.data.response.stdout) as modelRag.IapiExtract;
+            const stdout = JSON.parse(resultApi.data.response.stdout) as modelRag.IapiExtract;
+
+            return stdout;
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Embedding.ts - graphifyExtract() - api(/api/ragGraphifyExtract) - catch()", error.message);
-        });
 
-    return result;
+            return {} as modelRag.IapiExtract;
+        });
 };
 
 const logout = async (uniqueId: string): Promise<string> => {
-    let result = "";
-
-    await instance.api
+    return instance.api
         .get<modelHelperSrc.IresponseBody>("/logout", {
             headers: {
                 "Content-Type": "application/json",
@@ -96,23 +92,23 @@ const logout = async (uniqueId: string): Promise<string> => {
             }
         })
         .then((resultApi) => {
-            result = JSON.stringify(resultApi.data, null, 2);
+            const data = resultApi.data;
+
+            return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Rag.ts - logout() - api(/logout) - catch()", error.message);
 
-            result = "ko";
+            return "ko";
         });
-
-    return result;
 };
 
 const tableNameReplace = (name: string): string => {
     return name.replace(/"/g, '""');
 };
 
-const tableCitationCreate = async (mcpSessionId: string, fileName: string): Promise<boolean> => {
-    let result = false;
+const tableCitationCreate = (mcpSessionId: string, fileName: string): boolean => {
+    let isResult = false;
 
     const tableName = tableNameReplace(`${mcpSessionId}_${fileName}`);
 
@@ -121,10 +117,10 @@ const tableCitationCreate = async (mcpSessionId: string, fileName: string): Prom
             `CREATE VIRTUAL TABLE IF NOT EXISTS "${tableName}" USING vec0(id INTEGER PRIMARY KEY, chunk TEXT NOT NULL, embedding float[768])`
         );
 
-        result = true;
+        isResult = true;
     }
 
-    return result;
+    return isResult;
 };
 
 const tableCitationSelectList = (mcpSessionId: string): string[] => {
@@ -150,7 +146,7 @@ const tableCitationSelectList = (mcpSessionId: string): string[] => {
 };
 
 const tableCitationInsert = (mcpSessionId: string, fileName: string, chunk: string, embedding: number[]): boolean => {
-    let result = false;
+    let isResult = false;
 
     const tableName = tableNameReplace(`${mcpSessionId}_${fileName}`);
 
@@ -159,22 +155,22 @@ const tableCitationInsert = (mcpSessionId: string, fileName: string, chunk: stri
             .prepare(`INSERT INTO "${tableName}" (chunk, embedding) VALUES (?, ?)`)
             .run(chunk, new Uint8Array(new Float32Array(embedding).buffer));
 
-        result = true;
+        isResult = true;
     }
 
-    return result;
+    return isResult;
 };
 
 const tableRelationInsert = (mcpSessionId: string, source: string, verb: string, target: string): boolean => {
-    let result = false;
+    let isResult = false;
 
     if (database) {
         database.prepare("INSERT INTO relation (session_id, source, verb, target) VALUES (?, ?, ?, ?)").run(mcpSessionId, source, verb, target);
 
-        result = true;
+        isResult = true;
     }
 
-    return result;
+    return isResult;
 };
 
 const tableRelationSearch = (mcpSessionId: string, query: string): modelRag.Irelation[] => {
@@ -221,7 +217,7 @@ const tableRelationSearch = (mcpSessionId: string, query: string): modelRag.Irel
 };
 
 export const databaseCreate = (): boolean => {
-    let result = false;
+    let isResult = false;
 
     database = new DatabaseSync(":memory:", { allowExtension: true });
     sqliteVec.load(database);
@@ -231,7 +227,7 @@ export const databaseCreate = (): boolean => {
     if (queryRow) {
         helperSrc.writeLog("Rag.ts - databaseCreate()", `Sqlite version: ${queryRow["sqlite_version"]} - Vec version: ${queryRow["vec_version"]}`);
 
-        result = true;
+        isResult = true;
     }
 
     database.exec(`CREATE TABLE IF NOT EXISTS relation (
@@ -242,14 +238,14 @@ export const databaseCreate = (): boolean => {
         target TEXT NOT NULL
     )`);
 
-    return result;
+    return isResult;
 };
 
-export const databaseStore = async (mcpSessionId: string, uniqueId: string, fileName: string): Promise<string> => {
-    return await instance.runWithContext(async () => {
+export const databaseStore = (mcpSessionId: string, uniqueId: string, fileName: string): Promise<string> => {
+    return instance.runWithContext(async () => {
         await login(uniqueId);
 
-        await tableCitationCreate(mcpSessionId, fileName);
+        tableCitationCreate(mcpSessionId, fileName);
 
         const fileDetail = helperSrc.fileDetail(fileName);
 
@@ -303,8 +299,8 @@ export const databaseStore = async (mcpSessionId: string, uniqueId: string, file
     });
 };
 
-export const databaseSearch = async (mcpSessionId: string, uniqueId: string, prompt: string): Promise<modelRag.IsearchOutput> => {
-    return await instance.runWithContext(async () => {
+export const databaseSearch = (mcpSessionId: string, uniqueId: string, prompt: string): Promise<modelRag.IsearchOutput> => {
+    return instance.runWithContext(async () => {
         const resultCitationList: modelRag.Icitation[] = [];
 
         await login(uniqueId);
@@ -422,34 +418,34 @@ export const databaseSearch = async (mcpSessionId: string, uniqueId: string, pro
     });
 };
 
-export const databaseDelete = async (mcpSessionId: string, fileName: string): Promise<string> => {
-    let result = "";
+export const databaseDelete = async (mcpSessionId: string, fileName: string): Promise<boolean> => {
+    let isResult = false;
 
-    if (!database) {
-        return result;
-    }
+    if (database) {
+        if (fileName === "") {
+            let query = "";
 
-    if (fileName === "") {
-        let query = "";
+            const tableList = tableCitationSelectList(mcpSessionId);
 
-        const tableList = tableCitationSelectList(mcpSessionId);
+            for (let a = 0; a < tableList.length; a++) {
+                const sql = `DROP TABLE IF EXISTS "${tableList[a]}"`;
 
-        for (let a = 0; a < tableList.length; a++) {
-            const sql = `DROP TABLE IF EXISTS "${tableList[a]}"`;
+                query += a === 0 ? sql : `;${sql}`;
+            }
 
-            query += a === 0 ? sql : `;${sql}`;
+            if (query) {
+                database.exec(query);
+            }
+
+            database.prepare("DELETE FROM relation WHERE session_id = ?").run(mcpSessionId);
+        } else {
+            const tableName = tableNameReplace(`${mcpSessionId}_${fileName}`);
+
+            database.exec(`DROP TABLE IF EXISTS "${tableName}"`);
         }
 
-        if (query) {
-            database.exec(query);
-        }
-
-        database.prepare("DELETE FROM relation WHERE session_id = ?").run(mcpSessionId);
-    } else {
-        const tableName = tableNameReplace(`${mcpSessionId}_${fileName}`);
-
-        database.exec(`DROP TABLE IF EXISTS "${tableName}"`);
+        isResult = true;
     }
 
-    return result;
+    return isResult;
 };

@@ -13,7 +13,7 @@ export default class Agent {
     }
 
     tableCreate = (mcpSessionId: string): boolean => {
-        let result = false;
+        let isResult = false;
 
         if (mcpSessionId !== "") {
             this.database.exec(`
@@ -25,26 +25,26 @@ export default class Agent {
                 );
             `);
 
-            result = true;
+            isResult = true;
         }
 
-        return result;
+        return isResult;
     };
 
     tableDrop = (mcpSessionId: string): boolean => {
-        let result = false;
+        let isResult = false;
 
         if (mcpSessionId !== "") {
             this.database.exec(`DROP TABLE IF EXISTS "${mcpSessionId}_agent";`);
 
-            result = true;
+            isResult = true;
         }
 
-        return result;
+        return isResult;
     };
 
     tableInsert = (mcpSessionId: string, name: string, description: string, skill: string): boolean => {
-        let result = false;
+        let isResult = false;
 
         if (mcpSessionId !== "") {
             const queryRun = this.database
@@ -52,15 +52,15 @@ export default class Agent {
                 .run(name, description, skill);
 
             if (queryRun && queryRun.changes > 0) {
-                result = true;
+                isResult = true;
             }
         }
 
-        return result;
+        return isResult;
     };
 
     tableUpdate = (mcpSessionId: string, id: number, name: string, description: string, skill: string): boolean => {
-        let result = false;
+        let isResult = false;
 
         if (mcpSessionId !== "") {
             const queryRun = this.database
@@ -68,11 +68,11 @@ export default class Agent {
                 .run(name, description, skill, id);
 
             if (queryRun && queryRun.changes > 0) {
-                result = true;
+                isResult = true;
             }
         }
 
-        return result;
+        return isResult;
     };
 
     tableSelectList = (mcpSessionId: string): modelAgent.Iagent[] => {
@@ -97,16 +97,16 @@ export default class Agent {
     };
 
     tableDelete = (mcpSessionId: string, id: number): boolean => {
-        let result = false;
+        let isResult = false;
 
         if (mcpSessionId !== "") {
             const queryRun = this.database.prepare(`DELETE FROM "${mcpSessionId}_agent" WHERE id = ?;`).run(id);
 
             if (queryRun && queryRun.changes > 0) {
-                result = true;
+                isResult = true;
             }
         }
 
-        return result;
+        return isResult;
     };
 }

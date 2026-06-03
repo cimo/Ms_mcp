@@ -5,39 +5,31 @@ import * as modelHelperSrc from "../../model/HelperSrc.js";
 import * as model from "./Model.js";
 
 const login = async (): Promise<string> => {
-    let result = "";
-
-    await instance.api
+    return instance.api
         .get<modelHelperSrc.IresponseBody>("/login", {
             headers: {
                 "Content-Type": "application/json"
             }
         })
         .then((resultApi) => {
-            result = JSON.stringify(resultApi.data, null, 2);
+            const data = resultApi.data;
+
+            return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Extract.ts - login() - api(/login) - catch()", error.message);
 
-            result = "ko";
+            return "ko";
         });
-
-    return result;
 };
 
-const extract = async (
-    mcpSessionId: string,
-    language: string,
-    fileName: string,
-    searchText: string,
-    mode: string
-): Promise<model.ItoolOcrResult[]> => {
-    return new Promise<model.ItoolOcrResult[]>((resolve) => {
-        const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/${fileName}`;
-
+const extract = (mcpSessionId: string, language: string, fileName: string, searchText: string, mode: string): Promise<model.ItoolOcrResult[]> => {
+    return new Promise((resolve, reject) => {
         const fileDetail = helperSrc.fileDetail(fileName);
 
-        helperSrc.fileReadStream(input, async (resultFileReadStream) => {
+        const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/${fileName}`;
+
+        helperSrc.fileReadStream(input, (resultFileReadStream) => {
             if (Buffer.isBuffer(resultFileReadStream)) {
                 const buffer = Buffer.from(resultFileReadStream);
                 const blob = new Blob([buffer], { type: fileDetail.mimeType });
@@ -48,21 +40,19 @@ const extract = async (
                 formData.append("searchText", searchText);
                 formData.append("mode", mode);
 
-                await instance.api
+                instance.api
                     .post<modelHelperSrc.IresponseBody>("/api/extract", {}, formData)
                     .then((resultApi) => {
+                        const stdout = JSON.parse(resultApi.data.response.stdout) as model.ItoolOcrResponse[];
+
                         let resultList: model.ItoolOcrResult[] = [];
 
-                        const stdoutList: model.ItoolOcrResponse[] = JSON.parse(resultApi.data.response.stdout);
-
-                        for (let a = 0; a < stdoutList.length; a++) {
-                            const stdout = stdoutList[a];
-
+                        for (let a = 0; a < stdout.length; a++) {
                             const x: number[] = [];
                             const y: number[] = [];
 
-                            for (let b = 0; b < stdout.polygon.length; b++) {
-                                const point = stdout.polygon[b];
+                            for (let b = 0; b < stdout[a].polygon.length; b++) {
+                                const point = stdout[a].polygon[b];
 
                                 x.push(point[0]);
                                 y.push(point[1]);
@@ -74,13 +64,13 @@ const extract = async (
                             const yMax = Math.max(...y);
 
                             resultList.push({
-                                id: stdout.id,
-                                text: stdout.text,
+                                id: stdout[a].id,
+                                text: stdout[a].text,
                                 centerPoint: {
                                     x: (xMin + xMax) / 2,
                                     y: (yMin + yMax) / 2
                                 },
-                                isMatch: stdout.isMatch
+                                isMatch: stdout[a].isMatch
                             });
                         }
 
@@ -89,48 +79,46 @@ const extract = async (
                     .catch((error: Error) => {
                         helperSrc.writeLog("Extract.ts - extract() - api(/extract) - catch()", error.message);
 
-                        resolve([]);
+                        reject(new Error(error.message));
                     });
             } else {
                 helperSrc.writeLog(`Extract.ts - extract() - fileReadStream()`, resultFileReadStream.toString());
 
-                resolve([]);
+                reject(new Error(resultFileReadStream.toString()));
             }
         });
     });
 };
 
 const logout = async (): Promise<string> => {
-    let result = "";
-
-    await instance.api
+    return instance.api
         .get<modelHelperSrc.IresponseBody>("/logout", {
             headers: {
                 "Content-Type": "application/json"
             }
         })
         .then((resultApi) => {
-            result = JSON.stringify(resultApi.data, null, 2);
+            const data = resultApi.data;
+
+            return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Extract.ts - logout() - api(/logout) - catch()", error.message);
 
-            result = "ko";
+            return "ko";
         });
-
-    return result;
 };
 
-export const execute = async (mcpSessionId: string, language: string, fileName: string, searchText: string, mode: string): Promise<string> => {
-    return await instance.runWithContext(async () => {
-        let result: model.ItoolOcrResult[] = [];
+export const execute = (mcpSessionId: string, language: string, fileName: string, searchText: string, mode: string): Promise<string> => {
+    return instance.runWithContext(async () => {
+        let resultList: model.ItoolOcrResult[] = [];
 
         await login();
 
-        result = await extract(mcpSessionId, language, fileName, searchText, mode);
+        resultList = await extract(mcpSessionId, language, fileName, searchText, mode);
 
         await logout();
 
-        return JSON.stringify(result);
+        return JSON.stringify(resultList);
     });
 };

@@ -1,16 +1,16 @@
 // Source
 import * as helperSrc from "../HelperSrc.js";
-import * as modelMcp from "../model/Mcp.js";
+import * as modelTool from "../model/Tool.js";
 import * as automateDisplay from "../tool/automate/Display.js";
 import * as automateMouse from "../tool/automate/Mouse.js";
 import * as browserChrome from "../tool/browser/Chrome.js";
 import * as ocrExtract from "../tool/ocr/Extract.js";
 
-process.on("message", async (data: modelMcp.IruntimeWorkerMessageData) => {
-    let resultProcess = {} as modelMcp.IruntimeHandlerData;
+process.on("message", (data: modelTool.IruntimeWorkerMessageData) => {
+    let resultProcess = {} as modelTool.IruntimeHandlerData;
 
     if (data.tool === "automateScreenshot") {
-        await automateDisplay
+        automateDisplay
             .screenshot(data.mcpSessionId)
             .then((result) => {
                 resultProcess = { id: data.id, result };
@@ -31,7 +31,7 @@ process.on("message", async (data: modelMcp.IruntimeWorkerMessageData) => {
 
         return;
     } else if (data.tool === "automateMouseMove") {
-        await automateMouse
+        automateMouse
             .move(data.argumentList[0] as number, data.argumentList[1] as number)
             .then(() => {
                 resultProcess = { id: data.id, result: "ok" };
@@ -52,7 +52,7 @@ process.on("message", async (data: modelMcp.IruntimeWorkerMessageData) => {
 
         return;
     } else if (data.tool === "automateMouseClick") {
-        await automateMouse
+        automateMouse
             .click(data.argumentList[0] as number)
             .then(() => {
                 resultProcess = { id: data.id, result: "ok" };
@@ -72,8 +72,8 @@ process.on("message", async (data: modelMcp.IruntimeWorkerMessageData) => {
             });
 
         return;
-    } else if (data.tool === "chrome") {
-        await browserChrome
+    } else if (data.tool === "browserChrome") {
+        browserChrome
             .execute(data.argumentList[0] as string)
             .then(() => {
                 resultProcess = { id: data.id, result: "ok" };
@@ -86,7 +86,7 @@ process.on("message", async (data: modelMcp.IruntimeWorkerMessageData) => {
                 resultProcess = { ...resultProcess, error: `Process ${data.tool} failed.` };
 
                 if (process.send) {
-                    helperSrc.writeLog("RuntimeWorker.ts - process.on(message) - chrome - catch()", error.message);
+                    helperSrc.writeLog("RuntimeWorker.ts - process.on(message) - browserChrome - catch()", error.message);
 
                     process.send(resultProcess);
                 }
@@ -94,7 +94,7 @@ process.on("message", async (data: modelMcp.IruntimeWorkerMessageData) => {
 
         return;
     } else if (data.tool === "ocrExecute") {
-        await ocrExtract
+        ocrExtract
             .execute(
                 data.mcpSessionId,
                 data.argumentList[0] as string,

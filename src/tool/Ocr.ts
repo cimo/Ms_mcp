@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // Source
 import * as modelServer from "../model/Server.js";
-import * as modelMcp from "../model/Mcp.js";
+import * as modelTool from "../model/Tool.js";
 
 export default class Ocr {
     // Variable
@@ -22,7 +22,7 @@ export default class Ocr {
         });
     }
 
-    execute = (): modelMcp.Irpc<typeof this.inputSchemaExecute> => {
+    execute = (): modelTool.Irpc<typeof this.inputSchemaExecute> => {
         const name = "ocr_execute";
 
         const config = {
@@ -52,7 +52,7 @@ export default class Ocr {
                         argument.searchText,
                         argument.mode
                     );
-                    result = JSON.stringify({ name: "ocr_execute", resultList: [resultOcr] });
+                    result = JSON.stringify({ name, resultList: [resultOcr] });
                 }
             }
 

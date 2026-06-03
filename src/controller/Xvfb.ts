@@ -41,7 +41,7 @@ export default class Xvfb {
 
         helperSrc.writeLog("Xvfb.ts - start()", `Display: ${display} - mcpSessionId: ${mcpSessionId}`);
 
-        await helperSrc.terminalExecution(`Xvfb :${display} -screen 0 1920x1080x24 >> "${helperSrc.PATH_ROOT}${helperSrc.PATH_LOG}xvfb.log" 2>&1`);
+        await helperSrc.executionTerminal(`Xvfb :${display} -screen 0 1920x1080x24 >> "${helperSrc.PATH_ROOT}${helperSrc.PATH_LOG}xvfb.log" 2>&1 &`);
 
         const runtimeWorker = fork(`${helperSrc.PATH_ROOT}dist/src/controller/RuntimeWorker.js`, [], {
             silent: true,
@@ -79,10 +79,10 @@ export default class Xvfb {
 
             this.sessionObject[mcpSessionId].runtimeWorker.kill();
 
-            await helperSrc.terminalExecution(`pkill -f "Xvfb :${display}"`);
+            await helperSrc.executionTerminal(`pkill -f "Xvfb :${display}"`);
 
-            await helperSrc.terminalExecution(`rm -rf /tmp/.X11-unix/X${display}`);
-            await helperSrc.terminalExecution(`rm -rf /tmp/.X${display}-lock`);
+            await helperSrc.executionTerminal(`rm -rf /tmp/.X11-unix/X${display}`);
+            await helperSrc.executionTerminal(`rm -rf /tmp/.X${display}-lock`);
         }
     };
 }

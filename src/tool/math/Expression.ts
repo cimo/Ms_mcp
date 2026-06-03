@@ -216,7 +216,7 @@ const evaluate = (rpnList: model.Ttoken[]): number => {
     return stack[0];
 };
 
-export const execute = (input: string): number => {
+export const execute = async (input: string): Promise<number> => {
     const tokenList = tokenize(input);
     const rpnList = toRpn(tokenList);
 

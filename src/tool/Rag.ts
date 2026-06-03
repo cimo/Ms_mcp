@@ -3,7 +3,7 @@ import { z } from "zod";
 // Source
 import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
-import * as modelMcp from "../model/Mcp.js";
+import * as modelTool from "../model/Tool.js";
 import * as ragEmbedding from "./rag/Embedding.js";
 
 export default class Rag {
@@ -33,7 +33,7 @@ export default class Rag {
         ragEmbedding.databaseCreate();
     }
 
-    store = (): modelMcp.Irpc<typeof this.inputSchemaStore> => {
+    store = (): modelTool.Irpc<typeof this.inputSchemaStore> => {
         const name = "rag_store";
 
         const config = {
@@ -51,7 +51,7 @@ export default class Rag {
 
                 const resultStore = await ragEmbedding.databaseStore(extra.sessionId, uniqueId, argument.fileName);
 
-                result = JSON.stringify({ name: "rag_store", resultList: [resultStore] });
+                result = JSON.stringify({ name, resultList: [resultStore] });
             }
 
             return {
@@ -67,7 +67,7 @@ export default class Rag {
         return { name, config, content };
     };
 
-    search = (): modelMcp.Irpc<typeof this.inputSchemaSearch> => {
+    search = (): modelTool.Irpc<typeof this.inputSchemaSearch> => {
         const name = "rag_search";
 
         const config = {
@@ -93,12 +93,7 @@ export default class Rag {
                     const citationList = resultSearch.citationList;
                     const relationList = resultSearch.relationList;
 
-                    result = JSON.stringify({
-                        name: "rag_search",
-                        resultList: [{ citationList, relationList }]
-                    });
-                } else {
-                    result = "No uploaded document.";
+                    result = JSON.stringify({ name, resultList: [{ citationList, relationList }] });
                 }
             }
 
@@ -115,7 +110,7 @@ export default class Rag {
         return { name, config, content };
     };
 
-    delete = (): modelMcp.Irpc<typeof this.inputSchemaDelete> => {
+    delete = (): modelTool.Irpc<typeof this.inputSchemaDelete> => {
         const name = "rag_delete";
 
         const config = {
@@ -131,7 +126,7 @@ export default class Rag {
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const resultDelete = await ragEmbedding.databaseDelete(extra.sessionId, argument.fileName);
 
-                result = JSON.stringify({ name: "rag_delete", resultList: [resultDelete] });
+                result = JSON.stringify({ name, resultList: [resultDelete] });
             }
 
             return {

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // Source
 import * as modelServer from "../model/Server.js";
-import * as modelMcp from "../model/Mcp.js";
+import * as modelTool from "../model/Tool.js";
 import * as mathExpression from "./math/Expression.js";
 
 export default class Math {
@@ -20,7 +20,7 @@ export default class Math {
         });
     }
 
-    expression = (): modelMcp.Irpc<typeof this.inputSchemaExpression> => {
+    execute = (): modelTool.Irpc<typeof this.inputSchemaExpression> => {
         const name = "math_expression";
 
         const config = {
@@ -37,8 +37,8 @@ export default class Math {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultExpression = mathExpression.execute(argument.input).toString();
-                result = JSON.stringify({ name: "math_expression", resultList: [resultExpression] });
+                const resultExpression = await mathExpression.execute(argument.input);
+                result = JSON.stringify({ name, resultList: [resultExpression] });
             }
 
             return {

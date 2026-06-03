@@ -4,30 +4,26 @@ import * as instance from "./Instance.js";
 import * as modelHelperSrc from "../../model/HelperSrc.js";
 
 const login = async (): Promise<string> => {
-    let result = "";
-
-    await instance.api
+    return instance.api
         .get<modelHelperSrc.IresponseBody>("/login", {
             headers: {
                 "Content-Type": "application/json"
             }
         })
         .then((resultApi) => {
-            result = JSON.stringify(resultApi.data, null, 2);
+            const data = resultApi.data;
+
+            return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Scanner.ts - login() - api(/login) - catch()", error.message);
 
-            result = "ko";
+            return "ko";
         });
-
-    return result;
 };
 
 const scan = async (mode: string, target: string): Promise<string> => {
-    let result = "";
-
-    await instance.api
+    return instance.api
         .post<modelHelperSrc.IresponseBody>(
             "/api/check",
             {
@@ -38,40 +34,38 @@ const scan = async (mode: string, target: string): Promise<string> => {
             { mode, target }
         )
         .then((resultApi) => {
-            result = Buffer.from(resultApi.data.response.stdout, "base64").toString("utf-8");
+            const stdout = resultApi.data.response.stdout;
+
+            return Buffer.from(stdout, "base64").toString("utf-8");
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Scanner.ts - scan() - api(/api/check) - catch()", error.message);
 
-            result = "ko";
+            return "ko";
         });
-
-    return result;
 };
 
 const logout = async (): Promise<string> => {
-    let result = "";
-
-    await instance.api
+    return instance.api
         .get<modelHelperSrc.IresponseBody>("/logout", {
             headers: {
                 "Content-Type": "application/json"
             }
         })
         .then((resultApi) => {
-            result = JSON.stringify(resultApi.data, null, 2);
+            const data = resultApi.data;
+
+            return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Scanner.ts - logout() - api(/logout) - catch()", error.message);
 
-            result = "ko";
+            return "ko";
         });
-
-    return result;
 };
 
-export const execute = async (mode: string, target: string): Promise<string> => {
-    return await instance.runWithContext(async () => {
+export const execute = (mode: string, target: string): Promise<string> => {
+    return instance.runWithContext(async () => {
         await login();
 
         const result = await scan(mode, target);

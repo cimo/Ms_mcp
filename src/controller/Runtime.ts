@@ -2,7 +2,7 @@ import { ChildProcess } from "child_process";
 
 // Source
 import * as helperSrc from "../HelperSrc.js";
-import * as modelMcp from "../model/Mcp.js";
+import * as modelTool from "../model/Tool.js";
 
 export default class Runtime {
     private runtimeWorker: ChildProcess;
@@ -23,7 +23,7 @@ export default class Runtime {
 
             const id = crypto.randomUUID();
 
-            const handler = (data: modelMcp.IruntimeHandlerData) => {
+            const handler = (data: modelTool.IruntimeHandlerData) => {
                 if (data.id === id) {
                     clearTimeout(timeout);
 
@@ -73,9 +73,9 @@ export default class Runtime {
         });
     }
 
-    async chrome(mcpSessionId: string, url: string): Promise<string> {
-        return this.callRuntimeWorker(mcpSessionId, "chrome", [url]).catch((error: Error) => {
-            helperSrc.writeLog("Runtime.ts - chrome() - callRuntimeWorker() - catch()", error.message);
+    async browserChrome(mcpSessionId: string, url: string): Promise<string> {
+        return this.callRuntimeWorker(mcpSessionId, "browserChrome", [url]).catch((error: Error) => {
+            helperSrc.writeLog("Runtime.ts - browserChrome() - callRuntimeWorker() - catch()", error.message);
 
             return "ko";
         });

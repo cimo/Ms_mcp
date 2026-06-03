@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // Source
 import * as modelServer from "../model/Server.js";
-import * as modelMcp from "../model/Mcp.js";
+import * as modelTool from "../model/Tool.js";
 
 export default class Browser {
     // Variable
@@ -19,8 +19,8 @@ export default class Browser {
         });
     }
 
-    chrome = (): modelMcp.Irpc<typeof this.inputSchemaChrome> => {
-        const name = "chrome";
+    execute = (): modelTool.Irpc<typeof this.inputSchemaChrome> => {
+        const name = "browser_chrome";
 
         const config = {
             description: ["Open the browser chrome application."].join("\n"),
@@ -36,8 +36,8 @@ export default class Browser {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    const resultChrome = await runtime.chrome(extra.sessionId, argument.url);
-                    result = JSON.stringify({ name: "chrome", resultList: [resultChrome] });
+                    const resultChrome = await runtime.browserChrome(extra.sessionId, argument.url);
+                    result = JSON.stringify({ name, resultList: [resultChrome] });
                 }
             }
 

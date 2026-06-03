@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // Source
 import * as modelServer from "../model/Server.js";
-import * as modelMcp from "../model/Mcp.js";
+import * as modelTool from "../model/Tool.js";
 import * as securityScanner from "./security/Scanner.js";
 
 export default class Security {
@@ -21,7 +21,7 @@ export default class Security {
         });
     }
 
-    scanner = (): modelMcp.Irpc<typeof this.inputSchemaParser> => {
+    execute = (): modelTool.Irpc<typeof this.inputSchemaParser> => {
         const name = "security_scanner";
 
         const config = {
@@ -44,7 +44,7 @@ export default class Security {
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const resultScan = await securityScanner.execute(argument.mode, argument.target);
 
-                result = JSON.stringify({ name: "security_scanner", resultList: [resultScan] });
+                result = JSON.stringify({ name, resultList: [resultScan] });
             }
 
             return {
