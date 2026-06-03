@@ -40,7 +40,7 @@ export default class Document {
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const resultParser = await documentParser.execute(extra.sessionId, argument.fileName, argument.searchInput);
-                result = JSON.stringify({ name, resultList: [resultParser] });
+                result = JSON.stringify({ name, resultList: [JSON.parse(resultParser)] });
             }
 
             return {

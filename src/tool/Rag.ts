@@ -126,7 +126,7 @@ export default class Rag {
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const resultDelete = await ragEmbedding.databaseDelete(extra.sessionId, argument.fileName);
 
-                result = JSON.stringify({ name, resultList: [resultDelete] });
+                result = JSON.stringify({ name, resultList: [resultDelete.toString()] });
             }
 
             return {
