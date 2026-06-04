@@ -317,12 +317,16 @@ export default class Tool {
                     inputFileName = fileDetail.fileName;
                 }
 
-                helperSrc.findInDirectoryRecursive(input, inputExtension, (pathFileList) => {
+                helperSrc.findInDirectoryRecursive(input, inputExtension).then((pathFileList) => {
+                    let isFound = false;
+
                     for (let a = 0; a < pathFileList.length; a++) {
                         const pathFile = pathFileList[a];
 
                         if (pathFile.endsWith(inputFileName)) {
-                            helperSrc.fileReadStream(pathFile, (resultFileReadStream) => {
+                            isFound = true;
+
+                            helperSrc.fileReadStream(pathFile).then((resultFileReadStream) => {
                                 if (Buffer.isBuffer(resultFileReadStream)) {
                                     const readObject = {
                                         fileContent: resultFileReadStream.toString("base64"),
@@ -343,6 +347,12 @@ export default class Tool {
                             break;
                         }
                     }
+
+                    if (!isFound) {
+                        helperSrc.writeLog("Tool.ts - api() - post(/api/document-read) - Error", "File not found.");
+
+                        helperSrc.responseBody(JSON.stringify({ fileContent: "", pageTotal: 0 }), "", response, 200);
+                    }
                 });
             } else {
                 helperSrc.writeLog("Tool.ts - api() - post(/api/document-read) - Error", "Missing or invalid header.");
@@ -351,7 +361,7 @@ export default class Tool {
             }
         });
 
-        this.app.post("/api/document-delete", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
+        this.app.post("/api/document-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body;
 
@@ -361,17 +371,17 @@ export default class Tool {
             if (typeof mcpSessionId === "string") {
                 const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
 
-                helperSrc.fileOrFolderDelete(input, async (result) => {
-                    if (typeof result !== "boolean") {
-                        helperSrc.writeLog("Tool.ts - api() - post(/api/document-delete) - fileOrFolderDelete()", result.toString());
+                const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(input);
 
-                        helperSrc.responseBody("", result.toString(), response, 500);
-                    } else {
-                        await this.toolRag.delete().content({ fileName }, { sessionId: mcpSessionId });
+                if (typeof fileOrFolderDelete !== "boolean") {
+                    helperSrc.writeLog("Tool.ts - api() - post(/api/document-delete) - fileOrFolderDelete()", fileOrFolderDelete.toString());
 
-                        helperSrc.responseBody("ok", "", response, 200);
-                    }
-                });
+                    helperSrc.responseBody("", fileOrFolderDelete.toString(), response, 500);
+                } else {
+                    await this.toolRag.delete().content({ fileName }, { sessionId: mcpSessionId });
+
+                    helperSrc.responseBody("ok", "", response, 200);
+                }
             } else {
                 helperSrc.writeLog("Tool.ts - api() - post(/api/document-delete) - Error", "Missing or invalid header.");
 
@@ -415,7 +425,7 @@ export default class Tool {
             if (typeof mcpSessionId === "string") {
                 const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
 
-                helperSrc.findInDirectoryRecursive(input, ".*", (pathFileList) => {
+                helperSrc.findInDirectoryRecursive(input, ".*").then((pathFileList) => {
                     let status = "Ongoing";
 
                     for (let a = 0; a < pathFileList.length; a++) {
@@ -524,12 +534,16 @@ export default class Tool {
             if (typeof mcpSessionId === "string") {
                 const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/${fileName}/`;
 
-                helperSrc.findInDirectoryRecursive(input, ".md", (pathFileList) => {
+                helperSrc.findInDirectoryRecursive(input, ".md").then((pathFileList) => {
+                    let isFound = false;
+
                     for (let a = 0; a < pathFileList.length; a++) {
                         const pathFile = pathFileList[a];
 
                         if (pathFile.endsWith("skill.md")) {
-                            helperSrc.fileReadStream(pathFile, (resultFileReadStream) => {
+                            isFound = true;
+
+                            helperSrc.fileReadStream(pathFile).then((resultFileReadStream) => {
                                 if (Buffer.isBuffer(resultFileReadStream)) {
                                     helperSrc.responseBody(resultFileReadStream.toString("base64"), "", response, 200);
                                 } else {
@@ -542,6 +556,12 @@ export default class Tool {
                             break;
                         }
                     }
+
+                    if (!isFound) {
+                        helperSrc.writeLog("Tool.ts - api() - post(/api/skill-read) - Error", "File not found.");
+
+                        helperSrc.responseBody("", "", response, 200);
+                    }
                 });
             } else {
                 helperSrc.writeLog("Tool.ts - api() - post(/api/skill-read) - Error", "Missing or invalid header.");
@@ -550,7 +570,7 @@ export default class Tool {
             }
         });
 
-        this.app.post("/api/skill-delete", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
+        this.app.post("/api/skill-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body;
 
@@ -559,15 +579,15 @@ export default class Tool {
             if (typeof mcpSessionId === "string") {
                 const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/${fileName}/`;
 
-                helperSrc.fileOrFolderDelete(input, (result) => {
-                    if (typeof result !== "boolean") {
-                        helperSrc.writeLog("Tool.ts - api() - post(/api/skill-delete) - fileOrFolderDelete()", result.toString());
+                const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(input);
 
-                        helperSrc.responseBody("", result.toString(), response, 500);
-                    } else {
-                        helperSrc.responseBody("ok", "", response, 200);
-                    }
-                });
+                if (typeof fileOrFolderDelete !== "boolean") {
+                    helperSrc.writeLog("Tool.ts - api() - post(/api/skill-delete) - fileOrFolderDelete()", fileOrFolderDelete.toString());
+
+                    helperSrc.responseBody("", fileOrFolderDelete.toString(), response, 500);
+                } else {
+                    helperSrc.responseBody("ok", "", response, 200);
+                }
             } else {
                 helperSrc.writeLog("Tool.ts - api() - post(/api/skill-delete) - Error", "Missing or invalid header.");
 
@@ -727,11 +747,11 @@ export default class Tool {
 
                             const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/screenshot.jpg`;
 
-                            helperSrc.fileOrFolderDelete(input, (resultFileDelete) => {
-                                if (typeof resultFileDelete !== "boolean") {
-                                    helperSrc.writeLog("Tool.ts - api() - post(/api/task-call) - fileOrFolderDelete()", resultFileDelete.toString());
-                                }
-                            });
+                            const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(input);
+
+                            if (typeof fileOrFolderDelete !== "boolean") {
+                                helperSrc.writeLog("Tool.ts - api() - post(/api/task-call) - fileOrFolderDelete()", fileOrFolderDelete.toString());
+                            }
 
                             count++;
                         }

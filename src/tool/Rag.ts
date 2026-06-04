@@ -50,8 +50,7 @@ export default class Rag {
                 const uniqueId = helperSrc.generateUniqueId();
 
                 const resultStore = await ragEmbedding.databaseStore(extra.sessionId, uniqueId, argument.fileName);
-
-                result = JSON.stringify({ name, resultList: [resultStore] });
+                result = JSON.stringify({ name, result: resultStore });
             }
 
             return {
@@ -90,10 +89,7 @@ export default class Rag {
                     const uniqueId = helperSrc.generateUniqueId();
 
                     const resultSearch = await ragEmbedding.databaseSearch(extra.sessionId, uniqueId, argument.prompt);
-                    const citationList = resultSearch.citationList;
-                    const relationList = resultSearch.relationList;
-
-                    result = JSON.stringify({ name, resultList: [{ citationList, relationList }] });
+                    result = JSON.stringify({ name, result: JSON.parse(resultSearch) });
                 }
             }
 
@@ -125,8 +121,7 @@ export default class Rag {
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const resultDelete = await ragEmbedding.databaseDelete(extra.sessionId, argument.fileName);
-
-                result = JSON.stringify({ name, resultList: [resultDelete.toString()] });
+                result = JSON.stringify({ name, result: resultDelete });
             }
 
             return {

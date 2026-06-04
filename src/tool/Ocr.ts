@@ -45,14 +45,14 @@ export default class Ocr {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    const resultOcr = await runtime.ocrExecute(
+                    const resultRuntime = await runtime.ocrExecute(
                         extra.sessionId,
                         argument.language,
                         argument.fileName,
                         argument.searchText,
                         argument.mode
                     );
-                    result = JSON.stringify({ name, resultList: [resultOcr] });
+                    result = JSON.stringify({ name, result: resultRuntime });
                 }
             }
 

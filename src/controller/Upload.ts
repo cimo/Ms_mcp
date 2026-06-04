@@ -75,26 +75,24 @@ export default class Upload {
 
                             Fs.mkdir(path, { recursive: true }, (error) => {
                                 if (!error) {
-                                    if (isFileExists) {
-                                        Fs.access(pathFile, Fs.constants.F_OK, (error) => {
-                                            if (!error) {
-                                                reject(new Error("File exists."));
+                                    Fs.access(pathFile, Fs.constants.F_OK, (errorAccess) => {
+                                        if (isFileExists && !errorAccess) {
+                                            reject(new Error("File exists."));
+
+                                            return;
+                                        }
+
+                                        helperSrc.fileWriteStream(pathFile, formData.buffer).then((resultFileWriteStream) => {
+                                            if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
+                                                resolve(formDataList);
+
+                                                return;
+                                            } else {
+                                                reject(new Error("Write failed."));
 
                                                 return;
                                             }
                                         });
-                                    }
-
-                                    helperSrc.fileWriteStream(pathFile, formData.buffer, (resultFileWriteStream) => {
-                                        if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
-                                            resolve(formDataList);
-
-                                            return;
-                                        } else {
-                                            reject(new Error("Write failed."));
-
-                                            return;
-                                        }
                                     });
                                 } else {
                                     helperSrc.writeLog("Upload.ts - execute() - request.on() - mkdir() - Error", error.message);

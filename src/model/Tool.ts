@@ -31,7 +31,7 @@ export interface Irpc<TSchema extends z.ZodTypeAny> {
 
 export interface ItoolResponse {
     name: string;
-    resultList: [];
+    result: unknown;
 }
 
 export interface Itool {

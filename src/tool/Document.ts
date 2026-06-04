@@ -39,8 +39,8 @@ export default class Document {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultParser = await documentParser.execute(extra.sessionId, argument.fileName, argument.searchInput);
-                result = JSON.stringify({ name, resultList: [JSON.parse(resultParser)] });
+                const resultExecute = await documentParser.execute(extra.sessionId, argument.fileName, argument.searchInput);
+                result = JSON.stringify({ name, result: JSON.parse(resultExecute) });
             }
 
             return {

@@ -243,6 +243,8 @@ export const databaseCreate = (): boolean => {
 
 export const databaseStore = (mcpSessionId: string, uniqueId: string, fileName: string): Promise<string> => {
     return instance.runWithContext(async () => {
+        let result = "ko";
+
         await login(uniqueId);
 
         tableCitationCreate(mcpSessionId, fileName);
@@ -251,59 +253,61 @@ export const databaseStore = (mcpSessionId: string, uniqueId: string, fileName: 
 
         const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
 
-        helperSrc.fileReadStream(`${inputFolder}result.md`, async (resultFileReadStream) => {
-            if (Buffer.isBuffer(resultFileReadStream)) {
-                const text = resultFileReadStream.toString();
+        const resultFileReadStream = await helperSrc.fileReadStream(`${inputFolder}result.md`);
 
-                for (let a = 0; a < text.length; a += chunkLength) {
-                    const chunk = text.slice(a, a + chunkLength);
+        if (Buffer.isBuffer(resultFileReadStream)) {
+            const text = resultFileReadStream.toString();
 
-                    const data = await embedding(uniqueId, chunk);
+            for (let a = 0; a < text.length; a += chunkLength) {
+                const chunk = text.slice(a, a + chunkLength);
 
-                    if (data.length > 0 && data[0].embedding.length > 0) {
-                        tableCitationInsert(mcpSessionId, fileName, chunk, data[0].embedding);
+                const data = await embedding(uniqueId, chunk);
 
-                        const graphData = await graphifyExtract(uniqueId, chunk);
+                if (data.length > 0 && data[0].embedding.length > 0) {
+                    tableCitationInsert(mcpSessionId, fileName, chunk, data[0].embedding);
 
-                        if (Array.isArray(graphData.relationList)) {
-                            for (let b = 0; b < graphData.relationList.length; b++) {
-                                const graphRelation = graphData.relationList[b];
+                    const graphData = await graphifyExtract(uniqueId, chunk);
 
-                                tableRelationInsert(mcpSessionId, graphRelation.source, graphRelation.verb, graphRelation.target);
-                            }
+                    if (Array.isArray(graphData.relationList)) {
+                        for (let b = 0; b < graphData.relationList.length; b++) {
+                            const graphRelation = graphData.relationList[b];
+
+                            tableRelationInsert(mcpSessionId, graphRelation.source, graphRelation.verb, graphRelation.target);
                         }
-                    } else {
-                        helperSrc.fileWriteStream(`${inputFolder}.fail`, Buffer.from(""), () => {});
-
-                        await logout(uniqueId);
-
-                        return "";
                     }
+
+                    result = "ok";
                 }
-            } else {
-                helperSrc.writeLog(`Embedding.ts - databaseStore() - fileReadStream()`, resultFileReadStream.toString());
-
-                helperSrc.fileWriteStream(`${inputFolder}.fail`, Buffer.from(""), () => {});
-
-                await logout(uniqueId);
-
-                return "";
             }
+        } else {
+            helperSrc.writeLog("Embedding.ts - databaseStore() - fileReadStream()", resultFileReadStream.toString());
+        }
 
-            helperSrc.fileWriteStream(`${inputFolder}.done`, Buffer.from(""), () => {});
+        if (result === "ok") {
+            const fileWriteStreamDone = await helperSrc.fileWriteStream(`${inputFolder}.done`, Buffer.from(""));
 
-            await logout(uniqueId);
-        });
+            if (typeof fileWriteStreamDone !== "boolean") {
+                helperSrc.writeLog("Embedding.ts - databaseStore() - fileWriteStream(.done)", fileWriteStreamDone.toString());
+            }
+        } else {
+            const fileWriteStreamFail = await helperSrc.fileWriteStream(`${inputFolder}.fail`, Buffer.from(""));
 
-        return "";
+            if (typeof fileWriteStreamFail !== "boolean") {
+                helperSrc.writeLog("Embedding.ts - databaseStore() - fileWriteStream(.fail)", fileWriteStreamFail.toString());
+            }
+        }
+
+        await logout(uniqueId);
+
+        return result;
     });
 };
 
-export const databaseSearch = (mcpSessionId: string, uniqueId: string, prompt: string): Promise<modelRag.IsearchOutput> => {
+export const databaseSearch = (mcpSessionId: string, uniqueId: string, prompt: string): Promise<string> => {
     return instance.runWithContext(async () => {
-        const resultCitationList: modelRag.Icitation[] = [];
-
         await login(uniqueId);
+
+        const citationList: modelRag.Icitation[] = [];
 
         const data = await embedding(uniqueId, prompt);
 
@@ -403,7 +407,7 @@ export const databaseSearch = (mcpSessionId: string, uniqueId: string, prompt: s
                 for (let a = 0; a < citationCleanedList.length; a++) {
                     const citation = citationCleanedList[a];
 
-                    resultCitationList.push({
+                    citationList.push({
                         fileName: citation.fileName,
                         chunk: citation.chunk,
                         distance: citation.distance
@@ -414,12 +418,12 @@ export const databaseSearch = (mcpSessionId: string, uniqueId: string, prompt: s
 
         await logout(uniqueId);
 
-        return { citationList: resultCitationList, relationList: tableRelationSearch(mcpSessionId, prompt) };
+        return JSON.stringify({ citationList, relationList: tableRelationSearch(mcpSessionId, prompt) });
     });
 };
 
-export const databaseDelete = async (mcpSessionId: string, fileName: string): Promise<boolean> => {
-    let isResult = false;
+export const databaseDelete = async (mcpSessionId: string, fileName: string): Promise<string> => {
+    let result = "ko";
 
     if (database) {
         if (fileName === "") {
@@ -444,8 +448,8 @@ export const databaseDelete = async (mcpSessionId: string, fileName: string): Pr
             database.exec(`DROP TABLE IF EXISTS "${tableName}"`);
         }
 
-        isResult = true;
+        result = "ok";
     }
 
-    return isResult;
+    return result;
 };

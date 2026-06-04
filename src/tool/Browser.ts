@@ -36,8 +36,8 @@ export default class Browser {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    const resultChrome = await runtime.browserChrome(extra.sessionId, argument.url);
-                    result = JSON.stringify({ name, resultList: [resultChrome] });
+                    const resultRuntime = await runtime.browserChrome(extra.sessionId, argument.url);
+                    result = JSON.stringify({ name, result: resultRuntime });
                 }
             }
 

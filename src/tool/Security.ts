@@ -28,7 +28,7 @@ export default class Security {
             description: ["Perform a security scan on the docker tag image or repository."].join("\n"),
             example: [
                 "- Scan with the mode 'image' for the target 'cimo001/ms_cronjob:1.0.0'",
-                "- Scan with the mode 'url' for the target 'https://github.com/cimo/Ms_cronjob'"
+                "- Scan with the mode 'repository' for the target 'https://github.com/cimo/Ms_cronjob'"
             ].join("\n"),
             inputInstruction: [
                 "You MUST need to extract, from the user text, ONLY the following schema:",
@@ -42,9 +42,8 @@ export default class Security {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultScan = await securityScanner.execute(argument.mode, argument.target);
-
-                result = JSON.stringify({ name, resultList: [resultScan] });
+                const resultExecute = await securityScanner.execute(argument.mode, argument.target);
+                result = JSON.stringify({ name, result: resultExecute });
             }
 
             return {

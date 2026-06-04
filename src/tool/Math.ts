@@ -37,8 +37,8 @@ export default class Math {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultExpression = await mathExpression.execute(argument.input);
-                result = JSON.stringify({ name, resultList: [resultExpression] });
+                const resultExecute = await mathExpression.execute(argument.input);
+                result = JSON.stringify({ name, result: resultExecute });
             }
 
             return {

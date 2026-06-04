@@ -29,7 +29,7 @@ const extract = (mcpSessionId: string, language: string, fileName: string, searc
 
         const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/${fileName}`;
 
-        helperSrc.fileReadStream(input, (resultFileReadStream) => {
+        helperSrc.fileReadStream(input).then((resultFileReadStream) => {
             if (Buffer.isBuffer(resultFileReadStream)) {
                 const buffer = Buffer.from(resultFileReadStream);
                 const blob = new Blob([buffer], { type: fileDetail.mimeType });

@@ -66,9 +66,11 @@ const logout = async (): Promise<string> => {
 
 export const execute = (mode: string, target: string): Promise<string> => {
     return instance.runWithContext(async () => {
+        let result = "ko";
+
         await login();
 
-        const result = await scan(mode, target);
+        result = await scan(mode, target);
 
         await logout();
 

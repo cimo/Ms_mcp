@@ -30,7 +30,7 @@ const convertToPdf = (inputFolder: string, fileName: string): Promise<boolean> =
         const fileDetail = helperSrc.fileDetail(fileName);
 
         if (fileDetail.extension !== "pdf") {
-            helperSrc.fileReadStream(`${inputFolder}${fileDetail.fileName}`, (resultFileReadStream) => {
+            helperSrc.fileReadStream(`${inputFolder}${fileDetail.fileName}`).then((resultFileReadStream) => {
                 if (Buffer.isBuffer(resultFileReadStream)) {
                     const buffer = Buffer.from(resultFileReadStream);
                     const blob = new Blob([buffer], { type: fileDetail.mimeType });
@@ -43,9 +43,11 @@ const convertToPdf = (inputFolder: string, fileName: string): Promise<boolean> =
                         .then((resultApi) => {
                             const stdout = resultApi.data.response.stdout;
 
-                            helperSrc.fileWriteStream(`${inputFolder}converted.pdf`, Buffer.from(stdout, "base64"), (resultFileWriteStream) => {
+                            helperSrc.fileWriteStream(`${inputFolder}converted.pdf`, Buffer.from(stdout, "base64")).then((resultFileWriteStream) => {
                                 if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
                                     resolve(true);
+
+                                    return;
                                 } else {
                                     helperSrc.writeLog(
                                         `Parser.ts - convertToPdf() - api(/toPdf) - fileWriteStream()`,
@@ -53,6 +55,8 @@ const convertToPdf = (inputFolder: string, fileName: string): Promise<boolean> =
                                     );
 
                                     reject(new Error(`fileWriteStream failed: ${resultFileWriteStream.toString()}`));
+
+                                    return;
                                 }
                             });
                         })
@@ -60,11 +64,15 @@ const convertToPdf = (inputFolder: string, fileName: string): Promise<boolean> =
                             helperSrc.writeLog("Parser.ts - convertToPdf() - api(/toPdf) - catch()", error.message);
 
                             reject(new Error(error.message));
+
+                            return;
                         });
                 } else {
                     helperSrc.writeLog(`Parser.ts - convertToPdf() - fileReadStream()`, resultFileReadStream.toString());
 
                     reject(new Error(`fileReadStream failed: ${resultFileReadStream.toString()}`));
+
+                    return;
                 }
             });
         } else {
@@ -78,6 +86,8 @@ const convertToPdf = (inputFolder: string, fileName: string): Promise<boolean> =
                 }
 
                 resolve(true);
+
+                return;
             });
         }
     });
