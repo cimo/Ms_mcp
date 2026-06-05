@@ -672,9 +672,9 @@ class Parser:
 </svg>
 '''
             
-            layerHtmlList.append(f'''<div class="region_container" data-indexregion="{indexRegion}" style="left:{regionX:.6f}px; top:{regionY:.6f}px; width:{regionWidth:.6f}px; height:{regionHeight:.6f}px;">{layerSvg}</div>''')
+            layerHtmlList.append(f'''<div class="region_wrapper" data-indexregion="{indexRegion}" style="left:{regionX:.6f}px; top:{regionY:.6f}px; width:{regionWidth:.6f}px; height:{regionHeight:.6f}px;">{layerSvg}</div>''')
 
-        return f'''<div class="root_container" style="width:{width:.6f}px; height:{height:.6f}px;">{''.join(layerHtmlList)}</div>'''
+        return f'''<div class="root_wrapper" style="width:{width:.6f}px; height:{height:.6f}px;">{''.join(layerHtmlList)}</div>'''
 
     def _html(self, pageNumber, width, height, overlay, searchHighlight):
         return f"""
@@ -722,16 +722,16 @@ class Parser:
                 pointer-events: none;
             }}
 
-            .page .root_container {{
+            .page .root_wrapper {{
                 position: absolute;
                 z-index: 3;
             }}
 
-            .page .root_container .region_container {{
+            .page .root_wrapper .region_wrapper {{
                 position: absolute;
             }}
 
-            .page .root_container .region_container .layer_svg {{
+            .page .root_wrapper .region_wrapper .layer_svg {{
                 position: absolute;
                 width: 100%;
                 height: 100%;
@@ -753,7 +753,7 @@ class Parser:
                     return;
                 }}
 
-                const overlay = document.querySelector(".root_container");
+                const overlay = document.querySelector(".root_wrapper");
 
                 if (!overlay) {{
                     return;

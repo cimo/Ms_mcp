@@ -340,7 +340,7 @@ export default class Tool {
                                         resultFileReadStream.toString()
                                     );
 
-                                    helperSrc.responseBody("", resultFileReadStream.toString(), response, 500);
+                                    helperSrc.responseBody("", "ko", response, 500);
                                 }
                             });
 
@@ -351,7 +351,7 @@ export default class Tool {
                     if (!isFound) {
                         helperSrc.writeLog("Tool.ts - api() - post(/api/document-read) - Error", "File not found.");
 
-                        helperSrc.responseBody(JSON.stringify({ fileContent: "", pageTotal: 0 }), "", response, 200);
+                        helperSrc.responseBody("ko", "", response, 200);
                     }
                 });
             } else {
@@ -376,7 +376,7 @@ export default class Tool {
                 if (typeof fileOrFolderDelete !== "boolean") {
                     helperSrc.writeLog("Tool.ts - api() - post(/api/document-delete) - fileOrFolderDelete()", fileOrFolderDelete.toString());
 
-                    helperSrc.responseBody("", fileOrFolderDelete.toString(), response, 500);
+                    helperSrc.responseBody("", "ko", response, 500);
                 } else {
                     await this.toolRag.delete().content({ fileName }, { sessionId: mcpSessionId });
 
@@ -549,7 +549,7 @@ export default class Tool {
                                 } else {
                                     helperSrc.writeLog("Tool.ts - api() - post(/api/skill-read) - fileReadStream()", resultFileReadStream.toString());
 
-                                    helperSrc.responseBody("", resultFileReadStream.toString(), response, 500);
+                                    helperSrc.responseBody("", "ko", response, 500);
                                 }
                             });
 
@@ -560,7 +560,7 @@ export default class Tool {
                     if (!isFound) {
                         helperSrc.writeLog("Tool.ts - api() - post(/api/skill-read) - Error", "File not found.");
 
-                        helperSrc.responseBody("", "", response, 200);
+                        helperSrc.responseBody("ko", "", response, 200);
                     }
                 });
             } else {
@@ -584,7 +584,7 @@ export default class Tool {
                 if (typeof fileOrFolderDelete !== "boolean") {
                     helperSrc.writeLog("Tool.ts - api() - post(/api/skill-delete) - fileOrFolderDelete()", fileOrFolderDelete.toString());
 
-                    helperSrc.responseBody("", fileOrFolderDelete.toString(), response, 500);
+                    helperSrc.responseBody("", "ko", response, 500);
                 } else {
                     helperSrc.responseBody("ok", "", response, 200);
                 }
@@ -814,7 +814,7 @@ export default class Tool {
                 if (isUpdate) {
                     helperSrc.responseBody("ok", "", response, 200);
                 } else {
-                    helperSrc.responseBody("", "ko", response, 500);
+                    helperSrc.responseBody("ko", "", response, 200);
                 }
             } else {
                 helperSrc.writeLog("Tool.ts - api() - post(/api/agent-update) - Error", "Missing or invalid header.");
@@ -849,7 +849,7 @@ export default class Tool {
                 if (isDelete) {
                     helperSrc.responseBody("ok", "", response, 200);
                 } else {
-                    helperSrc.responseBody("", "ko", response, 500);
+                    helperSrc.responseBody("ko", "", response, 200);
                 }
             } else {
                 helperSrc.writeLog("Tool.ts - api() - post(/api/agent-delete) - Error", "Missing or invalid header.");
