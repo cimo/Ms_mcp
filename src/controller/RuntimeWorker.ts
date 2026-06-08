@@ -7,25 +7,25 @@ import * as browserChrome from "../tool/browser/Chrome.js";
 import * as ocrExtract from "../tool/ocr/Extract.js";
 
 process.on("message", (data: modelTool.IruntimeWorkerMessageData) => {
-    let resultProcess = {} as modelTool.IruntimeHandlerData;
+    let resultProcessObject = {} as modelTool.IruntimeHandlerData;
 
     if (data.tool === "automateScreenshot") {
         automateDisplay
             .screenshot(data.mcpSessionId)
             .then((result) => {
-                resultProcess = { id: data.id, result };
+                resultProcessObject = { id: data.id, result };
 
                 if (process.send) {
-                    process.send(resultProcess);
+                    process.send(resultProcessObject);
                 }
             })
             .catch((error: Error) => {
-                resultProcess = { ...resultProcess, error: `Process ${data.tool} failed.` };
+                resultProcessObject = { ...resultProcessObject, error: `Process ${data.tool} failed.` };
 
                 if (process.send) {
                     helperSrc.writeLog("RuntimeWorker.ts - process.on(message) - automateScreenshot - catch()", error.message);
 
-                    process.send(resultProcess);
+                    process.send(resultProcessObject);
                 }
             });
 
@@ -34,19 +34,19 @@ process.on("message", (data: modelTool.IruntimeWorkerMessageData) => {
         automateMouse
             .move(data.argumentList[0] as number, data.argumentList[1] as number)
             .then(() => {
-                resultProcess = { id: data.id, result: "ok" };
+                resultProcessObject = { id: data.id, result: "ok" };
 
                 if (process.send) {
-                    process.send(resultProcess);
+                    process.send(resultProcessObject);
                 }
             })
             .catch((error: Error) => {
-                resultProcess = { ...resultProcess, error: `Process ${data.tool} failed.` };
+                resultProcessObject = { ...resultProcessObject, error: `Process ${data.tool} failed.` };
 
                 if (process.send) {
                     helperSrc.writeLog("RuntimeWorker.ts - process.on(message) - automateMouseMove - catch()", error.message);
 
-                    process.send(resultProcess);
+                    process.send(resultProcessObject);
                 }
             });
 
@@ -55,19 +55,19 @@ process.on("message", (data: modelTool.IruntimeWorkerMessageData) => {
         automateMouse
             .click(data.argumentList[0] as number)
             .then(() => {
-                resultProcess = { id: data.id, result: "ok" };
+                resultProcessObject = { id: data.id, result: "ok" };
 
                 if (process.send) {
-                    process.send(resultProcess);
+                    process.send(resultProcessObject);
                 }
             })
             .catch((error: Error) => {
-                resultProcess = { ...resultProcess, error: `Process ${data.tool} failed.` };
+                resultProcessObject = { ...resultProcessObject, error: `Process ${data.tool} failed.` };
 
                 if (process.send) {
                     helperSrc.writeLog("RuntimeWorker.ts - process.on(message) - automateMouseClick - catch()", error.message);
 
-                    process.send(resultProcess);
+                    process.send(resultProcessObject);
                 }
             });
 
@@ -76,19 +76,19 @@ process.on("message", (data: modelTool.IruntimeWorkerMessageData) => {
         browserChrome
             .execute(data.argumentList[0] as string)
             .then(() => {
-                resultProcess = { id: data.id, result: "ok" };
+                resultProcessObject = { id: data.id, result: "ok" };
 
                 if (process.send) {
-                    process.send(resultProcess);
+                    process.send(resultProcessObject);
                 }
             })
             .catch((error: Error) => {
-                resultProcess = { ...resultProcess, error: `Process ${data.tool} failed.` };
+                resultProcessObject = { ...resultProcessObject, error: `Process ${data.tool} failed.` };
 
                 if (process.send) {
                     helperSrc.writeLog("RuntimeWorker.ts - process.on(message) - browserChrome - catch()", error.message);
 
-                    process.send(resultProcess);
+                    process.send(resultProcessObject);
                 }
             });
 
@@ -103,19 +103,19 @@ process.on("message", (data: modelTool.IruntimeWorkerMessageData) => {
                 data.argumentList[3] as string
             )
             .then((result) => {
-                resultProcess = { id: data.id, result };
+                resultProcessObject = { id: data.id, result };
 
                 if (process.send) {
-                    process.send(resultProcess);
+                    process.send(resultProcessObject);
                 }
             })
             .catch((error: Error) => {
-                resultProcess = { ...resultProcess, error: `Process ${data.tool} failed.` };
+                resultProcessObject = { ...resultProcessObject, error: `Process ${data.tool} failed.` };
 
                 if (process.send) {
                     helperSrc.writeLog("RuntimeWorker.ts - process.on(message) - ocrExecute - catch()", error.message);
 
-                    process.send(resultProcess);
+                    process.send(resultProcessObject);
                 }
             });
 
@@ -123,6 +123,6 @@ process.on("message", (data: modelTool.IruntimeWorkerMessageData) => {
     }
 
     if (process.send) {
-        process.send(resultProcess);
+        process.send(resultProcessObject);
     }
 });

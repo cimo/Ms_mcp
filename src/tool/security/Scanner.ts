@@ -34,7 +34,8 @@ const scan = async (mode: string, target: string): Promise<string> => {
             { mode, target }
         )
         .then((resultApi) => {
-            const stdout = resultApi.data.response.stdout;
+            const data = resultApi.data;
+            const stdout = data.response.stdout;
 
             return Buffer.from(stdout, "base64").toString("utf-8");
         })

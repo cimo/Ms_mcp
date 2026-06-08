@@ -3,9 +3,11 @@ export interface IinstanceContext {
 }
 
 export interface IapiEmbedding {
-    object: string;
-    embedding: number[];
-    index: number;
+    data: {
+        object: string;
+        embedding: number[];
+        index: number;
+    }[];
 }
 
 export interface IapiExtract {

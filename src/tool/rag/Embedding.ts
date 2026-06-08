@@ -31,7 +31,7 @@ const login = async (uniqueId: string): Promise<string> => {
         });
 };
 
-const embedding = async (uniqueId: string, text: string | string[]): Promise<modelRag.IapiEmbedding[]> => {
+const embedding = async (uniqueId: string, text: string | string[]): Promise<modelRag.IapiEmbedding> => {
     return instance.api
         .post<modelHelperSrc.IresponseBody>(
             "/api/embedding",
@@ -46,14 +46,15 @@ const embedding = async (uniqueId: string, text: string | string[]): Promise<mod
             }
         )
         .then((resultApi) => {
-            const stdout = JSON.parse(resultApi.data.response.stdout);
+            const data = resultApi.data;
+            const stdout = JSON.parse(data.response.stdout) as modelRag.IapiEmbedding;
 
-            return stdout.data as modelRag.IapiEmbedding[];
+            return stdout;
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Rag.ts - embedding() - catch()", error.message);
 
-            return [];
+            return {} as modelRag.IapiEmbedding;
         });
 };
 
@@ -72,7 +73,8 @@ const graphifyExtract = async (uniqueId: string, text: string): Promise<modelRag
             }
         )
         .then((resultApi) => {
-            const stdout = JSON.parse(resultApi.data.response.stdout) as modelRag.IapiExtract;
+            const data = resultApi.data;
+            const stdout = JSON.parse(data.response.stdout) as modelRag.IapiExtract;
 
             return stdout;
         })
@@ -189,7 +191,7 @@ const tableRelationSearch = (mcpSessionId: string, query: string): modelRag.Irel
         }
     }
 
-    const resultObject: Record<string, modelRag.Irelation> = {};
+    const resultObject = {} as Record<string, modelRag.Irelation>;
 
     for (let a = 0; a < termList.length; a++) {
         const term = termList[a];
@@ -263,8 +265,8 @@ export const databaseStore = (mcpSessionId: string, uniqueId: string, fileName: 
 
                 const data = await embedding(uniqueId, chunk);
 
-                if (data.length > 0 && data[0].embedding.length > 0) {
-                    tableCitationInsert(mcpSessionId, fileName, chunk, data[0].embedding);
+                if (data.data.length > 0 && data.data[0].embedding.length > 0) {
+                    tableCitationInsert(mcpSessionId, fileName, chunk, data.data[0].embedding);
 
                     const graphData = await graphifyExtract(uniqueId, chunk);
 
@@ -311,8 +313,8 @@ export const databaseSearch = (mcpSessionId: string, uniqueId: string, prompt: s
 
         const data = await embedding(uniqueId, prompt);
 
-        if (data.length > 0 && data[0].embedding.length > 0) {
-            const buffer = new Uint8Array(new Float32Array(data[0].embedding).buffer);
+        if (data.data.length > 0 && data.data[0].embedding.length > 0) {
+            const buffer = new Uint8Array(new Float32Array(data.data[0].embedding).buffer);
 
             if (database) {
                 const tableList = tableCitationSelectList(mcpSessionId);

@@ -43,25 +43,26 @@ const extract = (mcpSessionId: string, language: string, fileName: string, searc
                 instance.api
                     .post<modelHelperSrc.IresponseBody>("/api/extract", {}, formData)
                     .then((resultApi) => {
-                        const stdout = JSON.parse(resultApi.data.response.stdout) as model.ItoolOcrResponse[];
+                        const data = resultApi.data;
+                        const stdout = JSON.parse(data.response.stdout) as model.ItoolOcrResponse[];
 
                         let resultList: model.ItoolOcrResult[] = [];
 
                         for (let a = 0; a < stdout.length; a++) {
-                            const x: number[] = [];
-                            const y: number[] = [];
+                            const xList: number[] = [];
+                            const yList: number[] = [];
 
                             for (let b = 0; b < stdout[a].polygon.length; b++) {
                                 const point = stdout[a].polygon[b];
 
-                                x.push(point[0]);
-                                y.push(point[1]);
+                                xList.push(point[0]);
+                                yList.push(point[1]);
                             }
 
-                            const xMin = Math.min(...x);
-                            const xMax = Math.max(...x);
-                            const yMin = Math.min(...y);
-                            const yMax = Math.max(...y);
+                            const xMin = Math.min(...xList);
+                            const xMax = Math.max(...xList);
+                            const yMin = Math.min(...yList);
+                            const yMax = Math.max(...yList);
 
                             resultList.push({
                                 id: stdout[a].id,

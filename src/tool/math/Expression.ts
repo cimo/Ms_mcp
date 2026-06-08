@@ -24,7 +24,7 @@ const checkOp = (x: model.Ttoken): boolean => {
 };
 
 const tokenize = (input: string): model.Ttoken[] => {
-    const result: model.Ttoken[] = [];
+    const resultList: model.Ttoken[] = [];
 
     let count = 0;
     let lastType: "number" | "operator" | "lparen" | "rparen" | null = null;
@@ -65,7 +65,7 @@ const tokenize = (input: string): model.Ttoken[] => {
                 throw new Error("Invalid numeric literal.");
             }
 
-            result.push(num);
+            resultList.push(num);
 
             lastType = "number";
 
@@ -73,7 +73,7 @@ const tokenize = (input: string): model.Ttoken[] => {
         }
 
         if (character === "+" || character === "-" || character === "*" || character === "/" || character === "^") {
-            result.push(character as model.Ttoken);
+            resultList.push(character as model.Ttoken);
 
             count++;
 
@@ -83,7 +83,7 @@ const tokenize = (input: string): model.Ttoken[] => {
         }
 
         if (character === "(") {
-            result.push("(");
+            resultList.push("(");
 
             count++;
 
@@ -93,7 +93,7 @@ const tokenize = (input: string): model.Ttoken[] => {
         }
 
         if (character === ")") {
-            result.push(")");
+            resultList.push(")");
 
             count++;
 
@@ -105,56 +105,58 @@ const tokenize = (input: string): model.Ttoken[] => {
         throw new Error(`Unsupported character ${character}`);
     }
 
-    return result;
+    return resultList;
 };
 
 const toRpn = (tokenList: model.Ttoken[]): model.Ttoken[] => {
-    const result: model.Ttoken[] = [];
+    const resultList: model.Ttoken[] = [];
 
-    const stack: model.Ttoken[] = [];
-    const operatorPrecedence: Record<string, number> = { "+": 1, "-": 1, "*": 2, "/": 2, "^": 3 };
-    const operatorAssociativity: Record<string, boolean> = { "^": true };
+    const stackList: model.Ttoken[] = [];
+    const operatorPrecedenceObject: Record<string, number> = { "+": 1, "-": 1, "*": 2, "/": 2, "^": 3 };
+    const operatorAssociativityObject: Record<string, boolean> = { "^": true };
 
     for (let a = 0; a < tokenList.length; a++) {
         const token = tokenList[a];
 
         if (typeof token === "number") {
-            result.push(token);
+            resultList.push(token);
 
             continue;
         }
 
         if (token === "+" || token === "-" || token === "*" || token === "/" || token === "^") {
             while (
-                stack.length &&
-                checkOp(stack[stack.length - 1]) &&
-                ((operatorAssociativity[token] !== true && operatorPrecedence[token] <= operatorPrecedence[stack[stack.length - 1] as string]) ||
-                    (operatorAssociativity[token] === true && operatorPrecedence[token] < operatorPrecedence[stack[stack.length - 1] as string]))
+                stackList.length &&
+                checkOp(stackList[stackList.length - 1]) &&
+                ((operatorAssociativityObject[token] !== true &&
+                    operatorPrecedenceObject[token] <= operatorPrecedenceObject[stackList[stackList.length - 1] as string]) ||
+                    (operatorAssociativityObject[token] === true &&
+                        operatorPrecedenceObject[token] < operatorPrecedenceObject[stackList[stackList.length - 1] as string]))
             ) {
-                result.push(stack.pop() as model.Ttoken);
+                resultList.push(stackList.pop() as model.Ttoken);
             }
 
-            stack.push(token);
+            stackList.push(token);
 
             continue;
         }
 
         if (token === "(") {
-            stack.push(token);
+            stackList.push(token);
 
             continue;
         }
 
         if (token === ")") {
-            while (stack.length && stack[stack.length - 1] !== "(") {
-                result.push(stack.pop() as model.Ttoken);
+            while (stackList.length && stackList[stackList.length - 1] !== "(") {
+                resultList.push(stackList.pop() as model.Ttoken);
             }
 
-            if (!stack.length) {
+            if (!stackList.length) {
                 throw new Error("Mismatched parentheses.");
             }
 
-            stack.pop();
+            stackList.pop();
 
             continue;
         }
@@ -162,58 +164,58 @@ const toRpn = (tokenList: model.Ttoken[]): model.Ttoken[] => {
         throw new Error(`Unsupported token in shunting-yard ${String(token)}`);
     }
 
-    while (stack.length) {
-        const s = stack.pop() as model.Ttoken;
+    while (stackList.length) {
+        const s = stackList.pop() as model.Ttoken;
 
         if (s === "(" || s === ")") {
             throw new Error("Mismatched parentheses.");
         }
 
-        result.push(s);
+        resultList.push(s);
     }
 
-    return result;
+    return resultList;
 };
 
 const evaluate = (rpnList: model.Ttoken[]): number => {
-    const stack: number[] = [];
+    const stackList: number[] = [];
 
     for (let a = 0; a < rpnList.length; a++) {
         const rpn = rpnList[a];
 
         if (typeof rpn === "number") {
-            stack.push(rpn);
+            stackList.push(rpn);
 
             continue;
         }
 
-        const stackB = stack.pop() as number;
-        const stackA = stack.pop() as number;
+        const stackB = stackList.pop() as number;
+        const stackA = stackList.pop() as number;
 
         if (typeof stackA !== "number" || typeof stackB !== "number") {
             throw new Error("Insufficient operands.");
         }
 
         if (rpn === "+") {
-            stack.push(stackA + stackB);
+            stackList.push(stackA + stackB);
         } else if (rpn === "-") {
-            stack.push(stackA - stackB);
+            stackList.push(stackA - stackB);
         } else if (rpn === "*") {
-            stack.push(stackA * stackB);
+            stackList.push(stackA * stackB);
         } else if (rpn === "/") {
-            stack.push(stackA / stackB);
+            stackList.push(stackA / stackB);
         } else if (rpn === "^") {
-            stack.push(Math.pow(stackA, stackB));
+            stackList.push(Math.pow(stackA, stackB));
         } else {
             throw new Error(`Unknown operator ${String(rpn)}`);
         }
     }
 
-    if (stack.length !== 1) {
+    if (stackList.length !== 1) {
         throw new Error("Remaining operands.");
     }
 
-    return stack[0];
+    return stackList[0];
 };
 
 export const execute = async (input: string): Promise<string> => {

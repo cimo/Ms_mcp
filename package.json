@@ -18,11 +18,11 @@
         "execute": "nodemon --config nodemon.json"
     },
     "dependencies": {
-        "@cimo/authentication": "1.1.38",
-        "@cimo/environment": "1.0.29",
-        "@cimo/cronjob": "1.0.16",
-        "@cimo/form-data_parser": "1.1.45",
-        "@cimo/request": "1.7.45",
+        "@cimo/authentication": "1.1.40",
+        "@cimo/environment": "1.0.30",
+        "@cimo/cronjob": "1.0.17",
+        "@cimo/form-data_parser": "1.1.46",
+        "@cimo/request": "1.7.47",
         "express": "5.2.1",
         "express-rate-limit": "8.5.2",
         "cookie-parser": "1.4.7",

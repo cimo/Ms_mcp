@@ -24,7 +24,7 @@ export default class Server {
     // Method
     constructor() {
         this.corsOption = {
-            originList: JSON.parse(helperSrc.URL_CORS_ORIGIN),
+            originList: JSON.parse(helperSrc.URL_CORS_ORIGIN) as string[],
             methodList: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE"],
             preflightContinue: false,
             optionsSuccessStatus: 200

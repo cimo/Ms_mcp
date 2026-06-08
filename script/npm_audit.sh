@@ -45,9 +45,9 @@ node - "${auditJson}" <<'NODE'
 const fs = require("fs");
 
 const file = process.argv[2];
-const data = JSON.parse(fs.readFileSync(file, "utf8"));
+const fileObject = JSON.parse(fs.readFileSync(file, "utf8"));
 
-const metadata = data.metadata || {};
+const metadata = fileObject.metadata || {};
 const vulnarability = metadata.vulnerabilities || {};
 const totalDependency = metadata.dependencies.total ?? "n/d";
 
@@ -59,7 +59,7 @@ console.log(`Moderate: ${vulnarability.moderate ?? 0}`);
 console.log(`High: ${vulnarability.high ?? 0}`);
 console.log(`Critical: ${vulnarability.critical ?? 0}`);
 
-const vulnarabilityObject = data.vulnerabilities || {};
+const vulnarabilityObject = fileObject.vulnerabilities || {};
 const entryList = Object.entries(vulnarabilityObject);
 
 if (entryList.length === 0) {

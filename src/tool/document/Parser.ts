@@ -41,7 +41,8 @@ const convertToPdf = (inputFolder: string, fileName: string): Promise<boolean> =
                     instance.api
                         .post<modelHelperSrc.IresponseBody>("/api/toPdf", {}, formData)
                         .then((resultApi) => {
-                            const stdout = resultApi.data.response.stdout;
+                            const data = resultApi.data;
+                            const stdout = data.response.stdout;
 
                             helperSrc.fileWriteStream(`${inputFolder}converted.pdf`, Buffer.from(stdout, "base64")).then((resultFileWriteStream) => {
                                 if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
