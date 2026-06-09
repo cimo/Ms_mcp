@@ -25,8 +25,3 @@ export interface Irelation {
     verb: string;
     target: string;
 }
-
-export interface IsearchOutput {
-    citationList: Icitation[];
-    relationList: Irelation[];
-}

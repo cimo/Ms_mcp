@@ -174,11 +174,9 @@ export default class Tool {
     rpc = (): void => {
         this.app.post("/rpc", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            let body = request.body;
+            let body = request.body as modelTool.IapiRpcBody;
 
             if (body.method === "initialize") {
-                body = request.body;
-
                 const mcpSessionIdNew = helperSrc.generateUniqueId();
 
                 const rpc = new StreamableHTTPServerTransport({
@@ -209,8 +207,6 @@ export default class Tool {
                 this.sessionObject[mcpSessionId].rpc &&
                 body.method === "terminate"
             ) {
-                body = request.body;
-
                 this.sessionObject[mcpSessionId].rpc.close();
 
                 await this.toolRag.delete().content({ fileName: "" }, { sessionId: mcpSessionId });
@@ -296,7 +292,7 @@ export default class Tool {
 
         this.app.post("/api/document-read", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body;
+            const body = request.body as modelTool.IapiDocumentReadBody;
 
             const pageNumber = body.pageNumber;
             const fileName = body.fileName;
@@ -363,7 +359,7 @@ export default class Tool {
 
         this.app.post("/api/document-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body;
+            const body = request.body as modelTool.IapiDocumentDeleteBody;
 
             const fileName = body.fileName;
             const fileDetail = helperSrc.fileDetail(fileName);
@@ -417,7 +413,7 @@ export default class Tool {
 
         this.app.post("/api/rag-embedding-check", Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body;
+            const body = request.body as modelTool.IapiRagEmbeddingCheckBody;
 
             const fileName = body.fileName;
             const fileDetail = helperSrc.fileDetail(fileName);
@@ -527,7 +523,7 @@ export default class Tool {
 
         this.app.post("/api/skill-read", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body;
+            const body = request.body as modelTool.IapiSkillReadBody;
 
             const fileName = body.fileName;
 
@@ -572,7 +568,7 @@ export default class Tool {
 
         this.app.post("/api/skill-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body;
+            const body = request.body as modelTool.IapiSkillDeleteBody;
 
             const fileName = body.fileName;
 
@@ -653,7 +649,7 @@ export default class Tool {
         this.app.post("/api/tool-call", Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const mcpCookie = request.headers["mcp-cookie"];
-            const body = request.body;
+            const body = request.body as modelTool.IapiToolCallBody;
 
             if (typeof mcpSessionId === "string" && typeof mcpCookie === "string") {
                 instance.api
@@ -778,7 +774,7 @@ export default class Tool {
 
         this.app.post("/api/agent-create", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body;
+            const body = request.body as modelTool.IapiAgentCreateBody;
 
             const name = body.name;
             const description = body.description;
@@ -801,7 +797,7 @@ export default class Tool {
 
         this.app.post("/api/agent-update", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body;
+            const body = request.body as modelTool.IapiAgentUpdateBody;
 
             const id = body.id;
             const name = body.name;
@@ -839,7 +835,7 @@ export default class Tool {
 
         this.app.post("/api/agent-delete", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body;
+            const body = request.body as modelTool.IapiAgentDeleteBody;
 
             const id = body.id;
 

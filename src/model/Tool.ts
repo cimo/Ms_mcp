@@ -29,9 +29,65 @@ export interface Irpc<TSchema extends z.ZodTypeAny> {
     }>;
 }
 
-export interface ItoolResponse {
+export interface IapiDocumentReadBody {
+    pageNumber: number;
+    fileName: string;
+}
+
+export interface IapiDocumentDeleteBody {
+    fileName: string;
+}
+
+export interface IapiRagEmbeddingCheckBody {
+    fileName: string;
+}
+
+export interface IapiSkillReadBody {
+    fileName: string;
+}
+
+export interface IapiSkillDeleteBody {
+    fileName: string;
+}
+
+export interface IapiAgentCreateBody {
     name: string;
-    result: unknown;
+    description: string;
+    skill: string;
+}
+
+export interface IapiAgentUpdateBody {
+    id: number;
+    name: string;
+    description: string;
+    skill: string;
+}
+
+export interface IapiAgentDeleteBody {
+    id: number;
+}
+
+export interface IapiRpcBody {
+    jsonrpc: string;
+    id?: number;
+    method: string;
+    params?: Record<string, unknown>;
+}
+
+export interface IapiToolCallBody extends Record<string, unknown> {
+    jsonrpc: string;
+    id: number;
+    method: string;
+    params: {
+        name: string;
+        arguments: Record<string, string>;
+        protocolVersion: string;
+        capabilities: Record<string, unknown>;
+        clientInfo: {
+            name: string;
+            version: string;
+        };
+    };
 }
 
 export interface Itool {
@@ -41,11 +97,6 @@ export interface Itool {
     description: string;
     example: string;
     inputInstruction: string;
-}
-
-export interface ItoolCall {
-    name: string;
-    argumentObject: Record<string, unknown>;
 }
 
 export interface Itask {
@@ -58,5 +109,8 @@ export interface Itask {
 }
 
 export interface ItaskCall {
-    list: ItoolCall[];
+    list: {
+        name: string;
+        argumentObject: Record<string, unknown>;
+    }[];
 }
