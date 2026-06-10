@@ -209,8 +209,6 @@ export default class Tool {
             ) {
                 this.sessionObject[mcpSessionId].rpc.close();
 
-                await this.toolRag.delete().content({ fileName: "" }, { sessionId: mcpSessionId });
-
                 helperSrc.responseBody(mcpSessionId, "", response, 200);
 
                 return;
@@ -391,19 +389,19 @@ export default class Tool {
             if (typeof mcpSessionId === "string") {
                 const fileList = await helperSrc.uploadedDocumentList(mcpSessionId, ".*");
 
-                const documentFileNameList = [];
+                const fileNameList = [];
 
                 for (const file of fileList) {
                     const fileDetail = helperSrc.fileDetail(file.fileName);
 
                     if (fileDetail.category === "document") {
-                        documentFileNameList.push(fileDetail.fileName);
+                        fileNameList.push(fileDetail.fileName);
 
                         this.toolRag.store().content({ fileName: fileDetail.fileName }, { sessionId: mcpSessionId });
                     }
                 }
 
-                helperSrc.responseBody(JSON.stringify(documentFileNameList), "", response, 200);
+                helperSrc.responseBody(JSON.stringify(fileNameList), "", response, 200);
             } else {
                 helperSrc.writeLog("Tool.ts - api() - post(/api/rag-embedding-start) - Error", "Missing or invalid header.");
 
@@ -778,10 +776,10 @@ export default class Tool {
 
             const name = body.name;
             const description = body.description;
-            const skill = body.skill;
+            const skillName = body.skillName;
 
             if (typeof mcpSessionId === "string") {
-                const isInsert = this.controllerAgent.tableInsert(mcpSessionId, name, description, skill);
+                const isInsert = this.controllerAgent.tableInsert(mcpSessionId, name, description, skillName);
 
                 if (isInsert) {
                     helperSrc.responseBody("ok", "", response, 200);
@@ -802,10 +800,10 @@ export default class Tool {
             const id = body.id;
             const name = body.name;
             const description = body.description;
-            const skill = body.skill;
+            const skillName = body.skillName;
 
             if (typeof mcpSessionId === "string") {
-                const isUpdate = this.controllerAgent.tableUpdate(mcpSessionId, id, name, description, skill);
+                const isUpdate = this.controllerAgent.tableUpdate(mcpSessionId, id, name, description, skillName);
 
                 if (isUpdate) {
                     helperSrc.responseBody("ok", "", response, 200);

@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 
 // Source
+import * as helperSrc from "../HelperSrc.js";
 import * as modelAgent from "../model/Agent.js";
 
 export default class Agent {
@@ -9,7 +10,7 @@ export default class Agent {
 
     // Method
     constructor() {
-        this.database = new DatabaseSync(":memory:");
+        this.database = new DatabaseSync(`${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}sqlite/agent.sqlite`);
     }
 
     tableCreate = (mcpSessionId: string): boolean => {
@@ -21,7 +22,7 @@ export default class Agent {
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
                     description TEXT,
-                    skill TEXT
+                    skill_name TEXT
                 );
             `);
 
@@ -43,13 +44,13 @@ export default class Agent {
         return isResult;
     };
 
-    tableInsert = (mcpSessionId: string, name: string, description: string, skill: string): boolean => {
+    tableInsert = (mcpSessionId: string, name: string, description: string, skillName: string): boolean => {
         let isResult = false;
 
         if (mcpSessionId !== "") {
             const queryRun = this.database
-                .prepare(`INSERT INTO "${mcpSessionId}_agent" (name, description, skill) VALUES (?, ?, ?);`)
-                .run(name, description, skill);
+                .prepare(`INSERT INTO "${mcpSessionId}_agent" (name, description, skill_name) VALUES (?, ?, ?);`)
+                .run(name, description, skillName);
 
             if (queryRun && queryRun.changes > 0) {
                 isResult = true;
@@ -59,13 +60,13 @@ export default class Agent {
         return isResult;
     };
 
-    tableUpdate = (mcpSessionId: string, id: number, name: string, description: string, skill: string): boolean => {
+    tableUpdate = (mcpSessionId: string, id: number, name: string, description: string, skillName: string): boolean => {
         let isResult = false;
 
         if (mcpSessionId !== "") {
             const queryRun = this.database
-                .prepare(`UPDATE "${mcpSessionId}_agent" SET name = ?, description = ?, skill = ? WHERE id = ?;`)
-                .run(name, description, skill, id);
+                .prepare(`UPDATE "${mcpSessionId}_agent" SET name = ?, description = ?, skill_name = ? WHERE id = ?;`)
+                .run(name, description, skillName, id);
 
             if (queryRun && queryRun.changes > 0) {
                 isResult = true;
@@ -79,7 +80,7 @@ export default class Agent {
         const resultList: modelAgent.Iagent[] = [];
 
         if (mcpSessionId !== "") {
-            const queryList = this.database.prepare(`SELECT id, name, description, skill FROM "${mcpSessionId}_agent";`).all();
+            const queryList = this.database.prepare(`SELECT id, name, description, skill_name FROM "${mcpSessionId}_agent";`).all();
 
             for (let a = 0; a < queryList.length; a++) {
                 const query = queryList[a];
@@ -88,7 +89,7 @@ export default class Agent {
                     id: query["id"] as number,
                     name: query["name"] as string,
                     description: query["description"] as string,
-                    skill: query["skill"] as string
+                    skillName: query["skill_name"] as string
                 });
             }
         }

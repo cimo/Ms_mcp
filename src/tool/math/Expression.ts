@@ -112,8 +112,8 @@ const toRpn = (tokenList: model.Ttoken[]): model.Ttoken[] => {
     const resultList: model.Ttoken[] = [];
 
     const stackList: model.Ttoken[] = [];
-    const operatorPrecedenceObject: Record<string, number> = { "+": 1, "-": 1, "*": 2, "/": 2, "^": 3 };
-    const operatorAssociativityObject: Record<string, boolean> = { "^": true };
+    const operatorPrecedenceObject = { "+": 1, "-": 1, "*": 2, "/": 2, "^": 3 } as Record<string, number>;
+    const operatorAssociativityObject = { "^": true } as Record<string, boolean>;
 
     for (let a = 0; a < tokenList.length; a++) {
         const token = tokenList[a];

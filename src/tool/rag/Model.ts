@@ -14,6 +14,11 @@ export interface IapiExtract {
     relationList: Irelation[];
 }
 
+export interface Ifile {
+    id: number;
+    name: string;
+}
+
 export interface Icitation {
     fileName: string;
     chunk: string;

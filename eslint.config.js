@@ -21,7 +21,8 @@ const configIgnore = {
         "dist",
         "node_modules",
         "public",
-        "src-tauri"
+        "src-tauri",
+        "file/**/skill"
     ]
 };
 
