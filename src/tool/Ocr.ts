@@ -29,11 +29,11 @@ export default class Ocr {
             description: ["Extract data from an image."].join("\n"),
             example: ["- In the file 'Image.png' search for 'Text' with the language 'en' and mode 'data'."].join("\n"),
             inputInstruction: [
-                "You MUST need to extract, from the user prompt, ONLY the following schema:",
-                `Parameter 1 language: ${this.inputSchemaExecute.shape.language.description}`,
-                `Parameter 2 fileName: ${this.inputSchemaExecute.shape.fileName.description}`,
-                `Parameter 3 searchText: ${this.inputSchemaExecute.shape.searchText.description}`,
-                `Parameter 4 mode: ${this.inputSchemaExecute.shape.mode.description}`
+                "You MUST build the json schema using ONLY the following parameters:",
+                `Parameter 1 - language: ${this.inputSchemaExecute.shape.language.description}`,
+                `Parameter 2 - fileName: ${this.inputSchemaExecute.shape.fileName.description}`,
+                `Parameter 3 - searchText: ${this.inputSchemaExecute.shape.searchText.description}`,
+                `Parameter 4 - mode: ${this.inputSchemaExecute.shape.mode.description}`
             ].join("\n"),
             inputSchema: this.inputSchemaExecute
         };

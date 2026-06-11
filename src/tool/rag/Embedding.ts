@@ -9,8 +9,13 @@ import * as modelRag from "./Model.js";
 
 let database: DatabaseSync | undefined = undefined;
 const chunkLength = 400;
+const batchLength = 32;
 const vectorDimension = 768;
 const vectorChunkSize = 512;
+const distanceMargin = 0.13;
+const distanceMax = 1.07;
+const citationLimit = 6;
+const relationLimit = 20;
 
 // Method
 const login = async (uniqueId: string): Promise<string> => {
@@ -33,7 +38,25 @@ const login = async (uniqueId: string): Promise<string> => {
         });
 };
 
-const embedding = async (uniqueId: string, text: string | string[]): Promise<modelRag.IapiEmbedding> => {
+const embedding = async (uniqueId: string, mode: "document" | "query", text: string | string[]): Promise<modelRag.IapiEmbedding> => {
+    let inputList: string[] = [];
+
+    if (Array.isArray(text)) {
+        inputList = text;
+    } else {
+        inputList = [text];
+    }
+
+    const inputPrefixList: string[] = [];
+
+    for (let a = 0; a < inputList.length; a++) {
+        if (mode === "document") {
+            inputPrefixList.push(`title: none | text: ${inputList[a]}`);
+        } else {
+            inputPrefixList.push(`task: search result | query: ${inputList[a]}`);
+        }
+    }
+
     return instance.api
         .post<modelHelperSrc.IresponseBody>(
             "/api/embedding",
@@ -44,7 +67,7 @@ const embedding = async (uniqueId: string, text: string | string[]): Promise<mod
                 }
             },
             {
-                input: text
+                input: inputPrefixList
             }
         )
         .then((resultApi) => {
@@ -128,18 +151,18 @@ const tableFileCreate = (mcpSessionId: string): boolean => {
     return isResult;
 };
 
-const tableFileInsert = (mcpSessionId: string, fileName: string): boolean => {
-    let isResult = false;
+const tableFileInsert = (mcpSessionId: string, fileName: string): number => {
+    let result = 0;
 
     const name = tableNameReplace(`${mcpSessionId}_rag_file`);
 
     if (database) {
-        database.prepare(`INSERT OR IGNORE INTO "${name}" (name) VALUES (?)`).run(fileName);
+        const runPrepare = database.prepare(`INSERT OR IGNORE INTO "${name}" (name) VALUES (?)`).run(fileName);
 
-        isResult = true;
+        result = Number(runPrepare.lastInsertRowid);
     }
 
-    return isResult;
+    return result;
 };
 
 const tableFileSelect = (mcpSessionId: string, fileName: string): number => {
@@ -241,160 +264,89 @@ const tableRelationSelect = (mcpSessionId: string, query: string): modelRag.Irel
         }
     }
 
-    if (database) {
+    if (database && termList.length > 0) {
+        const tableName = tableNameReplace(`${mcpSessionId}_rag_relation`);
+
+        const conditionList: string[] = [];
+        const parameterList: string[] = [];
+
         for (let a = 0; a < termList.length; a++) {
-            const term = termList[a];
+            conditionList.push("(LOWER(source) LIKE ? OR LOWER(target) LIKE ?)");
 
-            const tableName = tableNameReplace(`${mcpSessionId}_rag_relation`);
+            parameterList.push(`%${termList[a]}%`, `%${termList[a]}%`);
+        }
 
-            const queryList = database
-                .prepare(`SELECT source, verb, target FROM "${tableName}" WHERE (LOWER(source) LIKE ? OR LOWER(target) LIKE ?)`)
-                .all(`%${term}%`, `%${term}%`);
+        const queryList = database
+            .prepare(`SELECT DISTINCT source, verb, target FROM "${tableName}" WHERE ${conditionList.join(" OR ")} LIMIT ${relationLimit}`)
+            .all(...parameterList);
 
-            for (let b = 0; b < queryList.length; b++) {
-                let isDuplicate = false;
+        for (let a = 0; a < queryList.length; a++) {
+            const query = queryList[a];
 
-                const query = queryList[b];
-
-                for (let c = 0; c < resultList.length; c++) {
-                    if (
-                        resultList[c].source === (query["source"] as string) &&
-                        resultList[c].verb === (query["verb"] as string) &&
-                        resultList[c].target === (query["target"] as string)
-                    ) {
-                        isDuplicate = true;
-
-                        break;
-                    }
-                }
-
-                if (!isDuplicate) {
-                    resultList.push({
-                        source: query["source"] as string,
-                        verb: query["verb"] as string,
-                        target: query["target"] as string
-                    });
-                }
-            }
+            resultList.push({
+                source: query["source"] as string,
+                verb: query["verb"] as string,
+                target: query["target"] as string
+            });
         }
     }
 
     return resultList;
 };
 
-const tokenize = (text: string): string[] => {
+const chunkCreate = (text: string): string[] => {
     const resultList: string[] = [];
+
+    let chunkText = "";
 
     const textSplit = text.split(/\s+/);
 
     for (let a = 0; a < textSplit.length; a++) {
-        const word = textSplit[a].replace(/[^\p{L}\p{N}]/gu, "").toLowerCase();
+        const word = textSplit[a];
 
-        if (word.length > 1 && !resultList.includes(word)) {
-            resultList.push(word);
+        if (word !== "") {
+            if (chunkText === "") {
+                chunkText = word;
+            } else if (chunkText.length + word.length + 1 > chunkLength) {
+                resultList.push(chunkText);
+
+                chunkText = word;
+            } else {
+                chunkText = `${chunkText} ${word}`;
+            }
         }
+    }
+
+    if (chunkText !== "") {
+        resultList.push(chunkText);
     }
 
     return resultList;
 };
 
-const chunk = (fileList: modelRag.Ifile[], tableNameRag: string, limitPerTable: number, buffer: Uint8Array<ArrayBuffer>): modelRag.Icitation[] => {
+const chunk = (fileList: modelRag.Ifile[], tableNameRag: string, limit: number, buffer: Uint8Array<ArrayBuffer>): modelRag.Icitation[] => {
     const resultList: modelRag.Icitation[] = [];
 
     if (database) {
+        const fileNameObject = {} as Record<number, string>;
+
         for (let a = 0; a < fileList.length; a++) {
-            const queryList = database
-                .prepare(
-                    `SELECT chunk, distance FROM "${tableNameRag}" WHERE file_id = CAST(? AS INTEGER) AND embedding MATCH ? ORDER BY distance LIMIT ${limitPerTable}`
-                )
-                .all(fileList[a].id, buffer);
-
-            for (let b = 0; b < queryList.length; b++) {
-                const query = queryList[b];
-
-                if (query["chunk"]) {
-                    resultList.push({
-                        fileName: fileList[a].name,
-                        chunk: query["chunk"] as string,
-                        distance: query["distance"] as number
-                    });
-                }
-            }
-        }
-    }
-
-    return resultList;
-};
-
-const tfIdf = (prompt: string, citationList: modelRag.Icitation[]): string[] => {
-    const resultList: string[] = [];
-
-    const tokenChunckFrequencyObject = {} as Record<string, number>;
-
-    for (let a = 0; a < citationList.length; a++) {
-        const tokenChunkList = tokenize(citationList[a].chunk);
-
-        for (let b = 0; b < tokenChunkList.length; b++) {
-            const tokenChunk = tokenChunkList[b];
-
-            tokenChunckFrequencyObject[tokenChunk] = (tokenChunckFrequencyObject[tokenChunk] || 0) + 1;
-        }
-    }
-
-    const promptSplit = prompt.split(/\s+/);
-    const promptFrequencyObject = {} as Record<string, number>;
-
-    for (let a = 0; a < promptSplit.length; a++) {
-        const word = promptSplit[a].replace(/[^\p{L}\p{N}]/gu, "").toLowerCase();
-
-        if (word.length > 1) {
-            promptFrequencyObject[word] = (promptFrequencyObject[word] || 0) + 1;
-        }
-    }
-
-    const tokenPromptList = tokenize(prompt);
-
-    const candidateCount = Math.max(1, citationList.length);
-
-    for (let a = 0; a < tokenPromptList.length; a++) {
-        const tokenPrompt = tokenPromptList[a];
-
-        const frequencyCount = tokenChunckFrequencyObject[tokenPrompt] || 0;
-
-        if (frequencyCount === 0) {
-            continue;
+            fileNameObject[fileList[a].id] = fileList[a].name;
         }
 
-        const termFrequency = Math.log(promptFrequencyObject[tokenPrompt] || 1) + 1;
-        const inverseDocumentFrequency = Math.log(candidateCount / frequencyCount);
+        const queryList = database
+            .prepare(`SELECT chunk, file_id, distance FROM "${tableNameRag}" WHERE embedding MATCH ? ORDER BY distance LIMIT ${limit}`)
+            .all(buffer);
 
-        if (termFrequency * inverseDocumentFrequency > 0) {
-            resultList.push(tokenPrompt);
-        }
-    }
+        for (let a = 0; a < queryList.length; a++) {
+            const query = queryList[a];
 
-    return resultList;
-};
-
-const filter = (importantWordList: string[], citationList: modelRag.Icitation[]): modelRag.Icitation[] => {
-    const resultList: modelRag.Icitation[] = [];
-
-    if (importantWordList.length > 0) {
-        const requireMatchCount = importantWordList.length >= 3 ? 2 : 1;
-
-        for (let a = 0; a < citationList.length; a++) {
-            const tokenChunkList = tokenize(citationList[a].chunk);
-
-            let matchCount = 0;
-
-            for (let b = 0; b < importantWordList.length; b++) {
-                if (tokenChunkList.includes(importantWordList[b])) {
-                    matchCount++;
-                }
-            }
-
-            if (matchCount >= requireMatchCount) {
-                resultList.push(citationList[a]);
+            if (query["chunk"] && fileNameObject[query["file_id"] as number]) {
+                resultList.push({
+                    fileName: fileNameObject[query["file_id"] as number],
+                    chunk: query["chunk"] as string,
+                    distance: query["distance"] as number
+                });
             }
         }
     }
@@ -423,77 +375,83 @@ export const databaseStore = (mcpSessionId: string, uniqueId: string, fileName: 
     return instance.runWithContext(async () => {
         let result = "ko";
 
-        await login(uniqueId);
+        const fileIdStored = tableFileSelect(mcpSessionId, fileName);
 
-        tableCitationCreate(mcpSessionId);
-        tableFileCreate(mcpSessionId);
-        tableRelationCreate(mcpSessionId);
+        if (fileIdStored > 0) {
+            result = "ok";
+        } else {
+            const fileId = tableFileInsert(mcpSessionId, fileName);
 
-        const tableName = tableNameReplace(`${mcpSessionId}_rag_file`);
+            await login(uniqueId);
 
-        if (database) {
-            const queryRow = database.prepare(`SELECT id FROM "${tableName}" WHERE name = ?`).get(fileName);
+            const fileDetail = helperSrc.fileDetail(fileName);
 
-            if (queryRow) {
+            const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
+
+            const fileReadStream = await helperSrc.fileReadStream(`${inputFolder}result.md`);
+
+            if (Buffer.isBuffer(fileReadStream)) {
+                const fileReadStreamContent = fileReadStream.toString();
+
+                const chunkList = chunkCreate(fileReadStreamContent);
+
                 result = "ok";
 
-                return result;
-            } else {
-                tableFileInsert(mcpSessionId, fileName);
-            }
-        }
+                for (let a = 0; a < chunkList.length; a += batchLength) {
+                    const chunkBatchList = chunkList.slice(a, a + batchLength);
 
-        const fileId = tableFileSelect(mcpSessionId, fileName);
+                    const embeddingData = await embedding(uniqueId, "document", chunkBatchList);
 
-        const fileDetail = helperSrc.fileDetail(fileName);
+                    if (Array.isArray(embeddingData.data) && embeddingData.data.length === chunkBatchList.length) {
+                        for (let b = 0; b < chunkBatchList.length; b++) {
+                            tableCitationInsert(mcpSessionId, fileId, chunkBatchList[b], embeddingData.data[b].embedding);
 
-        const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
+                            const graphData = await graphifyExtract(uniqueId, chunkBatchList[b]);
 
-        const fileReadStream = await helperSrc.fileReadStream(`${inputFolder}result.md`);
+                            if (Array.isArray(graphData.relationList)) {
+                                for (let c = 0; c < graphData.relationList.length; c++) {
+                                    const graphRelation = graphData.relationList[c];
 
-        if (Buffer.isBuffer(fileReadStream)) {
-            const fileReadStreamContent = fileReadStream.toString();
+                                    tableRelationInsert(mcpSessionId, fileId, graphRelation.source, graphRelation.verb, graphRelation.target);
+                                }
+                            } else {
+                                result = "ko";
 
-            for (let a = 0; a < fileReadStreamContent.length; a += chunkLength) {
-                const fileReadStreamContentChunk = fileReadStreamContent.slice(a, a + chunkLength);
-
-                const embeddingData = await embedding(uniqueId, fileReadStreamContentChunk);
-
-                if (embeddingData.data.length > 0 && embeddingData.data[0].embedding.length > 0) {
-                    tableCitationInsert(mcpSessionId, fileId, fileReadStreamContentChunk, embeddingData.data[0].embedding);
-
-                    const graphData = await graphifyExtract(uniqueId, fileReadStreamContentChunk);
-
-                    if (Array.isArray(graphData.relationList)) {
-                        for (let b = 0; b < graphData.relationList.length; b++) {
-                            const graphRelation = graphData.relationList[b];
-
-                            tableRelationInsert(mcpSessionId, fileId, graphRelation.source, graphRelation.verb, graphRelation.target);
+                                break;
+                            }
                         }
-                    }
 
-                    result = "ok";
+                        if (result === "ko") {
+                            break;
+                        }
+                    } else {
+                        result = "ko";
+
+                        break;
+                    }
+                }
+            } else {
+                helperSrc.writeLog("Embedding.ts - databaseStore() - fileReadStream()", fileReadStream.toString());
+            }
+
+            if (result === "ok") {
+                const fileWriteStreamDone = await helperSrc.fileWriteStream(`${inputFolder}.done`, Buffer.from(""));
+
+                if (typeof fileWriteStreamDone !== "boolean") {
+                    helperSrc.writeLog("Embedding.ts - databaseStore() - fileWriteStream(.done)", fileWriteStreamDone.toString());
+                }
+            } else {
+                await databaseDelete(mcpSessionId, fileName);
+
+                const fileWriteStreamFail = await helperSrc.fileWriteStream(`${inputFolder}.fail`, Buffer.from(""));
+
+                if (typeof fileWriteStreamFail !== "boolean") {
+                    helperSrc.writeLog("Embedding.ts - databaseStore() - fileWriteStream(.fail)", fileWriteStreamFail.toString());
                 }
             }
-        } else {
-            helperSrc.writeLog("Embedding.ts - databaseStore() - fileReadStream()", fileReadStream.toString());
+
+            await logout(uniqueId);
         }
-
-        if (result === "ok") {
-            const fileWriteStreamDone = await helperSrc.fileWriteStream(`${inputFolder}.done`, Buffer.from(""));
-
-            if (typeof fileWriteStreamDone !== "boolean") {
-                helperSrc.writeLog("Embedding.ts - databaseStore() - fileWriteStream(.done)", fileWriteStreamDone.toString());
-            }
-        } else {
-            const fileWriteStreamFail = await helperSrc.fileWriteStream(`${inputFolder}.fail`, Buffer.from(""));
-
-            if (typeof fileWriteStreamFail !== "boolean") {
-                helperSrc.writeLog("Embedding.ts - databaseStore() - fileWriteStream(.fail)", fileWriteStreamFail.toString());
-            }
-        }
-
-        await logout(uniqueId);
 
         return result;
     });
@@ -503,11 +461,11 @@ export const databaseSearch = (mcpSessionId: string, uniqueId: string, prompt: s
     return instance.runWithContext(async () => {
         await login(uniqueId);
 
-        const citationFilteredList: modelRag.Icitation[] = [];
+        let citationList: modelRag.Icitation[] = [];
 
-        const embeddingData = await embedding(uniqueId, prompt);
+        const embeddingData = await embedding(uniqueId, "query", prompt);
 
-        if (embeddingData.data.length > 0 && embeddingData.data[0].embedding.length > 0) {
+        if (Array.isArray(embeddingData.data) && embeddingData.data.length > 0 && embeddingData.data[0].embedding.length > 0) {
             const buffer = new Uint8Array(new Float32Array(embeddingData.data[0].embedding).buffer);
 
             const tableNameRag = tableNameReplace(`${mcpSessionId}_rag`);
@@ -516,30 +474,30 @@ export const databaseSearch = (mcpSessionId: string, uniqueId: string, prompt: s
             if (database) {
                 const queryList = database.prepare(`SELECT id, name FROM "${tableNameRagFile}"`).all();
                 const fileList = queryList as unknown as modelRag.Ifile[];
-                const totalLimit = Math.max(6, fileList.length);
-                const limitPerTable = Math.max(2, Math.ceil(totalLimit / Math.max(1, fileList.length)));
 
-                let citationList = chunk(fileList, tableNameRag, limitPerTable, buffer);
+                citationList = chunk(fileList, tableNameRag, citationLimit, buffer);
 
-                const importantWordList = tfIdf(prompt, citationList);
+                if (citationList.length > 0) {
+                    const distanceBest = citationList[0].distance;
 
-                citationList = filter(importantWordList, citationList)
-                    .sort((a, b) => a.distance - b.distance)
-                    .slice(0, totalLimit);
+                    const citationFilterList: modelRag.Icitation[] = [];
 
-                for (let a = 0; a < citationList.length; a++) {
-                    citationFilteredList.push({
-                        fileName: citationList[a].fileName,
-                        chunk: citationList[a].chunk,
-                        distance: citationList[a].distance
-                    });
+                    if (distanceBest <= distanceMax) {
+                        for (let a = 0; a < citationList.length; a++) {
+                            if (citationList[a].distance <= distanceBest + distanceMargin) {
+                                citationFilterList.push(citationList[a]);
+                            }
+                        }
+                    }
+
+                    citationList = citationFilterList;
                 }
             }
         }
 
         await logout(uniqueId);
 
-        return JSON.stringify({ citationList: citationFilteredList, relationList: tableRelationSelect(mcpSessionId, prompt) });
+        return JSON.stringify({ citationList: citationList, relationList: tableRelationSelect(mcpSessionId, prompt) });
     });
 };
 
@@ -565,4 +523,30 @@ export const databaseDelete = async (mcpSessionId: string, fileName: string): Pr
     }
 
     return result;
+};
+
+export const tableCreate = (mcpSessionId: string): boolean => {
+    const isFileCreate = tableFileCreate(mcpSessionId);
+    const isCitationCreate = tableCitationCreate(mcpSessionId);
+    const isRelationCreate = tableRelationCreate(mcpSessionId);
+
+    return isFileCreate && isCitationCreate && isRelationCreate;
+};
+
+export const tableDrop = (mcpSessionId: string): boolean => {
+    let isResult = false;
+
+    const tableNameRag = tableNameReplace(`${mcpSessionId}_rag`);
+    const tableNameRagFile = tableNameReplace(`${mcpSessionId}_rag_file`);
+    const tableNameRagRelation = tableNameReplace(`${mcpSessionId}_rag_relation`);
+
+    if (database) {
+        database.exec(`DROP TABLE IF EXISTS "${tableNameRag}"`);
+        database.exec(`DROP TABLE IF EXISTS "${tableNameRagFile}"`);
+        database.exec(`DROP TABLE IF EXISTS "${tableNameRagRelation}"`);
+
+        isResult = true;
+    }
+
+    return isResult;
 };

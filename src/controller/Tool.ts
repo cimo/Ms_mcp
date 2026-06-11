@@ -10,6 +10,7 @@ import * as helperSrc from "../HelperSrc.js";
 import * as instance from "../Instance.js";
 import * as modelServer from "../model/Server.js";
 import * as modelTool from "../model/Tool.js";
+import * as toolRagEmbedding from "../tool/rag/Embedding.js";
 import ControllerUpload from "./Upload.js";
 import ControllerAgent from "./Agent.js";
 import ToolAutomate from "../tool/Automate.js";
@@ -71,7 +72,7 @@ export default class Tool {
 
         if (typeof mcpSessionId === "string" && typeof cookie === "string") {
             return instance.api
-                .post(
+                .post<object>(
                     "/rpc",
                     {
                         headers: {
@@ -120,7 +121,7 @@ export default class Tool {
 
         if (typeof mcpSessionId === "string" && typeof mcpCookie === "string") {
             return instance.api
-                .post(
+                .post<object>(
                     "/rpc",
                     {
                         headers: {
@@ -199,6 +200,8 @@ export default class Tool {
                 await server.connect(rpc);
 
                 await this.sessionObject[mcpSessionIdNew].rpc.handleRequest(request, response, body);
+
+                toolRagEmbedding.tableCreate(mcpSessionIdNew);
 
                 return;
             } else if (

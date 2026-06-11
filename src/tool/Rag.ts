@@ -23,7 +23,10 @@ export default class Rag {
         });
 
         this.inputSchemaSearch = z.object({
-            prompt: z.string().default("").describe("Is the word/phrase that the user is asking to look/find/search.")
+            prompt: z
+                .string()
+                .default("")
+                .describe("Is ONLY the subject to search for, extracted from the user prompt: the topic/entity words WITHOUT the question frame.")
         });
 
         this.inputSchemaDelete = z.object({
@@ -71,10 +74,10 @@ export default class Rag {
 
         const config = {
             description: ["Search text in the vector database."].join("\n"),
-            example: ["- Explain to me XXX."].join("\n"),
+            example: ["- Which document talk about: 'XXX'."].join("\n"),
             inputInstruction: [
-                "You MUST need to extract, from the user prompt, ONLY the following schema:",
-                `Parameter 1 prompt: ${this.inputSchemaSearch.shape.prompt.description}`
+                "You MUST build the json schema using ONLY the following parameters:",
+                `Parameter 1 - prompt: ${this.inputSchemaSearch.shape.prompt.description}`
             ].join("\n"),
             inputSchema: this.inputSchemaSearch
         };

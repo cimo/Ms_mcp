@@ -31,9 +31,9 @@ export default class Security {
                 "- Scan with the mode 'repository' for the target 'https://github.com/cimo/Ms_cronjob'"
             ].join("\n"),
             inputInstruction: [
-                "You MUST need to extract, from the user text, ONLY the following schema:",
-                `Parameter 1 mode: ${this.inputSchemaParser.shape.mode.description}`,
-                `Parameter 2 target: ${this.inputSchemaParser.shape.target.description}`
+                "You MUST build the json schema using ONLY the following parameters:",
+                `Parameter 1 - mode: ${this.inputSchemaParser.shape.mode.description}`,
+                `Parameter 2 - target: ${this.inputSchemaParser.shape.target.description}`
             ].join("\n"),
             inputSchema: this.inputSchemaParser
         };

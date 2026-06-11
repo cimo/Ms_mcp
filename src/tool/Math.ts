@@ -16,7 +16,7 @@ export default class Math {
         this.sessionObject = sessionObject;
 
         this.inputSchemaExpression = z.object({
-            input: z.string().default("").describe("Is the full math expression that needs to be evaluated.")
+            prompt: z.string().default("").describe("Is the full math expression that needs to be evaluated.")
         });
     }
 
@@ -27,8 +27,8 @@ export default class Math {
             description: ["Evaluate a math expression."].join("\n"),
             example: ["- Calculate this expression: 1 + 2 * 3"].join("\n"),
             inputInstruction: [
-                "You MUST need to extract, from the user prompt, ONLY the following schema:",
-                `Parameter 1 input: ${this.inputSchemaExpression.shape.input.description}`
+                "You MUST build the json schema using ONLY the following parameters:",
+                `Parameter 1 - prompt: ${this.inputSchemaExpression.shape.prompt.description}`
             ].join("\n"),
             inputSchema: this.inputSchemaExpression
         };
@@ -37,7 +37,7 @@ export default class Math {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultExecute = await mathExpression.execute(argument.input);
+                const resultExecute = await mathExpression.execute(argument.prompt);
                 result = JSON.stringify({ name, result: resultExecute });
             }
 

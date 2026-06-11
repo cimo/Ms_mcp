@@ -77,7 +77,7 @@ export default class Upload {
                                 if (!error) {
                                     Fs.access(pathFile, Fs.constants.F_OK, (errorAccess) => {
                                         if (isFileExists && !errorAccess) {
-                                            reject(new Error("File exists."));
+                                            resolve([]);
 
                                             return;
                                         }
