@@ -30,3 +30,13 @@ export interface Irelation {
     verb: string;
     target: string;
 }
+
+export interface IdatabaseQueryChunk {
+    chunk: string;
+    file_id: number;
+    distance: number;
+}
+
+export interface IdatabaseQueryNode {
+    name: string;
+}

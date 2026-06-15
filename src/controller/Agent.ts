@@ -1,4 +1,4 @@
-import { DatabaseSync } from "node:sqlite";
+import Database from "better-sqlite3";
 
 // Source
 import * as helperSrc from "../HelperSrc.js";
@@ -6,11 +6,11 @@ import * as modelAgent from "../model/Agent.js";
 
 export default class Agent {
     // Variable
-    private database: DatabaseSync;
+    private database: Database.Database;
 
     // Method
     constructor() {
-        this.database = new DatabaseSync(`${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}sqlite/agent.sqlite`);
+        this.database = new Database(`${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}sqlite/agent.sqlite`);
     }
 
     tableCreate = (mcpSessionId: string): boolean => {
@@ -80,16 +80,18 @@ export default class Agent {
         const resultList: modelAgent.Iagent[] = [];
 
         if (mcpSessionId !== "") {
-            const queryList = this.database.prepare(`SELECT id, name, description, skill_name FROM "${mcpSessionId}_agent";`).all();
+            const queryList = this.database
+                .prepare(`SELECT id, name, description, skill_name FROM "${mcpSessionId}_agent";`)
+                .all() as unknown as modelAgent.IdatabaseQueryAgent[];
 
             for (let a = 0; a < queryList.length; a++) {
                 const query = queryList[a];
 
                 resultList.push({
-                    id: query["id"] as number,
-                    name: query["name"] as string,
-                    description: query["description"] as string,
-                    skillName: query["skill_name"] as string
+                    id: query.id,
+                    name: query.name,
+                    description: query.description,
+                    skillName: query.skill_name
                 });
             }
         }

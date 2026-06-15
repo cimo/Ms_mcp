@@ -26,7 +26,13 @@ export default class Rag {
             prompt: z
                 .string()
                 .default("")
-                .describe("Is ONLY the subject to search for, extracted from the user prompt: the topic/entity words WITHOUT the question frame.")
+                .describe("Is ONLY the subject to search for, extracted from the user prompt: the topic/entity words WITHOUT the question frame."),
+            entity: z
+                .array(z.string())
+                .default([])
+                .describe(
+                    "The key entities and topics (people, organizations, places, things, concepts) mentioned in the user prompt, WITHOUT question or intent words."
+                )
         });
 
         this.inputSchemaDelete = z.object({
@@ -77,7 +83,8 @@ export default class Rag {
             example: ["- Which document talk about: 'XXX'."].join("\n"),
             inputInstruction: [
                 "You MUST build the json schema using ONLY the following parameters:",
-                `Parameter 1 - prompt: ${this.inputSchemaSearch.shape.prompt.description}`
+                `Parameter 1 - prompt: ${this.inputSchemaSearch.shape.prompt.description}`,
+                `Parameter 2 - entity: ${this.inputSchemaSearch.shape.entity.description}`
             ].join("\n"),
             inputSchema: this.inputSchemaSearch
         };
@@ -91,7 +98,7 @@ export default class Rag {
                 if (documentList.length > 0) {
                     const uniqueId = helperSrc.generateUniqueId();
 
-                    const resultSearch = await ragEmbedding.databaseSearch(extra.sessionId, uniqueId, argument.prompt);
+                    const resultSearch = await ragEmbedding.databaseSearch(extra.sessionId, uniqueId, argument.prompt, argument.entity);
                     result = JSON.stringify({ name, result: JSON.parse(resultSearch) });
                 }
             }
