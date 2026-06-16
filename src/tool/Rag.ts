@@ -4,7 +4,7 @@ import { z } from "zod";
 import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import * as modelTool from "../model/Tool.js";
-import * as ragEmbedding from "./rag/Embedding.js";
+import * as ragEngine from "./rag/Engine.js";
 
 export default class Rag {
     // Variable
@@ -26,7 +26,9 @@ export default class Rag {
             prompt: z
                 .string()
                 .default("")
-                .describe("Is ONLY the subject to search for, extracted from the user prompt: the topic/entity words WITHOUT the question frame."),
+                .describe(
+                    "The complete user question in natural language, kept as asked with its full intent and all its words. It is used to semantically rank the results, so do NOT strip or shorten it."
+                ),
             entity: z
                 .array(z.string())
                 .default([])
@@ -37,7 +39,7 @@ export default class Rag {
                 .array(z.string())
                 .default([])
                 .describe(
-                    "The high level themes or relation topics behind the user prompt (what links the entities), WITHOUT question or intent words."
+                    "The high level concepts or relations the question is about (what links the entities). Use specific concept phrases of two or more words, avoid single generic words like 'life' or 'activities'."
                 )
         });
 
@@ -45,7 +47,7 @@ export default class Rag {
             fileName: z.string().default("").describe("File name.")
         });
 
-        ragEmbedding.databaseCreate();
+        ragEngine.databaseCreate();
     }
 
     store = (): modelTool.Irpc<typeof this.inputSchemaStore> => {
@@ -64,7 +66,7 @@ export default class Rag {
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const uniqueId = helperSrc.generateUniqueId();
 
-                const resultStore = await ragEmbedding.databaseStore(extra.sessionId, uniqueId, argument.fileName);
+                const resultStore = await ragEngine.databaseStore(extra.sessionId, uniqueId, argument.fileName);
                 result = JSON.stringify({ name, result: resultStore });
             }
 
@@ -105,13 +107,7 @@ export default class Rag {
                 if (documentList.length > 0) {
                     const uniqueId = helperSrc.generateUniqueId();
 
-                    const resultSearch = await ragEmbedding.databaseSearch(
-                        extra.sessionId,
-                        uniqueId,
-                        argument.prompt,
-                        argument.entity,
-                        argument.theme
-                    );
+                    const resultSearch = await ragEngine.databaseSearch(extra.sessionId, uniqueId, argument.prompt, argument.entity, argument.theme);
                     result = JSON.stringify({ name, result: JSON.parse(resultSearch) });
                 }
             }
@@ -143,7 +139,7 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultDelete = await ragEmbedding.databaseDelete(extra.sessionId, argument.fileName);
+                const resultDelete = await ragEngine.databaseDelete(extra.sessionId, argument.fileName);
                 result = JSON.stringify({ name, result: resultDelete });
             }
 

@@ -48,6 +48,19 @@ export interface IgraphRelation {
     chunk: string;
 }
 
+export interface IgraphCandidate {
+    source: string;
+    verb: string;
+    target: string;
+    description: string;
+    chunk: string;
+    edgeId: number;
+    sourceNorm: string;
+    targetNorm: string;
+    relevance: number;
+    rank: number;
+}
+
 export interface IdatabaseQueryChunk {
     chunk: string;
     file_id: number;
@@ -55,12 +68,20 @@ export interface IdatabaseQueryChunk {
 }
 
 export interface IdatabaseQueryEdge {
+    id: number;
     source: string;
     verb: string;
     target: string;
     description: string;
     file_id: number;
     chunk_index: number;
+    source_norm: string;
+    target_norm: string;
+}
+
+export interface IdatabaseQueryDegree {
+    node: string;
+    degree: number;
 }
 
 export interface IdatabaseQueryEdgeBuild {
@@ -83,6 +104,7 @@ export interface IdatabaseQueryEdgeVec {
 }
 
 export interface IdatabaseQueryEdgeFull {
+    id: number;
     source: string;
     verb: string;
     target: string;
@@ -98,4 +120,9 @@ export interface IdatabaseQueryNode {
     name: string;
     name_norm: string;
     description: string;
+}
+
+export interface IdatabaseQueryNodeType {
+    name_norm: string;
+    type: string;
 }

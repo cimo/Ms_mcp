@@ -11,7 +11,7 @@ import { Cc } from "@cimo/cronjob/dist/src/Main.js";
 // Source
 import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
-import * as toolRagEmbedding from "../tool/rag/Embedding.js";
+import * as toolRagEngine from "../tool/rag/Engine.js";
 import ControllerTool from "./Tool.js";
 import ControllerXvfb from "./Xvfb.js";
 
@@ -122,7 +122,7 @@ export default class Server {
                 if (result !== "ko") {
                     controllerXvfb.start(result);
 
-                    toolRagEmbedding.tableCreate(result);
+                    toolRagEngine.tableCreate(result);
 
                     helperSrc.responseBody(result, "", response, 200);
                 } else {
@@ -138,7 +138,7 @@ export default class Server {
                 if (result !== "ko") {
                     controllerXvfb.stop(result);
 
-                    toolRagEmbedding.tableDrop(result);
+                    toolRagEngine.tableDrop(result);
 
                     helperSrc.responseBody(result, "", response, 200);
                 } else {

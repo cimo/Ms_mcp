@@ -79,14 +79,14 @@ export interface IapiToolCallBody extends Record<string, unknown> {
     id: number;
     method: string;
     params: {
-        name: string;
-        arguments: Record<string, string>;
         protocolVersion: string;
         capabilities: Record<string, unknown>;
         clientInfo: {
             name: string;
             version: string;
         };
+        name: string;
+        arguments: Record<string, string>;
     };
 }
 
