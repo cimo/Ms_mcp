@@ -122,6 +122,8 @@ export default class Server {
                 if (result !== "ko") {
                     controllerXvfb.start(result);
 
+                    toolRagEmbedding.tableCreate(result);
+
                     helperSrc.responseBody(result, "", response, 200);
                 } else {
                     helperSrc.responseBody("", result, response, 500);

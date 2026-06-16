@@ -11,6 +11,8 @@ let database: Database.Database | undefined = undefined;
 const chunkLength = 1000;
 const chunkLengthMin = chunkLength / 10;
 const distanceMax = 1.12;
+const nodeDistanceMax = 1.12;
+const edgeDistanceMax = 1.12;
 const graphifyParallel = 8;
 const batchLength = 32;
 const vectorDimension = 768;
@@ -18,6 +20,7 @@ const vectorChunkSize = 512;
 const candidatePool = 256;
 const citationLimit = 4;
 const graphHopMax = 2;
+const graphLimitPerSeed = 32;
 const nodeWordMin = 3;
 const ftsTermMin = 3;
 const urlMaxCount = 3;
@@ -303,7 +306,7 @@ const tableCitationCreate = (mcpSessionId: string): boolean => {
 
     if (database) {
         database.exec(
-            `CREATE VIRTUAL TABLE IF NOT EXISTS "${name}" USING vec0(id INTEGER PRIMARY KEY, embedding float[${vectorDimension}], file_id INTEGER PARTITION KEY, +chunk TEXT NOT NULL, chunk_size=${vectorChunkSize})`
+            `CREATE VIRTUAL TABLE IF NOT EXISTS "${name}" USING vec0(id INTEGER PRIMARY KEY, embedding float[${vectorDimension}], file_id INTEGER PARTITION KEY, +chunk TEXT NOT NULL, +chunk_index INTEGER, chunk_size=${vectorChunkSize})`
         );
 
         isResult = true;
@@ -312,15 +315,15 @@ const tableCitationCreate = (mcpSessionId: string): boolean => {
     return isResult;
 };
 
-const tableCitationInsert = (mcpSessionId: string, fileId: number, chunk: string, embedding: number[]): boolean => {
+const tableCitationInsert = (mcpSessionId: string, fileId: number, chunk: string, chunkIndex: number, embedding: number[]): boolean => {
     let isResult = false;
 
     const name = tableNameReplace(`${mcpSessionId}_rag`);
 
     if (database && fileId > 0) {
         database
-            .prepare(`INSERT INTO "${name}" (embedding, file_id, chunk) VALUES (?, CAST(? AS INTEGER), ?)`)
-            .run(Buffer.from(new Float32Array(embedding).buffer), fileId, chunk);
+            .prepare(`INSERT INTO "${name}" (embedding, file_id, chunk, chunk_index) VALUES (?, CAST(? AS INTEGER), ?, CAST(? AS INTEGER))`)
+            .run(Buffer.from(new Float32Array(embedding).buffer), fileId, chunk, chunkIndex);
 
         isResult = true;
     }
@@ -366,7 +369,10 @@ const tableNodeCreate = (mcpSessionId: string): boolean => {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             file_id INTEGER,
             name TEXT NOT NULL,
-            UNIQUE (file_id, name)
+            name_norm TEXT NOT NULL,
+            type TEXT NOT NULL,
+            description TEXT NOT NULL,
+            UNIQUE (file_id, name_norm)
         )`);
 
         isResult = true;
@@ -375,13 +381,18 @@ const tableNodeCreate = (mcpSessionId: string): boolean => {
     return isResult;
 };
 
-const tableNodeInsert = (mcpSessionId: string, fileId: number, name: string): boolean => {
+const tableNodeInsert = (mcpSessionId: string, fileId: number, name: string, type: string, description: string): boolean => {
     let isResult = false;
 
     const tableName = tableNameReplace(`${mcpSessionId}_rag_node`);
 
     if (database && fileId > 0) {
-        database.prepare(`INSERT OR IGNORE INTO "${tableName}" (file_id, name) VALUES (CAST(? AS INTEGER), ?)`).run(fileId, name);
+        database
+            .prepare(
+                `INSERT INTO "${tableName}" (file_id, name, name_norm, type, description) VALUES (CAST(? AS INTEGER), ?, ?, ?, ?)
+                ON CONFLICT (file_id, name_norm) DO UPDATE SET description = excluded.description WHERE "${tableName}".description = ''`
+            )
+            .run(fileId, name, nodeNormalize(name), type, description);
 
         isResult = true;
     }
@@ -409,22 +420,101 @@ const tableNodeMatch = (mcpSessionId: string, termList: string[]): string[] => {
             const clauseList: string[] = [];
 
             for (let a = 0; a < likeList.length; a++) {
-                clauseList.push("name LIKE ?");
+                clauseList.push("name_norm LIKE ?");
             }
 
             const queryList = database
-                .prepare(`SELECT DISTINCT name FROM "${tableName}" WHERE ${clauseList.join(" OR ")} ORDER BY length(name) ASC`)
+                .prepare(`SELECT DISTINCT name_norm FROM "${tableName}" WHERE ${clauseList.join(" OR ")} ORDER BY length(name_norm) ASC`)
                 .all(...likeList) as unknown as modelRag.IdatabaseQueryNode[];
 
             const nodeLogList: string[] = [];
 
             for (let a = 0; a < queryList.length; a++) {
-                resultList.push(queryList[a].name);
+                resultList.push(queryList[a].name_norm);
 
-                nodeLogList.push(queryList[a].name);
+                nodeLogList.push(queryList[a].name_norm);
             }
 
             helperSrc.writeLog("Embedding.ts - tableNodeMatch()", nodeLogList.join(", "));
+        }
+    }
+
+    return resultList;
+};
+
+const nodeListByFile = (mcpSessionId: string, fileId: number): modelRag.IdatabaseQueryNodeVec[] => {
+    const resultList: modelRag.IdatabaseQueryNodeVec[] = [];
+
+    if (database && fileId > 0) {
+        const tableName = tableNameReplace(`${mcpSessionId}_rag_node`);
+
+        const queryList = database
+            .prepare(`SELECT name, name_norm, description FROM "${tableName}" WHERE file_id = CAST(? AS INTEGER)`)
+            .all(fileId) as unknown as modelRag.IdatabaseQueryNodeVec[];
+
+        for (let a = 0; a < queryList.length; a++) {
+            resultList.push(queryList[a]);
+        }
+    }
+
+    return resultList;
+};
+
+const tableNodeVecCreate = (mcpSessionId: string): boolean => {
+    let isResult = false;
+
+    const name = tableNameReplace(`${mcpSessionId}_rag_node_vec`);
+
+    if (database) {
+        database.exec(
+            `CREATE VIRTUAL TABLE IF NOT EXISTS "${name}" USING vec0(id INTEGER PRIMARY KEY, embedding float[${vectorDimension}], +file_id INTEGER, +name TEXT NOT NULL, +name_norm TEXT NOT NULL, +description TEXT NOT NULL, chunk_size=${vectorChunkSize})`
+        );
+
+        isResult = true;
+    }
+
+    return isResult;
+};
+
+const tableNodeVecInsert = (
+    mcpSessionId: string,
+    fileId: number,
+    name: string,
+    nameNorm: string,
+    description: string,
+    embedding: number[]
+): boolean => {
+    let isResult = false;
+
+    const tableName = tableNameReplace(`${mcpSessionId}_rag_node_vec`);
+
+    if (database && fileId > 0) {
+        database
+            .prepare(`INSERT INTO "${tableName}" (embedding, file_id, name, name_norm, description) VALUES (?, CAST(? AS INTEGER), ?, ?, ?)`)
+            .run(Buffer.from(new Float32Array(embedding).buffer), fileId, name, nameNorm, description);
+
+        isResult = true;
+    }
+
+    return isResult;
+};
+
+const tableNodeVecMatch = (mcpSessionId: string, buffer: Buffer): modelRag.IdatabaseQueryNodeVec[] => {
+    const resultList: modelRag.IdatabaseQueryNodeVec[] = [];
+
+    if (database) {
+        const tableName = tableNameReplace(`${mcpSessionId}_rag_node_vec`);
+
+        const queryList = database
+            .prepare(
+                `SELECT name, name_norm, description, distance FROM "${tableName}" WHERE embedding MATCH ? ORDER BY distance LIMIT ${candidatePool}`
+            )
+            .all(buffer) as unknown as modelRag.IdatabaseQueryNodeVec[];
+
+        for (let a = 0; a < queryList.length; a++) {
+            if (queryList[a].distance <= nodeDistanceMax) {
+                resultList.push(queryList[a]);
+            }
         }
     }
 
@@ -438,7 +528,7 @@ const tableEdgeCreate = (mcpSessionId: string): boolean => {
 
     if (database) {
         database.exec(
-            `CREATE TABLE IF NOT EXISTS "${name}" (id INTEGER PRIMARY KEY, file_id INTEGER, source TEXT NOT NULL, verb TEXT NOT NULL, target TEXT NOT NULL, source_norm TEXT NOT NULL, target_norm TEXT NOT NULL)`
+            `CREATE TABLE IF NOT EXISTS "${name}" (id INTEGER PRIMARY KEY, file_id INTEGER, chunk_index INTEGER, source TEXT NOT NULL, verb TEXT NOT NULL, target TEXT NOT NULL, description TEXT NOT NULL, keyword TEXT NOT NULL, source_norm TEXT NOT NULL, target_norm TEXT NOT NULL)`
         );
 
         database.exec(`CREATE INDEX IF NOT EXISTS "${name}_source" ON "${name}" (source_norm)`);
@@ -450,15 +540,27 @@ const tableEdgeCreate = (mcpSessionId: string): boolean => {
     return isResult;
 };
 
-const tableEdgeInsert = (mcpSessionId: string, fileId: number, source: string, verb: string, target: string): boolean => {
+const tableEdgeInsert = (mcpSessionId: string, fileId: number, chunkIndex: number, relation: modelRag.Irelation): boolean => {
     let isResult = false;
 
     const name = tableNameReplace(`${mcpSessionId}_rag_edge`);
 
     if (database && fileId > 0) {
         database
-            .prepare(`INSERT INTO "${name}" (file_id, source, verb, target, source_norm, target_norm) VALUES (CAST(? AS INTEGER), ?, ?, ?, ?, ?)`)
-            .run(fileId, source, verb, target, nodeNormalize(source), nodeNormalize(target));
+            .prepare(
+                `INSERT INTO "${name}" (file_id, chunk_index, source, verb, target, description, keyword, source_norm, target_norm) VALUES (CAST(? AS INTEGER), CAST(? AS INTEGER), ?, ?, ?, ?, ?, ?, ?)`
+            )
+            .run(
+                fileId,
+                chunkIndex,
+                relation.source,
+                relation.verb,
+                relation.target,
+                relation.description,
+                relation.keyword,
+                nodeNormalize(relation.source),
+                nodeNormalize(relation.target)
+            );
 
         isResult = true;
     }
@@ -466,11 +568,31 @@ const tableEdgeInsert = (mcpSessionId: string, fileId: number, source: string, v
     return isResult;
 };
 
-const tableEdgeTraverse = (mcpSessionId: string, seedList: string[]): modelRag.Irelation[] => {
-    const resultList: modelRag.Irelation[] = [];
+const chunkByIndex = (mcpSessionId: string, fileId: number, chunkIndex: number): string => {
+    let result = "";
+
+    if (database) {
+        const name = tableNameReplace(`${mcpSessionId}_rag`);
+
+        const queryRow = database
+            .prepare(`SELECT chunk FROM "${name}" WHERE file_id = CAST(? AS INTEGER) AND chunk_index = CAST(? AS INTEGER) LIMIT 1`)
+            .get(fileId, chunkIndex) as Record<string, unknown> | undefined;
+
+        if (queryRow && typeof queryRow["chunk"] === "string") {
+            result = queryRow["chunk"] as string;
+        }
+    }
+
+    return result;
+};
+
+const tableEdgeTraverse = (mcpSessionId: string, seedList: string[]): modelRag.IgraphRelation[] => {
+    const resultList: modelRag.IgraphRelation[] = [];
 
     if (database && seedList.length > 0) {
         const name = tableNameReplace(`${mcpSessionId}_rag_edge`);
+
+        const limit = seedList.length * graphLimitPerSeed;
 
         const queryList = database
             .prepare(
@@ -486,10 +608,12 @@ const tableEdgeTraverse = (mcpSessionId: string, seedList: string[]): modelRag.I
                     JOIN walk ON step.node = walk.node
                     WHERE walk.depth < ${graphHopMax}
                 )
-                SELECT DISTINCT source, verb, target FROM "${name}"
-                WHERE source_norm IN (SELECT node FROM walk) OR target_norm IN (SELECT node FROM walk)`
+                SELECT source, verb, target, MIN(description) AS description, MIN(file_id) AS file_id, MIN(chunk_index) AS chunk_index FROM "${name}"
+                WHERE source_norm IN (SELECT node FROM walk) OR target_norm IN (SELECT node FROM walk)
+                GROUP BY source_norm, verb, target_norm
+                LIMIT ${limit}`
             )
-            .all(JSON.stringify(seedList)) as unknown as modelRag.Irelation[];
+            .all(JSON.stringify(seedList)) as unknown as modelRag.IdatabaseQueryEdge[];
 
         for (let a = 0; a < queryList.length; a++) {
             const query = queryList[a];
@@ -497,8 +621,100 @@ const tableEdgeTraverse = (mcpSessionId: string, seedList: string[]): modelRag.I
             resultList.push({
                 source: query.source,
                 verb: query.verb,
-                target: query.target
+                target: query.target,
+                description: query.description,
+                chunk: chunkByIndex(mcpSessionId, query.file_id, query.chunk_index)
             });
+        }
+    }
+
+    return resultList;
+};
+
+const edgeListByFile = (mcpSessionId: string, fileId: number): modelRag.IdatabaseQueryEdgeBuild[] => {
+    const resultList: modelRag.IdatabaseQueryEdgeBuild[] = [];
+
+    if (database && fileId > 0) {
+        const tableName = tableNameReplace(`${mcpSessionId}_rag_edge`);
+
+        const queryList = database
+            .prepare(`SELECT id, verb, description, keyword FROM "${tableName}" WHERE file_id = CAST(? AS INTEGER)`)
+            .all(fileId) as unknown as modelRag.IdatabaseQueryEdgeBuild[];
+
+        for (let a = 0; a < queryList.length; a++) {
+            resultList.push(queryList[a]);
+        }
+    }
+
+    return resultList;
+};
+
+const tableEdgeVecCreate = (mcpSessionId: string): boolean => {
+    let isResult = false;
+
+    const name = tableNameReplace(`${mcpSessionId}_rag_edge_vec`);
+
+    if (database) {
+        database.exec(
+            `CREATE VIRTUAL TABLE IF NOT EXISTS "${name}" USING vec0(id INTEGER PRIMARY KEY, embedding float[${vectorDimension}], +file_id INTEGER, +edge_id INTEGER, chunk_size=${vectorChunkSize})`
+        );
+
+        isResult = true;
+    }
+
+    return isResult;
+};
+
+const tableEdgeVecInsert = (mcpSessionId: string, fileId: number, edgeId: number, embedding: number[]): boolean => {
+    let isResult = false;
+
+    const tableName = tableNameReplace(`${mcpSessionId}_rag_edge_vec`);
+
+    if (database && fileId > 0) {
+        database
+            .prepare(`INSERT INTO "${tableName}" (embedding, file_id, edge_id) VALUES (?, CAST(? AS INTEGER), CAST(? AS INTEGER))`)
+            .run(Buffer.from(new Float32Array(embedding).buffer), fileId, edgeId);
+
+        isResult = true;
+    }
+
+    return isResult;
+};
+
+const tableEdgeVecMatch = (mcpSessionId: string, buffer: Buffer): number[] => {
+    const resultList: number[] = [];
+
+    if (database) {
+        const tableName = tableNameReplace(`${mcpSessionId}_rag_edge_vec`);
+
+        const queryList = database
+            .prepare(`SELECT edge_id, distance FROM "${tableName}" WHERE embedding MATCH ? ORDER BY distance LIMIT ${candidatePool}`)
+            .all(buffer) as unknown as modelRag.IdatabaseQueryEdgeVec[];
+
+        for (let a = 0; a < queryList.length; a++) {
+            if (queryList[a].distance <= edgeDistanceMax) {
+                resultList.push(queryList[a].edge_id);
+            }
+        }
+    }
+
+    return resultList;
+};
+
+const tableEdgeByIdList = (mcpSessionId: string, idList: number[]): modelRag.IdatabaseQueryEdgeFull[] => {
+    const resultList: modelRag.IdatabaseQueryEdgeFull[] = [];
+
+    if (database && idList.length > 0) {
+        const tableName = tableNameReplace(`${mcpSessionId}_rag_edge`);
+
+        const queryList = database
+            .prepare(
+                `SELECT source, verb, target, description, keyword, source_norm, target_norm, file_id, chunk_index FROM "${tableName}" WHERE id IN (SELECT value FROM json_each(?))`
+            )
+            .all(JSON.stringify(idList)) as unknown as modelRag.IdatabaseQueryEdgeFull[];
+
+        for (let a = 0; a < queryList.length; a++) {
+            resultList.push(queryList[a]);
         }
     }
 
@@ -585,7 +801,7 @@ export const databaseStore = (mcpSessionId: string, uniqueId: string, fileName: 
                                 database.exec("BEGIN");
 
                                 for (let b = 0; b < chunkBatchList.length; b++) {
-                                    tableCitationInsert(mcpSessionId, fileId, chunkBatchList[b], embeddingData.data[b].embedding);
+                                    tableCitationInsert(mcpSessionId, fileId, chunkBatchList[b], a + b, embeddingData.data[b].embedding);
                                     tableFtsInsert(mcpSessionId, fileId, chunkBatchList[b]);
                                 }
 
@@ -603,22 +819,30 @@ export const databaseStore = (mcpSessionId: string, uniqueId: string, fileName: 
 
                 const graphifyWorker = async (): Promise<void> => {
                     while (chunkIndex < chunkList.length && !isFailed) {
-                        const chunk = chunkList[chunkIndex];
+                        const index = chunkIndex;
+
+                        const chunk = chunkList[index];
 
                         chunkIndex++;
 
                         const graphData = await graphifyExtract(uniqueId, chunk);
 
-                        if (Array.isArray(graphData.relationList)) {
+                        if (Array.isArray(graphData.relationList) && Array.isArray(graphData.entityList)) {
                             if (database) {
                                 database.exec("BEGIN");
+
+                                for (let a = 0; a < graphData.entityList.length; a++) {
+                                    const entity = graphData.entityList[a];
+
+                                    tableNodeInsert(mcpSessionId, fileId, entity.name, entity.type, entity.description);
+                                }
 
                                 for (let a = 0; a < graphData.relationList.length; a++) {
                                     const relation = graphData.relationList[a];
 
-                                    tableEdgeInsert(mcpSessionId, fileId, relation.source, relation.verb, relation.target);
-                                    tableNodeInsert(mcpSessionId, fileId, nodeNormalize(relation.source));
-                                    tableNodeInsert(mcpSessionId, fileId, nodeNormalize(relation.target));
+                                    tableEdgeInsert(mcpSessionId, fileId, index, relation);
+                                    tableNodeInsert(mcpSessionId, fileId, relation.source, "concept", "");
+                                    tableNodeInsert(mcpSessionId, fileId, relation.target, "concept", "");
                                 }
 
                                 database.exec("COMMIT");
@@ -642,6 +866,77 @@ export const databaseStore = (mcpSessionId: string, uniqueId: string, fileName: 
                 };
 
                 await Promise.all([stageCitation(), stageRelation()]);
+
+                if (!isFailed) {
+                    const nodeBuildList = nodeListByFile(mcpSessionId, fileId);
+
+                    for (let a = 0; a < nodeBuildList.length && !isFailed; a += batchLength) {
+                        const nodeBatchList = nodeBuildList.slice(a, a + batchLength);
+
+                        const nodeTextList: string[] = [];
+
+                        for (let b = 0; b < nodeBatchList.length; b++) {
+                            if (nodeBatchList[b].description === "") {
+                                nodeTextList.push(nodeBatchList[b].name);
+                            } else {
+                                nodeTextList.push(`${nodeBatchList[b].name}: ${nodeBatchList[b].description}`);
+                            }
+                        }
+
+                        const nodeEmbeddingData = await embedding(uniqueId, "document", nodeTextList);
+
+                        if (Array.isArray(nodeEmbeddingData.data) && nodeEmbeddingData.data.length === nodeBatchList.length) {
+                            if (database) {
+                                database.exec("BEGIN");
+
+                                for (let b = 0; b < nodeBatchList.length; b++) {
+                                    tableNodeVecInsert(
+                                        mcpSessionId,
+                                        fileId,
+                                        nodeBatchList[b].name,
+                                        nodeBatchList[b].name_norm,
+                                        nodeBatchList[b].description,
+                                        nodeEmbeddingData.data[b].embedding
+                                    );
+                                }
+
+                                database.exec("COMMIT");
+                            }
+                        } else {
+                            isFailed = true;
+                        }
+                    }
+                }
+
+                if (!isFailed) {
+                    const edgeBuildList = edgeListByFile(mcpSessionId, fileId);
+
+                    for (let a = 0; a < edgeBuildList.length && !isFailed; a += batchLength) {
+                        const edgeBatchList = edgeBuildList.slice(a, a + batchLength);
+
+                        const edgeTextList: string[] = [];
+
+                        for (let b = 0; b < edgeBatchList.length; b++) {
+                            edgeTextList.push(`${edgeBatchList[b].verb} ${edgeBatchList[b].keyword} ${edgeBatchList[b].description}`.trim());
+                        }
+
+                        const edgeEmbeddingData = await embedding(uniqueId, "document", edgeTextList);
+
+                        if (Array.isArray(edgeEmbeddingData.data) && edgeEmbeddingData.data.length === edgeBatchList.length) {
+                            if (database) {
+                                database.exec("BEGIN");
+
+                                for (let b = 0; b < edgeBatchList.length; b++) {
+                                    tableEdgeVecInsert(mcpSessionId, fileId, edgeBatchList[b].id, edgeEmbeddingData.data[b].embedding);
+                                }
+
+                                database.exec("COMMIT");
+                            }
+                        } else {
+                            isFailed = true;
+                        }
+                    }
+                }
 
                 if (isFailed) {
                     result = "ko";
@@ -680,12 +975,19 @@ export const databaseStore = (mcpSessionId: string, uniqueId: string, fileName: 
     });
 };
 
-export const databaseSearch = (mcpSessionId: string, uniqueId: string, prompt: string, entityList: string[]): Promise<string> => {
+export const databaseSearch = (
+    mcpSessionId: string,
+    uniqueId: string,
+    prompt: string,
+    entityList: string[],
+    themeList: string[]
+): Promise<string> => {
     return instance.runWithContext(async () => {
         await login(uniqueId);
 
         let citationList: modelRag.Icitation[] = [];
-        let graphList: modelRag.Irelation[] = [];
+        const nodeList: modelRag.Inode[] = [];
+        const graphList: modelRag.IgraphRelation[] = [];
 
         const embeddingData = await embedding(uniqueId, "query", prompt);
 
@@ -763,22 +1065,116 @@ export const databaseSearch = (mcpSessionId: string, uniqueId: string, prompt: s
                     citationList = citationList.slice(0, citationLimit);
                 }
 
-                const seedList = tableNodeMatch(mcpSessionId, entityList);
+                const seedObject: Record<string, boolean> = {};
+                const seedList: string[] = [];
+
+                const graphCollectList: modelRag.IgraphRelation[] = [];
+
+                if (entityList.length > 0) {
+                    const entityNodeEmbeddingData = await embedding(uniqueId, "query", entityList);
+                    const isEntityNodeEmbedding =
+                        Array.isArray(entityNodeEmbeddingData.data) && entityNodeEmbeddingData.data.length === entityList.length;
+
+                    for (let a = 0; a < entityList.length; a++) {
+                        if (isEntityNodeEmbedding && entityNodeEmbeddingData.data[a].embedding.length > 0) {
+                            const nodeBuffer = Buffer.from(new Float32Array(entityNodeEmbeddingData.data[a].embedding).buffer);
+                            const nodeMatchList = tableNodeVecMatch(mcpSessionId, nodeBuffer);
+
+                            for (let b = 0; b < nodeMatchList.length; b++) {
+                                if (!seedObject[nodeMatchList[b].name_norm]) {
+                                    seedObject[nodeMatchList[b].name_norm] = true;
+                                    seedList.push(nodeMatchList[b].name_norm);
+                                    nodeList.push({ name: nodeMatchList[b].name, type: "", description: nodeMatchList[b].description });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                const seedLikeList = tableNodeMatch(mcpSessionId, entityList);
+
+                for (let a = 0; a < seedLikeList.length; a++) {
+                    if (!seedObject[seedLikeList[a]]) {
+                        seedObject[seedLikeList[a]] = true;
+                        seedList.push(seedLikeList[a]);
+                    }
+                }
+
+                if (themeList.length > 0) {
+                    const themeEmbeddingData = await embedding(uniqueId, "query", themeList);
+                    const isThemeEmbedding = Array.isArray(themeEmbeddingData.data) && themeEmbeddingData.data.length === themeList.length;
+
+                    const edgeIdObject: Record<number, boolean> = {};
+                    const edgeIdList: number[] = [];
+
+                    for (let a = 0; a < themeList.length; a++) {
+                        if (isThemeEmbedding && themeEmbeddingData.data[a].embedding.length > 0) {
+                            const edgeBuffer = Buffer.from(new Float32Array(themeEmbeddingData.data[a].embedding).buffer);
+                            const edgeMatchList = tableEdgeVecMatch(mcpSessionId, edgeBuffer);
+
+                            for (let b = 0; b < edgeMatchList.length; b++) {
+                                if (!edgeIdObject[edgeMatchList[b]]) {
+                                    edgeIdObject[edgeMatchList[b]] = true;
+                                    edgeIdList.push(edgeMatchList[b]);
+                                }
+                            }
+                        }
+                    }
+
+                    const edgeFullList = tableEdgeByIdList(mcpSessionId, edgeIdList);
+
+                    for (let a = 0; a < edgeFullList.length; a++) {
+                        const edgeFull = edgeFullList[a];
+
+                        graphCollectList.push({
+                            source: edgeFull.source,
+                            verb: edgeFull.verb,
+                            target: edgeFull.target,
+                            description: edgeFull.description,
+                            chunk: chunkByIndex(mcpSessionId, edgeFull.file_id, edgeFull.chunk_index)
+                        });
+
+                        if (!seedObject[edgeFull.source_norm]) {
+                            seedObject[edgeFull.source_norm] = true;
+                            seedList.push(edgeFull.source_norm);
+                        }
+
+                        if (!seedObject[edgeFull.target_norm]) {
+                            seedObject[edgeFull.target_norm] = true;
+                            seedList.push(edgeFull.target_norm);
+                        }
+                    }
+                }
 
                 if (seedList.length > 0) {
-                    graphList = tableEdgeTraverse(mcpSessionId, seedList);
+                    const traverseList = tableEdgeTraverse(mcpSessionId, seedList);
+
+                    for (let a = 0; a < traverseList.length; a++) {
+                        graphCollectList.push(traverseList[a]);
+                    }
+                }
+
+                const graphSeenObject: Record<string, boolean> = {};
+
+                for (let a = 0; a < graphCollectList.length; a++) {
+                    const key = `${nodeNormalize(graphCollectList[a].source)}|${graphCollectList[a].verb}|${nodeNormalize(graphCollectList[a].target)}`;
+
+                    if (!graphSeenObject[key]) {
+                        graphSeenObject[key] = true;
+                        graphList.push(graphCollectList[a]);
+                    }
                 }
 
                 helperSrc.writeLog(
                     "Embedding.ts - databaseSearch()",
-                    `Prompt: ${prompt.substring(0, 80)} - DistanceBest: ${distanceBest.toFixed(4)} - Citation: ${citationList.length} - Graph: ${graphList.length}`
+                    `Prompt: ${prompt.substring(0, 80)} - DistanceBest: ${distanceBest.toFixed(4)} - Citation: ${citationList.length} - Node: ${nodeList.length} - Graph: ${graphList.length}`
                 );
             }
         }
 
         await logout(uniqueId);
 
-        return JSON.stringify({ citationList, graphList });
+        return JSON.stringify({ citationList, nodeList, graphList });
     });
 };
 
@@ -790,6 +1186,8 @@ export const databaseDelete = async (mcpSessionId: string, fileName: string): Pr
     const tableNameRagFile = tableNameReplace(`${mcpSessionId}_rag_file`);
     const tableNameRagNode = tableNameReplace(`${mcpSessionId}_rag_node`);
     const tableNameRagEdge = tableNameReplace(`${mcpSessionId}_rag_edge`);
+    const tableNameRagNodeVec = tableNameReplace(`${mcpSessionId}_rag_node_vec`);
+    const tableNameRagEdgeVec = tableNameReplace(`${mcpSessionId}_rag_edge_vec`);
 
     if (database && fileName) {
         const queryRow = database.prepare(`SELECT id FROM "${tableNameRagFile}" WHERE name = ?`).get(fileName) as Record<string, unknown> | undefined;
@@ -802,6 +1200,8 @@ export const databaseDelete = async (mcpSessionId: string, fileName: string): Pr
             database.prepare(`DELETE FROM "${tableNameRagFile}" WHERE id = CAST(? AS INTEGER)`).run(fileId);
             database.prepare(`DELETE FROM "${tableNameRagNode}" WHERE file_id = CAST(? AS INTEGER)`).run(fileId);
             database.prepare(`DELETE FROM "${tableNameRagEdge}" WHERE file_id = CAST(? AS INTEGER)`).run(fileId);
+            database.prepare(`DELETE FROM "${tableNameRagNodeVec}" WHERE file_id = CAST(? AS INTEGER)`).run(fileId);
+            database.prepare(`DELETE FROM "${tableNameRagEdgeVec}" WHERE file_id = CAST(? AS INTEGER)`).run(fileId);
         }
 
         result = "ok";
@@ -816,8 +1216,10 @@ export const tableCreate = (mcpSessionId: string): boolean => {
     const isFtsCreate = tableFtsCreate(mcpSessionId);
     const isNodeCreate = tableNodeCreate(mcpSessionId);
     const isEdgeCreate = tableEdgeCreate(mcpSessionId);
+    const isNodeVecCreate = tableNodeVecCreate(mcpSessionId);
+    const isEdgeVecCreate = tableEdgeVecCreate(mcpSessionId);
 
-    return isFileCreate && isCitationCreate && isFtsCreate && isNodeCreate && isEdgeCreate;
+    return isFileCreate && isCitationCreate && isFtsCreate && isNodeCreate && isEdgeCreate && isNodeVecCreate && isEdgeVecCreate;
 };
 
 export const tableDrop = (mcpSessionId: string): boolean => {
@@ -829,6 +1231,8 @@ export const tableDrop = (mcpSessionId: string): boolean => {
     const tableNameRagRelation = tableNameReplace(`${mcpSessionId}_rag_relation`);
     const tableNameRagNode = tableNameReplace(`${mcpSessionId}_rag_node`);
     const tableNameRagEdge = tableNameReplace(`${mcpSessionId}_rag_edge`);
+    const tableNameRagNodeVec = tableNameReplace(`${mcpSessionId}_rag_node_vec`);
+    const tableNameRagEdgeVec = tableNameReplace(`${mcpSessionId}_rag_edge_vec`);
 
     if (database) {
         database.exec(`DROP TABLE IF EXISTS "${tableNameRag}"`);
@@ -837,6 +1241,8 @@ export const tableDrop = (mcpSessionId: string): boolean => {
         database.exec(`DROP TABLE IF EXISTS "${tableNameRagRelation}"`);
         database.exec(`DROP TABLE IF EXISTS "${tableNameRagNode}"`);
         database.exec(`DROP TABLE IF EXISTS "${tableNameRagEdge}"`);
+        database.exec(`DROP TABLE IF EXISTS "${tableNameRagNodeVec}"`);
+        database.exec(`DROP TABLE IF EXISTS "${tableNameRagEdgeVec}"`);
 
         isResult = true;
     }

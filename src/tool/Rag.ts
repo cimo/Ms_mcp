@@ -32,6 +32,12 @@ export default class Rag {
                 .default([])
                 .describe(
                     "The key entities and topics (people, organizations, places, things, concepts) mentioned in the user prompt, WITHOUT question or intent words."
+                ),
+            theme: z
+                .array(z.string())
+                .default([])
+                .describe(
+                    "The high level themes or relation topics behind the user prompt (what links the entities), WITHOUT question or intent words."
                 )
         });
 
@@ -84,7 +90,8 @@ export default class Rag {
             inputInstruction: [
                 "You MUST build the json schema using ONLY the following parameters:",
                 `Parameter 1 - prompt: ${this.inputSchemaSearch.shape.prompt.description}`,
-                `Parameter 2 - entity: ${this.inputSchemaSearch.shape.entity.description}`
+                `Parameter 2 - entity: ${this.inputSchemaSearch.shape.entity.description}`,
+                `Parameter 3 - theme: ${this.inputSchemaSearch.shape.theme.description}`
             ].join("\n"),
             inputSchema: this.inputSchemaSearch
         };
@@ -98,7 +105,13 @@ export default class Rag {
                 if (documentList.length > 0) {
                     const uniqueId = helperSrc.generateUniqueId();
 
-                    const resultSearch = await ragEmbedding.databaseSearch(extra.sessionId, uniqueId, argument.prompt, argument.entity);
+                    const resultSearch = await ragEmbedding.databaseSearch(
+                        extra.sessionId,
+                        uniqueId,
+                        argument.prompt,
+                        argument.entity,
+                        argument.theme
+                    );
                     result = JSON.stringify({ name, result: JSON.parse(resultSearch) });
                 }
             }
