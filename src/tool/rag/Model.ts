@@ -2,7 +2,7 @@ export interface IinstanceContext {
     cookie?: string;
 }
 
-export interface IapiEmbedding {
+export interface Iembedding {
     data: {
         object: string;
         embedding: number[];
@@ -10,7 +10,7 @@ export interface IapiEmbedding {
     }[];
 }
 
-export interface IapiExtract {
+export interface graphifyExtract {
     entityList: Inode[];
     relationList: Irelation[];
 }

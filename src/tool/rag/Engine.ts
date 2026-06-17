@@ -47,7 +47,7 @@ const login = async (uniqueId: string): Promise<string> => {
         });
 };
 
-const embedding = async (uniqueId: string, mode: "document" | "query", text: string | string[]): Promise<modelRag.IapiEmbedding> => {
+const embedding = async (uniqueId: string, mode: "document" | "query", text: string | string[]): Promise<modelRag.Iembedding> => {
     let inputList: string[] = [];
 
     if (Array.isArray(text)) {
@@ -81,18 +81,18 @@ const embedding = async (uniqueId: string, mode: "document" | "query", text: str
         )
         .then((resultApi) => {
             const data = resultApi.data;
-            const stdout = JSON.parse(data.response.stdout) as modelRag.IapiEmbedding;
+            const stdout = JSON.parse(data.response.stdout);
 
             return stdout;
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Engine.ts - embedding() - catch()", error.message);
 
-            return {} as modelRag.IapiEmbedding;
+            return {} as modelRag.Iembedding;
         });
 };
 
-const graphifyExtract = async (uniqueId: string, text: string): Promise<modelRag.IapiExtract> => {
+const graphifyExtract = async (uniqueId: string, text: string): Promise<modelRag.graphifyExtract> => {
     return instance.api
         .post<modelHelperSrc.IresponseBody>(
             "/api/ragGraphifyExtract",
@@ -108,14 +108,14 @@ const graphifyExtract = async (uniqueId: string, text: string): Promise<modelRag
         )
         .then((resultApi) => {
             const data = resultApi.data;
-            const stdout = JSON.parse(data.response.stdout) as modelRag.IapiExtract;
+            const stdout = JSON.parse(data.response.stdout);
 
             return stdout;
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Engine.ts - graphifyExtract() - api(/api/ragGraphifyExtract) - catch()", error.message);
 
-            return {} as modelRag.IapiExtract;
+            return {} as modelRag.graphifyExtract;
         });
 };
 
@@ -1039,293 +1039,292 @@ export const databaseStore = (mcpSessionId: string, uniqueId: string, fileName: 
     });
 };
 
-export const databaseSearch = (
+export const databaseSearch = async (
     mcpSessionId: string,
     uniqueId: string,
     prompt: string,
     entityList: string[],
     themeList: string[]
 ): Promise<string> => {
-    return instance.runWithContext(async () => {
-        let citationList: modelRag.Icitation[] = [];
-        const nodeList: modelRag.Inode[] = [];
-        const graphList: modelRag.IgraphRelation[] = [];
+    let citationList: modelRag.Icitation[] = [];
 
-        const tableNameRag = utilReplaceTableName(`${mcpSessionId}_rag`);
-        const tableNameRagFile = utilReplaceTableName(`${mcpSessionId}_rag_file`);
+    const nodeList: modelRag.Inode[] = [];
+    const graphList: modelRag.IgraphRelation[] = [];
 
-        if (database) {
-            const queryList = database.prepare(`SELECT id, name FROM "${tableNameRagFile}"`).all();
-            const fileList = queryList as unknown as modelRag.Ifile[];
+    const tableNameRag = utilReplaceTableName(`${mcpSessionId}_rag`);
+    const tableNameRagFile = utilReplaceTableName(`${mcpSessionId}_rag_file`);
 
-            const promptEmbeddingData = await embedding(uniqueId, "query", prompt);
+    if (database) {
+        const queryList = database.prepare(`SELECT id, name FROM "${tableNameRagFile}"`).all();
+        const fileList = queryList as unknown as modelRag.Ifile[];
 
-            let promptBuffer: Buffer | undefined = undefined;
+        const promptEmbeddingData = await embedding(uniqueId, "query", prompt);
 
-            if (Array.isArray(promptEmbeddingData.data) && promptEmbeddingData.data.length > 0 && promptEmbeddingData.data[0].embedding.length > 0) {
-                promptBuffer = Buffer.from(new Float32Array(promptEmbeddingData.data[0].embedding).buffer);
-            }
+        let promptBuffer: Buffer | undefined = undefined;
 
-            let entityEmbeddingData = {} as modelRag.IapiEmbedding;
-            let isEntityEmbedding = false;
+        if (Array.isArray(promptEmbeddingData.data) && promptEmbeddingData.data.length > 0 && promptEmbeddingData.data[0].embedding.length > 0) {
+            promptBuffer = Buffer.from(new Float32Array(promptEmbeddingData.data[0].embedding).buffer);
+        }
 
-            if (entityList.length > 0) {
-                entityEmbeddingData = await embedding(uniqueId, "query", entityList);
-                isEntityEmbedding = Array.isArray(entityEmbeddingData.data) && entityEmbeddingData.data.length === entityList.length;
-            }
+        let entityEmbeddingData = {} as modelRag.Iembedding;
+        let isEntityEmbedding = false;
 
-            if (entityList.length > 0) {
-                for (let a = 0; a < entityList.length; a++) {
-                    let citation: modelRag.Icitation | undefined = undefined;
+        if (entityList.length > 0) {
+            entityEmbeddingData = await embedding(uniqueId, "query", entityList);
+            isEntityEmbedding = Array.isArray(entityEmbeddingData.data) && entityEmbeddingData.data.length === entityList.length;
+        }
 
-                    if (isEntityEmbedding && entityEmbeddingData.data[a].embedding.length > 0) {
-                        const entityBuffer = Buffer.from(new Float32Array(entityEmbeddingData.data[a].embedding).buffer);
-                        const entityCitationList = logicCitationMatch(fileList, tableNameRag, 1, entityBuffer);
+        if (entityList.length > 0) {
+            for (let a = 0; a < entityList.length; a++) {
+                let citation: modelRag.Icitation | undefined = undefined;
 
-                        if (entityCitationList.length > 0) {
-                            if (entityCitationList[0].distance <= distanceMax) {
-                                citation = entityCitationList[0];
-                            }
-                        }
-                    }
+                if (isEntityEmbedding && entityEmbeddingData.data[a].embedding.length > 0) {
+                    const entityBuffer = Buffer.from(new Float32Array(entityEmbeddingData.data[a].embedding).buffer);
+                    const entityCitationList = logicCitationMatch(fileList, tableNameRag, 1, entityBuffer);
 
-                    if (!citation) {
-                        const ftsCitationList = logicFtsMatch(mcpSessionId, fileList, [entityList[a]]);
-
-                        if (ftsCitationList.length > 0) {
-                            citation = ftsCitationList[0];
-                        }
-                    }
-
-                    if (citation) {
-                        let isPresent = false;
-
-                        for (let b = 0; b < citationList.length; b++) {
-                            if (citationList[b].fileName === citation.fileName && citationList[b].chunk === citation.chunk) {
-                                isPresent = true;
-                            }
-                        }
-
-                        if (!isPresent) {
-                            citationList.push(citation);
-                        }
-                    }
-                }
-            } else {
-                if (promptBuffer) {
-                    const vectorCitationList = logicCitationMatch(fileList, tableNameRag, candidatePool, promptBuffer);
-
-                    if (vectorCitationList.length > 0) {
-                        for (let a = 0; a < vectorCitationList.length && citationList.length < citationLimit; a++) {
-                            if (vectorCitationList[a].distance <= distanceMax) {
-                                citationList.push(vectorCitationList[a]);
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (citationList.length > citationLimit) {
-                citationList = citationList.slice(0, citationLimit);
-            }
-
-            const seedObject: Record<string, boolean> = {};
-            const seedList: string[] = [];
-
-            const graphCandidateList: modelRag.IgraphCandidate[] = [];
-
-            if (entityList.length > 0) {
-                for (let a = 0; a < entityList.length; a++) {
-                    if (isEntityEmbedding && entityEmbeddingData.data[a].embedding.length > 0) {
-                        const nodeBuffer = Buffer.from(new Float32Array(entityEmbeddingData.data[a].embedding).buffer);
-                        const nodeMatchList = logicNodeVecMatch(mcpSessionId, nodeBuffer);
-
-                        for (let b = 0; b < nodeMatchList.length; b++) {
-                            if (!seedObject[nodeMatchList[b].name_norm]) {
-                                seedObject[nodeMatchList[b].name_norm] = true;
-                                seedList.push(nodeMatchList[b].name_norm);
-                                nodeList.push({ name: nodeMatchList[b].name, type: "", description: nodeMatchList[b].description });
-                            }
-                        }
-                    }
-                }
-            }
-
-            const nodeTypeNormList: string[] = [];
-
-            for (let a = 0; a < nodeList.length; a++) {
-                nodeTypeNormList.push(utilNodeNormalize(nodeList[a].name));
-            }
-
-            const nodeTypeObject = logicNodeType(mcpSessionId, nodeTypeNormList);
-
-            for (let a = 0; a < nodeList.length; a++) {
-                const nameNorm = utilNodeNormalize(nodeList[a].name);
-
-                if (nodeTypeObject[nameNorm]) {
-                    nodeList[a].type = nodeTypeObject[nameNorm];
-                }
-            }
-
-            const seedLikeList = logicNodeMatch(mcpSessionId, entityList);
-
-            for (let a = 0; a < seedLikeList.length; a++) {
-                if (!seedObject[seedLikeList[a]]) {
-                    seedObject[seedLikeList[a]] = true;
-                    seedList.push(seedLikeList[a]);
-                }
-            }
-
-            if (themeList.length > 0) {
-                const themeEmbeddingData = await embedding(uniqueId, "query", themeList);
-                const isThemeEmbedding = Array.isArray(themeEmbeddingData.data) && themeEmbeddingData.data.length === themeList.length;
-
-                const edgeIdObject: Record<number, boolean> = {};
-                const edgeIdList: number[] = [];
-
-                for (let a = 0; a < themeList.length; a++) {
-                    if (isThemeEmbedding && themeEmbeddingData.data[a].embedding.length > 0) {
-                        const edgeBuffer = Buffer.from(new Float32Array(themeEmbeddingData.data[a].embedding).buffer);
-                        const edgeMatchList = logicEdgeVecMatch(mcpSessionId, edgeBuffer);
-
-                        for (let b = 0; b < edgeMatchList.length; b++) {
-                            if (!edgeIdObject[edgeMatchList[b]]) {
-                                edgeIdObject[edgeMatchList[b]] = true;
-                                edgeIdList.push(edgeMatchList[b]);
-                            }
+                    if (entityCitationList.length > 0) {
+                        if (entityCitationList[0].distance <= distanceMax) {
+                            citation = entityCitationList[0];
                         }
                     }
                 }
 
-                const edgeFullList = tableEdgeSelectByIdList(mcpSessionId, edgeIdList);
+                if (!citation) {
+                    const ftsCitationList = logicFtsMatch(mcpSessionId, fileList, [entityList[a]]);
 
-                for (let a = 0; a < edgeFullList.length; a++) {
-                    const edgeFull = edgeFullList[a];
+                    if (ftsCitationList.length > 0) {
+                        citation = ftsCitationList[0];
+                    }
+                }
 
-                    graphCandidateList.push({
-                        source: edgeFull.source,
-                        verb: edgeFull.verb,
-                        target: edgeFull.target,
-                        description: edgeFull.description,
-                        chunk: tableCitationSelectByIndex(mcpSessionId, edgeFull.file_id, edgeFull.chunk_index),
-                        edgeId: edgeFull.id,
-                        sourceNorm: edgeFull.source_norm,
-                        targetNorm: edgeFull.target_norm,
-                        relevance: 0,
-                        rank: 0
-                    });
+                if (citation) {
+                    let isPresent = false;
 
-                    if (!seedObject[edgeFull.source_norm]) {
-                        seedObject[edgeFull.source_norm] = true;
-                        seedList.push(edgeFull.source_norm);
+                    for (let b = 0; b < citationList.length; b++) {
+                        if (citationList[b].fileName === citation.fileName && citationList[b].chunk === citation.chunk) {
+                            isPresent = true;
+                        }
                     }
 
-                    if (!seedObject[edgeFull.target_norm]) {
-                        seedObject[edgeFull.target_norm] = true;
-                        seedList.push(edgeFull.target_norm);
+                    if (!isPresent) {
+                        citationList.push(citation);
                     }
                 }
             }
-
-            if (seedList.length > 0) {
-                const seedSlice = seedList.slice(0, seedLimit);
-                const traverseList = logicEdgeTraverse(mcpSessionId, seedSlice);
-
-                for (let a = 0; a < traverseList.length; a++) {
-                    graphCandidateList.push(traverseList[a]);
-                }
-            }
-
-            const graphSeenObject: Record<string, boolean> = {};
-            const graphDedupList: modelRag.IgraphCandidate[] = [];
-            const nodeNormObject: Record<string, boolean> = {};
-            const nodeNormList: string[] = [];
-
-            for (let a = 0; a < graphCandidateList.length; a++) {
-                const candidate = graphCandidateList[a];
-                const key = `${candidate.sourceNorm}|${candidate.verb}|${candidate.targetNorm}`;
-
-                if (!graphSeenObject[key]) {
-                    graphSeenObject[key] = true;
-                    graphDedupList.push(candidate);
-
-                    if (!nodeNormObject[candidate.sourceNorm]) {
-                        nodeNormObject[candidate.sourceNorm] = true;
-                        nodeNormList.push(candidate.sourceNorm);
-                    }
-
-                    if (!nodeNormObject[candidate.targetNorm]) {
-                        nodeNormObject[candidate.targetNorm] = true;
-                        nodeNormList.push(candidate.targetNorm);
-                    }
-                }
-            }
-
-            const degreeObject = logicNodeDegree(mcpSessionId, nodeNormList);
-
-            let relevanceObject: Record<number, number> = {};
-
+        } else {
             if (promptBuffer) {
-                relevanceObject = logicEdgeRelevance(mcpSessionId, promptBuffer);
-            }
+                const vectorCitationList = logicCitationMatch(fileList, tableNameRag, candidatePool, promptBuffer);
 
-            for (let a = 0; a < graphDedupList.length; a++) {
-                let degreeSource = 0;
-                let degreeTarget = 0;
-
-                if (degreeObject[graphDedupList[a].sourceNorm]) {
-                    degreeSource = degreeObject[graphDedupList[a].sourceNorm];
-                }
-
-                if (degreeObject[graphDedupList[a].targetNorm]) {
-                    degreeTarget = degreeObject[graphDedupList[a].targetNorm];
-                }
-
-                graphDedupList[a].rank = degreeSource + degreeTarget;
-
-                let relevance = distanceMax + 1;
-
-                if (relevanceObject[graphDedupList[a].edgeId] !== undefined) {
-                    relevance = relevanceObject[graphDedupList[a].edgeId];
-                }
-
-                graphDedupList[a].relevance = relevance;
-            }
-
-            graphDedupList.sort((first, second) => {
-                let result = 0;
-
-                if (first.relevance !== second.relevance) {
-                    result = first.relevance - second.relevance;
-                } else {
-                    result = second.rank - first.rank;
-                }
-
-                return result;
-            });
-
-            let graphTokenTotal = 0;
-
-            for (let a = 0; a < graphDedupList.length; a++) {
-                const candidate = graphDedupList[a];
-                const tokenCount = utilTokenEstimate(`${candidate.source} ${candidate.verb} ${candidate.target} ${candidate.description}`);
-
-                if (graphTokenTotal + tokenCount <= graphTokenBudget) {
-                    graphTokenTotal += tokenCount;
-
-                    graphList.push({
-                        source: candidate.source,
-                        verb: candidate.verb,
-                        target: candidate.target,
-                        description: candidate.description,
-                        chunk: candidate.chunk
-                    });
+                if (vectorCitationList.length > 0) {
+                    for (let a = 0; a < vectorCitationList.length && citationList.length < citationLimit; a++) {
+                        if (vectorCitationList[a].distance <= distanceMax) {
+                            citationList.push(vectorCitationList[a]);
+                        }
+                    }
                 }
             }
         }
 
-        return JSON.stringify({ citationList, nodeList, graphList });
-    });
+        if (citationList.length > citationLimit) {
+            citationList = citationList.slice(0, citationLimit);
+        }
+
+        const seedObject: Record<string, boolean> = {};
+        const seedList: string[] = [];
+
+        const graphCandidateList: modelRag.IgraphCandidate[] = [];
+
+        if (entityList.length > 0) {
+            for (let a = 0; a < entityList.length; a++) {
+                if (isEntityEmbedding && entityEmbeddingData.data[a].embedding.length > 0) {
+                    const nodeBuffer = Buffer.from(new Float32Array(entityEmbeddingData.data[a].embedding).buffer);
+                    const nodeMatchList = logicNodeVecMatch(mcpSessionId, nodeBuffer);
+
+                    for (let b = 0; b < nodeMatchList.length; b++) {
+                        if (!seedObject[nodeMatchList[b].name_norm]) {
+                            seedObject[nodeMatchList[b].name_norm] = true;
+                            seedList.push(nodeMatchList[b].name_norm);
+                            nodeList.push({ name: nodeMatchList[b].name, type: "", description: nodeMatchList[b].description });
+                        }
+                    }
+                }
+            }
+        }
+
+        const nodeTypeNormList: string[] = [];
+
+        for (let a = 0; a < nodeList.length; a++) {
+            nodeTypeNormList.push(utilNodeNormalize(nodeList[a].name));
+        }
+
+        const nodeTypeObject = logicNodeType(mcpSessionId, nodeTypeNormList);
+
+        for (let a = 0; a < nodeList.length; a++) {
+            const nameNorm = utilNodeNormalize(nodeList[a].name);
+
+            if (nodeTypeObject[nameNorm]) {
+                nodeList[a].type = nodeTypeObject[nameNorm];
+            }
+        }
+
+        const seedLikeList = logicNodeMatch(mcpSessionId, entityList);
+
+        for (let a = 0; a < seedLikeList.length; a++) {
+            if (!seedObject[seedLikeList[a]]) {
+                seedObject[seedLikeList[a]] = true;
+                seedList.push(seedLikeList[a]);
+            }
+        }
+
+        if (themeList.length > 0) {
+            const themeEmbeddingData = await embedding(uniqueId, "query", themeList);
+            const isThemeEmbedding = Array.isArray(themeEmbeddingData.data) && themeEmbeddingData.data.length === themeList.length;
+
+            const edgeIdObject: Record<number, boolean> = {};
+            const edgeIdList: number[] = [];
+
+            for (let a = 0; a < themeList.length; a++) {
+                if (isThemeEmbedding && themeEmbeddingData.data[a].embedding.length > 0) {
+                    const edgeBuffer = Buffer.from(new Float32Array(themeEmbeddingData.data[a].embedding).buffer);
+                    const edgeMatchList = logicEdgeVecMatch(mcpSessionId, edgeBuffer);
+
+                    for (let b = 0; b < edgeMatchList.length; b++) {
+                        if (!edgeIdObject[edgeMatchList[b]]) {
+                            edgeIdObject[edgeMatchList[b]] = true;
+                            edgeIdList.push(edgeMatchList[b]);
+                        }
+                    }
+                }
+            }
+
+            const edgeFullList = tableEdgeSelectByIdList(mcpSessionId, edgeIdList);
+
+            for (let a = 0; a < edgeFullList.length; a++) {
+                const edgeFull = edgeFullList[a];
+
+                graphCandidateList.push({
+                    source: edgeFull.source,
+                    verb: edgeFull.verb,
+                    target: edgeFull.target,
+                    description: edgeFull.description,
+                    chunk: tableCitationSelectByIndex(mcpSessionId, edgeFull.file_id, edgeFull.chunk_index),
+                    edgeId: edgeFull.id,
+                    sourceNorm: edgeFull.source_norm,
+                    targetNorm: edgeFull.target_norm,
+                    relevance: 0,
+                    rank: 0
+                });
+
+                if (!seedObject[edgeFull.source_norm]) {
+                    seedObject[edgeFull.source_norm] = true;
+                    seedList.push(edgeFull.source_norm);
+                }
+
+                if (!seedObject[edgeFull.target_norm]) {
+                    seedObject[edgeFull.target_norm] = true;
+                    seedList.push(edgeFull.target_norm);
+                }
+            }
+        }
+
+        if (seedList.length > 0) {
+            const seedSlice = seedList.slice(0, seedLimit);
+            const traverseList = logicEdgeTraverse(mcpSessionId, seedSlice);
+
+            for (let a = 0; a < traverseList.length; a++) {
+                graphCandidateList.push(traverseList[a]);
+            }
+        }
+
+        const graphSeenObject: Record<string, boolean> = {};
+        const graphDedupList: modelRag.IgraphCandidate[] = [];
+        const nodeNormObject: Record<string, boolean> = {};
+        const nodeNormList: string[] = [];
+
+        for (let a = 0; a < graphCandidateList.length; a++) {
+            const candidate = graphCandidateList[a];
+            const key = `${candidate.sourceNorm}|${candidate.verb}|${candidate.targetNorm}`;
+
+            if (!graphSeenObject[key]) {
+                graphSeenObject[key] = true;
+                graphDedupList.push(candidate);
+
+                if (!nodeNormObject[candidate.sourceNorm]) {
+                    nodeNormObject[candidate.sourceNorm] = true;
+                    nodeNormList.push(candidate.sourceNorm);
+                }
+
+                if (!nodeNormObject[candidate.targetNorm]) {
+                    nodeNormObject[candidate.targetNorm] = true;
+                    nodeNormList.push(candidate.targetNorm);
+                }
+            }
+        }
+
+        const degreeObject = logicNodeDegree(mcpSessionId, nodeNormList);
+
+        let relevanceObject: Record<number, number> = {};
+
+        if (promptBuffer) {
+            relevanceObject = logicEdgeRelevance(mcpSessionId, promptBuffer);
+        }
+
+        for (let a = 0; a < graphDedupList.length; a++) {
+            let degreeSource = 0;
+            let degreeTarget = 0;
+
+            if (degreeObject[graphDedupList[a].sourceNorm]) {
+                degreeSource = degreeObject[graphDedupList[a].sourceNorm];
+            }
+
+            if (degreeObject[graphDedupList[a].targetNorm]) {
+                degreeTarget = degreeObject[graphDedupList[a].targetNorm];
+            }
+
+            graphDedupList[a].rank = degreeSource + degreeTarget;
+
+            let relevance = distanceMax + 1;
+
+            if (relevanceObject[graphDedupList[a].edgeId] !== undefined) {
+                relevance = relevanceObject[graphDedupList[a].edgeId];
+            }
+
+            graphDedupList[a].relevance = relevance;
+        }
+
+        graphDedupList.sort((first, second) => {
+            let result = 0;
+
+            if (first.relevance !== second.relevance) {
+                result = first.relevance - second.relevance;
+            } else {
+                result = second.rank - first.rank;
+            }
+
+            return result;
+        });
+
+        let graphTokenTotal = 0;
+
+        for (let a = 0; a < graphDedupList.length; a++) {
+            const candidate = graphDedupList[a];
+            const tokenCount = utilTokenEstimate(`${candidate.source} ${candidate.verb} ${candidate.target} ${candidate.description}`);
+
+            if (graphTokenTotal + tokenCount <= graphTokenBudget) {
+                graphTokenTotal += tokenCount;
+
+                graphList.push({
+                    source: candidate.source,
+                    verb: candidate.verb,
+                    target: candidate.target,
+                    description: candidate.description,
+                    chunk: candidate.chunk
+                });
+            }
+        }
+    }
+
+    return JSON.stringify({ citationList, nodeList, graphList });
 };
 
 export const databaseDelete = async (mcpSessionId: string, fileName: string): Promise<string> => {

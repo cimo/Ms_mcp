@@ -8,13 +8,13 @@ export default class Ocr {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
-    inputSchemaExecute;
+    inputSchema;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchemaExecute = z.object({
+        this.inputSchema = z.object({
             language: z.string().default("").describe("Is the locale format that indicates the language used in the file."),
             fileName: z.string().default("").describe("Is the word ending with the image file extension."),
             searchText: z.string().default("").describe("Is the word/phrase that the user is asking to look/find/search."),
@@ -22,7 +22,7 @@ export default class Ocr {
         });
     }
 
-    execute = (): modelTool.Irpc<typeof this.inputSchemaExecute> => {
+    execute = (): modelTool.Irpc<typeof this.inputSchema> => {
         const name = "ocr_execute";
 
         const config = {
@@ -30,15 +30,15 @@ export default class Ocr {
             example: ["- In the file 'Image.png' search for 'Text' with the language 'en' and mode 'data'."].join("\n"),
             inputInstruction: [
                 "You MUST build the json schema using ONLY the following parameters:",
-                `Parameter 1 - language: ${this.inputSchemaExecute.shape.language.description}`,
-                `Parameter 2 - fileName: ${this.inputSchemaExecute.shape.fileName.description}`,
-                `Parameter 3 - searchText: ${this.inputSchemaExecute.shape.searchText.description}`,
-                `Parameter 4 - mode: ${this.inputSchemaExecute.shape.mode.description}`
+                `Parameter 1 - language: ${this.inputSchema.shape.language.description}`,
+                `Parameter 2 - fileName: ${this.inputSchema.shape.fileName.description}`,
+                `Parameter 3 - searchText: ${this.inputSchema.shape.searchText.description}`,
+                `Parameter 4 - mode: ${this.inputSchema.shape.mode.description}`
             ].join("\n"),
-            inputSchema: this.inputSchemaExecute
+            inputSchema: this.inputSchema
         };
 
-        const content = async (argument: z.infer<typeof this.inputSchemaExecute>, extra: { sessionId?: string }) => {
+        const content = async (argument: z.infer<typeof this.inputSchema>, extra: { sessionId?: string }) => {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {

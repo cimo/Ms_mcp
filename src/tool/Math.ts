@@ -9,18 +9,18 @@ export default class Math {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
-    inputSchemaExpression;
+    inputSchema;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchemaExpression = z.object({
+        this.inputSchema = z.object({
             prompt: z.string().default("").describe("Is the full math expression that needs to be evaluated.")
         });
     }
 
-    execute = (): modelTool.Irpc<typeof this.inputSchemaExpression> => {
+    execute = (): modelTool.Irpc<typeof this.inputSchema> => {
         const name = "math_expression";
 
         const config = {
@@ -28,12 +28,12 @@ export default class Math {
             example: ["- Calculate this expression: 1 + 2 * 3"].join("\n"),
             inputInstruction: [
                 "You MUST build the json schema using ONLY the following parameters:",
-                `Parameter 1 - prompt: ${this.inputSchemaExpression.shape.prompt.description}`
+                `Parameter 1 - prompt: ${this.inputSchema.shape.prompt.description}`
             ].join("\n"),
-            inputSchema: this.inputSchemaExpression
+            inputSchema: this.inputSchema
         };
 
-        const content = async (argument: z.infer<typeof this.inputSchemaExpression>, extra: { sessionId?: string }) => {
+        const content = async (argument: z.infer<typeof this.inputSchema>, extra: { sessionId?: string }) => {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {

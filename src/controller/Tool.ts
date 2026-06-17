@@ -19,6 +19,7 @@ import ToolMath from "../tool/Math.js";
 import ToolOcr from "../tool/Ocr.js";
 import ToolRag from "../tool/Rag.js";
 import ToolSecurity from "../tool/Security.js";
+import ToolPlaywright from "../tool/Playwright.js";
 
 export default class Tool {
     // Variable
@@ -38,6 +39,7 @@ export default class Tool {
     private toolOcr: ToolOcr;
     private toolRag: ToolRag;
     private toolSecurity: ToolSecurity;
+    private toolPlaywright: ToolPlaywright;
 
     // Method
     constructor(app: Express.Express, limiter: RateLimitRequestHandler, sessionObject: Record<string, modelServer.Isession>) {
@@ -57,6 +59,7 @@ export default class Tool {
         this.toolOcr = new ToolOcr(this.sessionObject);
         this.toolRag = new ToolRag(this.sessionObject);
         this.toolSecurity = new ToolSecurity(this.sessionObject);
+        this.toolPlaywright = new ToolPlaywright(this.sessionObject);
     }
 
     login = async (request: Request, response: Response): Promise<string> => {
@@ -169,6 +172,7 @@ export default class Tool {
         server.registerTool(this.toolMath.execute().name, this.toolMath.execute().config, this.toolMath.execute().content);
         server.registerTool(this.toolOcr.execute().name, this.toolOcr.execute().config, this.toolOcr.execute().content);
         server.registerTool(this.toolSecurity.execute().name, this.toolSecurity.execute().config, this.toolSecurity.execute().content);
+        server.registerTool(this.toolPlaywright.execute().name, this.toolPlaywright.execute().config, this.toolPlaywright.execute().content);
     };
 
     rpc = (): void => {
@@ -596,7 +600,7 @@ export default class Tool {
                 const resultList: modelTool.Itool[] = [
                     {
                         name: this.toolDocument.execute().name,
-                        argumentObject: this.toolDocument.inputSchemaParser.parse({}),
+                        argumentObject: this.toolDocument.inputSchema.parse({}),
                         icon: "document.svg",
                         description: this.toolDocument.execute().config.description,
                         example: this.toolDocument.execute().config.example,
@@ -604,7 +608,7 @@ export default class Tool {
                     },
                     {
                         name: this.toolMath.execute().name,
-                        argumentObject: this.toolMath.inputSchemaExpression.parse({}),
+                        argumentObject: this.toolMath.inputSchema.parse({}),
                         icon: "math.svg",
                         description: this.toolMath.execute().config.description,
                         example: this.toolMath.execute().config.example,
@@ -612,7 +616,7 @@ export default class Tool {
                     },
                     {
                         name: this.toolOcr.execute().name,
-                        argumentObject: this.toolOcr.inputSchemaExecute.parse({}),
+                        argumentObject: this.toolOcr.inputSchema.parse({}),
                         icon: "ocr.svg",
                         description: this.toolOcr.execute().config.description,
                         example: this.toolOcr.execute().config.example,
@@ -620,7 +624,7 @@ export default class Tool {
                     },
                     {
                         name: this.toolSecurity.execute().name,
-                        argumentObject: this.toolSecurity.inputSchemaParser.parse({}),
+                        argumentObject: this.toolSecurity.inputSchema.parse({}),
                         icon: "security.svg",
                         description: this.toolSecurity.execute().config.description,
                         example: this.toolSecurity.execute().config.example,
@@ -633,6 +637,14 @@ export default class Tool {
                         description: this.toolRag.search().config.description,
                         example: this.toolRag.search().config.example,
                         inputInstruction: this.toolRag.search().config.inputInstruction
+                    },
+                    {
+                        name: this.toolPlaywright.execute().name,
+                        argumentObject: this.toolPlaywright.inputSchema.parse({}),
+                        icon: "playwright.svg",
+                        description: this.toolPlaywright.execute().config.description,
+                        example: this.toolPlaywright.execute().config.example,
+                        inputInstruction: this.toolPlaywright.execute().config.inputInstruction
                     }
                 ];
 
@@ -705,7 +717,7 @@ export default class Tool {
 
         this.app.post("/api/task-call", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelTool.ItaskCall;
+            const body = request.body as modelTool.IapiTaskCallBody;
 
             if (typeof mcpSessionId === "string" && this.sessionObject[mcpSessionId]) {
                 const runtime = this.sessionObject[mcpSessionId].runtime;

@@ -9,19 +9,19 @@ export default class Security {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
-    inputSchemaParser;
+    inputSchema;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchemaParser = z.object({
+        this.inputSchema = z.object({
             mode: z.string().default("").describe("Is the word that indicates what type of analyze need be execute."),
             target: z.string().default("").describe("Is the docker tag or url repository that the user is asking to scan.")
         });
     }
 
-    execute = (): modelTool.Irpc<typeof this.inputSchemaParser> => {
+    execute = (): modelTool.Irpc<typeof this.inputSchema> => {
         const name = "security_scanner";
 
         const config = {
@@ -32,13 +32,13 @@ export default class Security {
             ].join("\n"),
             inputInstruction: [
                 "You MUST build the json schema using ONLY the following parameters:",
-                `Parameter 1 - mode: ${this.inputSchemaParser.shape.mode.description}`,
-                `Parameter 2 - target: ${this.inputSchemaParser.shape.target.description}`
+                `Parameter 1 - mode: ${this.inputSchema.shape.mode.description}`,
+                `Parameter 2 - target: ${this.inputSchema.shape.target.description}`
             ].join("\n"),
-            inputSchema: this.inputSchemaParser
+            inputSchema: this.inputSchema
         };
 
-        const content = async (argument: z.infer<typeof this.inputSchemaParser>, extra: { sessionId?: string }) => {
+        const content = async (argument: z.infer<typeof this.inputSchema>, extra: { sessionId?: string }) => {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {

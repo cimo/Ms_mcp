@@ -9,19 +9,19 @@ export default class Document {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
-    inputSchemaParser;
+    inputSchema;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchemaParser = z.object({
+        this.inputSchema = z.object({
             fileName: z.string().default("").describe("Is the word ending with the document file extension."),
             searchInput: z.string().default("").describe("Is the word/phrase that the user is asking to look/find/search.")
         });
     }
 
-    execute = (): modelTool.Irpc<typeof this.inputSchemaParser> => {
+    execute = (): modelTool.Irpc<typeof this.inputSchema> => {
         const name = "document_parser";
 
         const config = {
@@ -29,13 +29,13 @@ export default class Document {
             example: ["- In the file 'Document.docx' search for 'Test'."].join("\n"),
             inputInstruction: [
                 "You MUST build the json schema using ONLY the following parameters:",
-                `Parameter 1 - fileName: ${this.inputSchemaParser.shape.fileName.description}`,
-                `Parameter 2 - searchInput: ${this.inputSchemaParser.shape.searchInput.description}`
+                `Parameter 1 - fileName: ${this.inputSchema.shape.fileName.description}`,
+                `Parameter 2 - searchInput: ${this.inputSchema.shape.searchInput.description}`
             ].join("\n"),
-            inputSchema: this.inputSchemaParser
+            inputSchema: this.inputSchema
         };
 
-        const content = async (argument: z.infer<typeof this.inputSchemaParser>, extra: { sessionId?: string }) => {
+        const content = async (argument: z.infer<typeof this.inputSchema>, extra: { sessionId?: string }) => {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {

@@ -44,7 +44,7 @@ const extract = (mcpSessionId: string, language: string, fileName: string, searc
                     .post<modelHelperSrc.IresponseBody>("/api/extract", {}, formData)
                     .then((resultApi) => {
                         const data = resultApi.data;
-                        const stdout = JSON.parse(data.response.stdout) as model.ItoolOcrResponse[];
+                        const stdout = JSON.parse(data.response.stdout);
 
                         let resultList: model.ItoolOcrResult[] = [];
 
