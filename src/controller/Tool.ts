@@ -11,7 +11,6 @@ import * as instance from "../Instance.js";
 import * as modelServer from "../model/Server.js";
 import * as modelTool from "../model/Tool.js";
 import ControllerUpload from "./Upload.js";
-import ControllerAgent from "./Agent.js";
 import ToolAutomate from "../tool/Automate.js";
 import ToolBrowser from "../tool/Browser.js";
 import ToolDocument from "../tool/Document.js";
@@ -27,7 +26,6 @@ export default class Tool {
     private limiter: RateLimitRequestHandler;
     private sessionObject: Record<string, modelServer.Isession>;
     private controllerUpload: ControllerUpload;
-    private controllerAgent: ControllerAgent;
 
     private serverName: string;
     private serverVersion: string;
@@ -47,7 +45,6 @@ export default class Tool {
         this.limiter = limiter;
         this.sessionObject = sessionObject;
         this.controllerUpload = new ControllerUpload();
-        this.controllerAgent = new ControllerAgent();
 
         this.serverName = "Microservice mcp";
         this.serverVersion = "1.0.0";
@@ -62,17 +59,14 @@ export default class Tool {
         this.toolPlaywright = new ToolPlaywright(this.sessionObject);
     }
 
-    login = async (request: Request, response: Response): Promise<string> => {
-        const mcpSessionId = request.headers["mcp-session-id"];
+    loginRpc = async (response: Response, mcpSessionId: string): Promise<string> => {
         const cookie = response.getHeader("set-cookie");
 
-        if (typeof mcpSessionId === "string" && this.sessionObject[mcpSessionId] && this.sessionObject[mcpSessionId].rpc) {
-            this.controllerAgent.tableCreate(mcpSessionId);
-
-            return mcpSessionId;
+        if (this.sessionObject[mcpSessionId] && this.sessionObject[mcpSessionId].rpc) {
+            return "ok";
         }
 
-        if (typeof mcpSessionId === "string" && typeof cookie === "string") {
+        if (typeof cookie === "string") {
             return instance.api
                 .post<object>(
                     "/rpc",
@@ -98,14 +92,8 @@ export default class Tool {
                         }
                     }
                 )
-                .then((resultApi) => {
-                    const mcpSessionId = resultApi.headers.get("mcp-session-id");
-
-                    if (mcpSessionId) {
-                        this.controllerAgent.tableCreate(mcpSessionId);
-                    }
-
-                    return mcpSessionId || "";
+                .then(() => {
+                    return "ok";
                 })
                 .catch((error: Error) => {
                     helperSrc.writeLog("Tool.ts - login() - catch()", error.message);
@@ -117,7 +105,7 @@ export default class Tool {
         }
     };
 
-    logout = async (request: Request): Promise<string> => {
+    logoutRpc = async (request: Request): Promise<string> => {
         const mcpSessionId = request.headers["mcp-session-id"];
         const mcpCookie = request.headers["mcp-cookie"];
 
@@ -178,18 +166,16 @@ export default class Tool {
     rpc = (): void => {
         this.app.post("/rpc", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            let body = request.body as modelTool.IapiRpcBody;
+            const body = request.body as modelTool.IapiRpcBody;
 
-            if (body.method === "initialize") {
-                const mcpSessionIdNew = helperSrc.generateUniqueId();
-
+            if (typeof mcpSessionId === "string" && body.method === "initialize") {
                 const rpc = new StreamableHTTPServerTransport({
-                    sessionIdGenerator: () => mcpSessionIdNew,
+                    sessionIdGenerator: () => mcpSessionId,
                     enableJsonResponse: true
                 });
 
-                this.sessionObject[mcpSessionIdNew] = {
-                    ...this.sessionObject[mcpSessionIdNew],
+                this.sessionObject[mcpSessionId] = {
+                    ...this.sessionObject[mcpSessionId],
                     rpc
                 };
 
@@ -202,7 +188,7 @@ export default class Tool {
 
                 await server.connect(rpc);
 
-                await this.sessionObject[mcpSessionIdNew].rpc.handleRequest(request, response, body);
+                await this.sessionObject[mcpSessionId].rpc.handleRequest(request, response, body);
 
                 return;
             } else if (
@@ -777,88 +763,6 @@ export default class Tool {
                 }
             } else {
                 helperSrc.writeLog("Tool.ts - api() - post(/api/task-call) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody("", "ko", response, 500);
-            }
-        });
-
-        this.app.post("/api/agent-create", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelTool.IapiAgentCreateBody;
-
-            const name = body.name;
-            const description = body.description;
-            const skillName = body.skillName;
-
-            if (typeof mcpSessionId === "string") {
-                const isInsert = this.controllerAgent.tableInsert(mcpSessionId, name, description, skillName);
-
-                if (isInsert) {
-                    helperSrc.responseBody("ok", "", response, 200);
-                } else {
-                    helperSrc.responseBody("", "ko", response, 500);
-                }
-            } else {
-                helperSrc.writeLog("Tool.ts - api() - post(/api/agent-create) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody("", "ko", response, 500);
-            }
-        });
-
-        this.app.post("/api/agent-update", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelTool.IapiAgentUpdateBody;
-
-            const id = body.id;
-            const name = body.name;
-            const description = body.description;
-            const skillName = body.skillName;
-
-            if (typeof mcpSessionId === "string") {
-                const isUpdate = this.controllerAgent.tableUpdate(mcpSessionId, id, name, description, skillName);
-
-                if (isUpdate) {
-                    helperSrc.responseBody("ok", "", response, 200);
-                } else {
-                    helperSrc.responseBody("ko", "", response, 200);
-                }
-            } else {
-                helperSrc.writeLog("Tool.ts - api() - post(/api/agent-update) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody("", "ko", response, 500);
-            }
-        });
-
-        this.app.get("/api/agent-list", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
-
-            if (typeof mcpSessionId === "string") {
-                const resultList = this.controllerAgent.tableSelectList(mcpSessionId);
-
-                helperSrc.responseBody(JSON.stringify(resultList), "", response, 200);
-            } else {
-                helperSrc.writeLog("Tool.ts - api() - get(/api/agent-list) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody("", "ko", response, 500);
-            }
-        });
-
-        this.app.post("/api/agent-delete", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelTool.IapiAgentDeleteBody;
-
-            const id = body.id;
-
-            if (typeof mcpSessionId === "string") {
-                const isDelete = this.controllerAgent.tableDelete(mcpSessionId, id);
-
-                if (isDelete) {
-                    helperSrc.responseBody("ok", "", response, 200);
-                } else {
-                    helperSrc.responseBody("ko", "", response, 200);
-                }
-            } else {
-                helperSrc.writeLog("Tool.ts - api() - post(/api/agent-delete) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }

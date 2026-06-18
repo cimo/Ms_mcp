@@ -12,6 +12,9 @@ import { Cc } from "@cimo/cronjob/dist/src/Main.js";
 import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import * as toolRagEngine from "../tool/rag/Engine.js";
+import ControllerUser from "./User.js";
+import ControllerSetting from "./Setting.js";
+import ControllerAgent from "./Agent.js";
 import ControllerTool from "./Tool.js";
 import ControllerXvfb from "./Xvfb.js";
 
@@ -94,6 +97,16 @@ export default class Server {
         const server = creation;
 
         server.listen(helperSrc.SERVER_PORT, () => {
+            const controllerUser = new ControllerUser(this.app, this.limiter);
+            controllerUser.api();
+            controllerUser.tableCreate();
+
+            const controllerSetting = new ControllerSetting(this.app, this.limiter);
+            controllerSetting.api();
+
+            const controllerAgent = new ControllerAgent(this.app, this.limiter);
+            controllerAgent.api();
+
             const controllerTool = new ControllerTool(this.app, this.limiter, this.sessionObject);
             controllerTool.rpc();
             controllerTool.api();
@@ -114,38 +127,53 @@ export default class Server {
                 helperSrc.responseBody(`Client ip: ${request.clientIp || ""}`, "", response, 200);
             });
 
-            this.app.get("/login", this.limiter, async (request: Request, response: Response) => {
+            this.app.post("/login", this.limiter, async (request: Request, response: Response) => {
                 Ca.writeCookie(`${helperSrc.LABEL}_authentication`, response);
 
-                const result = await controllerTool.login(request, response);
+                const body = request.body as modelServer.IapiLoginBody;
 
-                if (result !== "ko") {
-                    controllerXvfb.start(result);
+                const loginSession = controllerUser.loginSessionVerify(body.username, body.password);
 
-                    toolRagEngine.tableCreate(result);
+                if (loginSession.mcpSessionId !== "" && loginSession.message === "") {
+                    const loginRpc = await controllerTool.loginRpc(response, loginSession.mcpSessionId);
 
-                    helperSrc.responseBody(result, "", response, 200);
-                } else {
-                    helperSrc.responseBody("", result, response, 500);
+                    if (loginRpc !== "ko") {
+                        controllerXvfb.start(loginSession.mcpSessionId);
+
+                        controllerSetting.tableCreate(loginSession.mcpSessionId);
+                        controllerAgent.tableCreate(loginSession.mcpSessionId);
+                        toolRagEngine.tableCreate(loginSession.mcpSessionId);
+
+                        helperSrc.responseBody(JSON.stringify({ mcpSessionId: loginSession.mcpSessionId, message: "" }), "", response, 200);
+                    } else {
+                        helperSrc.responseBody("", "ko", response, 500);
+                    }
+                } else if (loginSession.mcpSessionId === "" && loginSession.message !== "") {
+                    helperSrc.responseBody(
+                        JSON.stringify({ mcpSessionId: loginSession.mcpSessionId, message: loginSession.message }),
+                        "",
+                        response,
+                        200
+                    );
                 }
             });
 
             this.app.get("/logout", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-                const result = await controllerTool.logout(request);
+                const resultRpc = await controllerTool.logoutRpc(request);
 
                 Ca.deleteCookie(`${helperSrc.LABEL}_authentication`, request, response);
 
-                if (result !== "ko") {
-                    controllerXvfb.stop(result);
+                if (resultRpc !== "ko") {
+                    controllerXvfb.stop(resultRpc);
 
-                    toolRagEngine.tableDrop(result);
+                    toolRagEngine.tableDrop(resultRpc);
 
-                    helperSrc.responseBody(result, "", response, 200);
+                    helperSrc.responseBody(resultRpc, "", response, 200);
                 } else {
-                    helperSrc.responseBody("", result, response, 500);
+                    helperSrc.responseBody("", resultRpc, response, 500);
                 }
 
-                delete this.sessionObject[result];
+                delete this.sessionObject[resultRpc];
             });
         });
     };
