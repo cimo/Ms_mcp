@@ -166,8 +166,6 @@ export default class Server {
                 if (resultRpc !== "ko") {
                     controllerXvfb.stop(resultRpc);
 
-                    toolRagEngine.tableDrop(resultRpc);
-
                     helperSrc.responseBody(resultRpc, "", response, 200);
                 } else {
                     helperSrc.responseBody("", resultRpc, response, 500);
