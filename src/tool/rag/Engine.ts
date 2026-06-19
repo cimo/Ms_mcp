@@ -1370,29 +1370,3 @@ export const tableCreate = (mcpSessionId: string): boolean => {
 
     return isFileCreate && isCitationCreate && isFtsCreate && isNodeCreate && isNodeVecCreate && isEdgeCreate && isEdgeVecCreate;
 };
-
-export const tableDrop = (mcpSessionId: string): boolean => {
-    let isResult = false;
-
-    const tableNameRagEdgeVec = utilReplaceTableName(`${mcpSessionId}_rag_edge_vec`);
-    const tableNameRagEdge = utilReplaceTableName(`${mcpSessionId}_rag_edge`);
-    const tableNameRagNodeVec = utilReplaceTableName(`${mcpSessionId}_rag_node_vec`);
-    const tableNameRagNode = utilReplaceTableName(`${mcpSessionId}_rag_node`);
-    const tableNameRagFts = utilReplaceTableName(`${mcpSessionId}_rag_fts`);
-    const tableNameRag = utilReplaceTableName(`${mcpSessionId}_rag`);
-    const tableNameRagFile = utilReplaceTableName(`${mcpSessionId}_rag_file`);
-
-    if (database) {
-        database.exec(`DROP TABLE IF EXISTS "${tableNameRagEdgeVec}"`);
-        database.exec(`DROP TABLE IF EXISTS "${tableNameRagEdge}"`);
-        database.exec(`DROP TABLE IF EXISTS "${tableNameRagNodeVec}"`);
-        database.exec(`DROP TABLE IF EXISTS "${tableNameRagNode}"`);
-        database.exec(`DROP TABLE IF EXISTS "${tableNameRagFts}"`);
-        database.exec(`DROP TABLE IF EXISTS "${tableNameRag}"`);
-        database.exec(`DROP TABLE IF EXISTS "${tableNameRagFile}"`);
-
-        isResult = true;
-    }
-
-    return isResult;
-};
