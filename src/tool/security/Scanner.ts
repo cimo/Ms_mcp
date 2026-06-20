@@ -22,7 +22,7 @@ const login = async (): Promise<string> => {
         });
 };
 
-const scan = async (mode: string, target: string): Promise<string> => {
+const check = async (mode: string, target: string): Promise<string> => {
     return instance.api
         .post<modelHelperSrc.IresponseBody>(
             "/api/check",
@@ -40,7 +40,7 @@ const scan = async (mode: string, target: string): Promise<string> => {
             return Buffer.from(stdout, "base64").toString("utf-8");
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Scanner.ts - scan() - api(/api/check) - catch()", error.message);
+            helperSrc.writeLog("Scanner.ts - check() - api(/api/check) - catch()", error.message);
 
             return "ko";
         });
@@ -67,11 +67,11 @@ const logout = async (): Promise<string> => {
 
 export const execute = (mode: string, target: string): Promise<string> => {
     return instance.runWithContext(async () => {
-        let result = "ko";
+        let result = "";
 
         await login();
 
-        result = await scan(mode, target);
+        result = await check(mode, target);
 
         await logout();
 

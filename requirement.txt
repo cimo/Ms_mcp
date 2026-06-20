@@ -1,2 +1,7 @@
-pymupdf==1.27.2.3
+numpy==2.4.3
+# rag_graphify
+sentencepiece==0.2.1
+# paddle
 opencv-python-headless==4.13.0.92
+# mupdf
+pymupdf==1.27.2.3

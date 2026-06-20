@@ -4,7 +4,7 @@ import * as modelTool from "../model/Tool.js";
 import * as automateDisplay from "../tool/automate/Display.js";
 import * as automateMouse from "../tool/automate/Mouse.js";
 import * as browserChrome from "../tool/browser/Chrome.js";
-import * as ocrExtract from "../tool/ocr/Extract.js";
+import * as ocrExtractor from "../tool/ocr/Extractor.js";
 
 process.on("message", (data: modelTool.IruntimeWorkerMessageData) => {
     let resultProcessObject = {} as modelTool.IruntimeHandlerData;
@@ -94,7 +94,7 @@ process.on("message", (data: modelTool.IruntimeWorkerMessageData) => {
 
         return;
     } else if (data.tool === "ocrExecute") {
-        ocrExtract
+        ocrExtractor
             .execute(
                 data.mcpSessionId,
                 data.argumentList[0] as string,

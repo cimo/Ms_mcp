@@ -15,9 +15,14 @@ export const runWithContext = <T>(callback: () => Promise<T>): Promise<T> => {
     return requestContext.run({}, callback);
 };
 
-api.setRequestInterceptor((config: RequestInit) => {
+export const cookieRead = (): string => {
     const store = requestContext.getStore();
-    const cookie = store && store.cookie ? store.cookie : "";
+
+    return store && store.cookie ? store.cookie : "";
+};
+
+api.setRequestInterceptor((config: RequestInit) => {
+    const cookie = cookieRead();
 
     return {
         ...config,

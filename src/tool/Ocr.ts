@@ -23,7 +23,7 @@ export default class Ocr {
     }
 
     execute = (): modelTool.Irpc<typeof this.inputSchema> => {
-        const name = "ocr_execute";
+        const name = "ocr";
 
         const config = {
             description: ["Extract data from an image."].join("\n"),

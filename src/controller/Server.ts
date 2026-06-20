@@ -11,7 +11,6 @@ import { Cc } from "@cimo/cronjob/dist/src/Main.js";
 // Source
 import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
-import * as toolRagEngine from "../tool/rag/Engine.js";
 import ControllerUser from "./User.js";
 import ControllerSetting from "./Setting.js";
 import ControllerAgent from "./Agent.js";
@@ -108,8 +107,8 @@ export default class Server {
             controllerAgent.api();
 
             const controllerTool = new ControllerTool(this.app, this.limiter, this.sessionObject);
-            controllerTool.rpc();
             controllerTool.api();
+            controllerTool.rpc();
 
             const controllerXvfb = new ControllerXvfb(this.sessionObject);
 
@@ -142,7 +141,6 @@ export default class Server {
 
                         controllerSetting.tableCreate(loginSession.mcpSessionId);
                         controllerAgent.tableCreate(loginSession.mcpSessionId);
-                        toolRagEngine.tableCreate(loginSession.mcpSessionId);
 
                         helperSrc.responseBody(JSON.stringify({ mcpSessionId: loginSession.mcpSessionId, message: "" }), "", response, 200);
                     } else {

@@ -17,7 +17,7 @@ const login = async (): Promise<string> => {
             return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Extract.ts - login() - api(/login) - catch()", error.message);
+            helperSrc.writeLog("Extractor.ts - login() - api(/login) - catch()", error.message);
 
             return "ko";
         });
@@ -78,12 +78,12 @@ const extract = (mcpSessionId: string, language: string, fileName: string, searc
                         resolve(resultList);
                     })
                     .catch((error: Error) => {
-                        helperSrc.writeLog("Extract.ts - extract() - api(/extract) - catch()", error.message);
+                        helperSrc.writeLog("Extractor.ts - extract() - api(/extract) - catch()", error.message);
 
                         reject(new Error(error.message));
                     });
             } else {
-                helperSrc.writeLog(`Extract.ts - extract() - fileReadStream()`, resultFileReadStream.toString());
+                helperSrc.writeLog(`Extractor.ts - extract() - fileReadStream()`, resultFileReadStream.toString());
 
                 reject(new Error(resultFileReadStream.toString()));
             }
@@ -104,7 +104,7 @@ const logout = async (): Promise<string> => {
             return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Extract.ts - logout() - api(/logout) - catch()", error.message);
+            helperSrc.writeLog("Extractor.ts - logout() - api(/logout) - catch()", error.message);
 
             return "ko";
         });

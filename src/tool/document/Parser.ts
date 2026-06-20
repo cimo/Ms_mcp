@@ -25,7 +25,7 @@ const login = async (): Promise<string> => {
         });
 };
 
-const convertToPdf = (inputFolder: string, fileName: string): Promise<boolean> => {
+const toPdf = (inputFolder: string, fileName: string): Promise<boolean> => {
     return new Promise((resolve, reject) => {
         const fileDetail = helperSrc.fileDetail(fileName);
 
@@ -123,7 +123,7 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
 
         const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
 
-        await convertToPdf(inputFolder, fileName);
+        await toPdf(inputFolder, fileName);
 
         let resultExecute = await helperSrc.executionTerminal(
             `python3 "${helperSrc.PATH_ROOT}muPdf/parser.py" "${helperSrc.PATH_ROOT}muPdf/mutool" "${inputFolder}converted.pdf" "${inputFolder}" "${searchInput}" "wholeWord,caseSensitive,both" >> "${helperSrc.PATH_LOG}muPdf_parser.log" 2>&1`
@@ -131,7 +131,7 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
 
         if (!resultExecute.error) {
             resultExecute = await helperSrc.executionTerminal(
-                `python3 "${helperSrc.PATH_ROOT}paddle/layout.py" "${helperSrc.PATH_ROOT}paddle/pp-doclayout_plus-l.inference.onnx" "${inputFolder}image/" "${inputFolder}layout/" >> "${helperSrc.PATH_LOG}paddle_layout.log" 2>&1`
+                `python3 "${helperSrc.PATH_ROOT}onnx/paddle/layout.py" "${helperSrc.PATH_ROOT}onnx/paddle/model/pp-doclayout_plus-l.inference.onnx" "${inputFolder}image/" "${inputFolder}layout/" >> "${helperSrc.PATH_LOG}paddle_layout.log" 2>&1`
             );
         }
 

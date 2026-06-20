@@ -10,7 +10,9 @@ import numpy
 import json
 
 # Source
-from onnx import sessionBuild
+sys.path.append(f"{os.path.dirname(__file__)}/..")
+
+from helper import onnxSessionBuild
 
 class EngineRealtimeLayout:
 	def _drawDebug(self, pageNumber, image, itemList):
@@ -204,7 +206,7 @@ class EngineRealtimeLayout:
 		cv2.setUseOptimized(True)
 		cv2.setNumThreads(1)
 
-		session = sessionBuild(self.pathModel)
+		session = onnxSessionBuild(self.pathModel)
 
 		fileNameList = sorted(glob.glob(f"{self.pathInput}*.png"), key=lambda path: int(os.path.splitext(os.path.basename(path))[0]))
 

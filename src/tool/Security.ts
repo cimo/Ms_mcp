@@ -17,7 +17,7 @@ export default class Security {
 
         this.inputSchema = z.object({
             mode: z.string().default("").describe("Is the word that indicates what type of analyze need be execute."),
-            target: z.string().default("").describe("Is the docker tag or url repository that the user is asking to scan.")
+            target: z.string().default("").describe("Is the docker tag or url repository that the user is asking to check.")
         });
     }
 

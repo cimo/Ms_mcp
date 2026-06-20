@@ -1,9 +1,11 @@
 import os
 import onnxruntime
 
-def sessionBuild(pathModel):
+def onnxSessionBuild(pathModel):
     option = onnxruntime.SessionOptions()
-    
+
+    option.log_severity_level = 3
+
     option.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
 
     option.intra_op_num_threads = max(1, os.cpu_count())
@@ -15,13 +17,13 @@ def sessionBuild(pathModel):
 
     option.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
 
-    providerAvailableList = onnxruntime.get_available_providers()
-
     providerPreferredList = [
         "CUDAExecutionProvider",
         "OpenVINOExecutionProvider",
         "CPUExecutionProvider"
     ]
+
+    providerAvailableList = onnxruntime.get_available_providers()
 
     providerList = [provider for provider in providerPreferredList if provider in providerAvailableList]
 

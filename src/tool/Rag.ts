@@ -4,7 +4,7 @@ import { z } from "zod";
 import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import * as modelTool from "../model/Tool.js";
-import * as ragEngine from "./rag/Engine.js";
+import * as ragClient from "./rag/Client.js";
 
 export default class Rag {
     // Variable
@@ -46,8 +46,6 @@ export default class Rag {
         this.inputSchemaDelete = z.object({
             fileName: z.string().default("").describe("File name.")
         });
-
-        ragEngine.databaseCreate();
     }
 
     store = (): modelTool.Irpc<typeof this.inputSchemaStore> => {
@@ -66,7 +64,7 @@ export default class Rag {
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const uniqueId = helperSrc.generateUniqueId();
 
-                const resultStore = await ragEngine.databaseStore(extra.sessionId, uniqueId, argument.fileName);
+                const resultStore = await ragClient.databaseStore(extra.sessionId, uniqueId, argument.fileName);
                 result = JSON.stringify({ name, result: resultStore });
             }
 
@@ -107,7 +105,7 @@ export default class Rag {
                 if (documentList.length > 0) {
                     const uniqueId = helperSrc.generateUniqueId();
 
-                    const resultSearch = await ragEngine.databaseSearch(extra.sessionId, uniqueId, argument.prompt, argument.entity, argument.theme);
+                    const resultSearch = await ragClient.databaseSearch(extra.sessionId, uniqueId, argument.prompt, argument.entity, argument.theme);
                     result = JSON.stringify({ name, result: JSON.parse(resultSearch) });
                 }
             }
@@ -139,7 +137,7 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultDelete = await ragEngine.databaseDelete(extra.sessionId, argument.fileName);
+                const resultDelete = await ragClient.databaseDelete(extra.sessionId, argument.fileName);
                 result = JSON.stringify({ name, result: resultDelete });
             }
 
