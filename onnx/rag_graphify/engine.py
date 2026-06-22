@@ -216,35 +216,6 @@ class Engine:
 
         return resultList
 
-    def _logicNodeVecMatch(self, database, mcpSessionId, queryVector):
-        resultList = []
-
-        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
-
-        queryRowList = database.execute(
-            f'SELECT name, name_norm, description, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
-            (queryVector, self.candidatePool)
-        ).fetchall()
-
-        candidateList = []
-
-        for a in range(len(queryRowList)):
-            candidateList.append({"name": queryRowList[a][0], "nameNorm": queryRowList[a][1], "description": queryRowList[a][2], "distance": float(queryRowList[a][3])})
-
-        distanceBest = -1
-
-        if len(candidateList) > 0:
-            distanceBest = candidateList[0]["distance"]
-
-        for a in range(len(candidateList)):
-            if len(resultList) >= self.vectorMatchLimit:
-                break
-
-            if candidateList[a]["distance"] <= self.distanceMax and candidateList[a]["distance"] <= distanceBest + self.marginRelative:
-                resultList.append(candidateList[a])
-
-        return resultList
-
     def _logicNodeType(self, database, mcpSessionId, nameNormList):
         resultObject = {}
 
@@ -279,33 +250,20 @@ class Engine:
 
         return resultObject
 
-    def _logicEdgeSelectByFile(self, database, mcpSessionId, fileId):
+    def _logicNodeVecMatch(self, database, mcpSessionId, queryVector):
         resultList = []
 
-        if fileId > 0:
-            tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
-
-            queryList = database.execute(f'SELECT id, description FROM "{tableName}" WHERE file_id = %s', (fileId,)).fetchall()
-
-            for a in range(len(queryList)):
-                resultList.append({"id": queryList[a][0], "description": queryList[a][1]})
-
-        return resultList
-
-    def _logicEdgeVecMatch(self, database, mcpSessionId, queryVector):
-        resultList = []
-
-        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
+        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
 
         queryRowList = database.execute(
-            f'SELECT edge_id, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
+            f'SELECT name, name_norm, description, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
             (queryVector, self.candidatePool)
         ).fetchall()
 
         candidateList = []
 
         for a in range(len(queryRowList)):
-            candidateList.append({"edgeId": queryRowList[a][0], "distance": float(queryRowList[a][1])})
+            candidateList.append({"name": queryRowList[a][0], "nameNorm": queryRowList[a][1], "description": queryRowList[a][2], "distance": float(queryRowList[a][3])})
 
         distanceBest = -1
 
@@ -316,8 +274,21 @@ class Engine:
             if len(resultList) >= self.vectorMatchLimit:
                 break
 
-            if candidateList[a]["distance"] <= self.distanceMaxEdge and candidateList[a]["distance"] <= distanceBest + self.marginRelative:
-                resultList.append(candidateList[a]["edgeId"])
+            if candidateList[a]["distance"] <= self.distanceMax and candidateList[a]["distance"] <= distanceBest + self.marginRelative:
+                resultList.append(candidateList[a])
+
+        return resultList
+
+    def _logicEdgeSelectByFile(self, database, mcpSessionId, fileId):
+        resultList = []
+
+        if fileId > 0:
+            tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
+
+            queryList = database.execute(f'SELECT id, description FROM "{tableName}" WHERE file_id = %s', (fileId,)).fetchall()
+
+            for a in range(len(queryList)):
+                resultList.append({"id": queryList[a][0], "description": queryList[a][1]})
 
         return resultList
 
@@ -340,21 +311,6 @@ class Engine:
                 resultList.append({"id": query[0], "source": query[1], "target": query[2], "description": query[3], "sourceNorm": query[4], "targetNorm": query[5]})
 
         return resultList
-
-    def _logicEdgeRelevance(self, database, mcpSessionId, queryVector):
-        resultObject = {}
-
-        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
-
-        queryRowList = database.execute(
-            f'SELECT edge_id, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
-            (queryVector, self.candidatePool)
-        ).fetchall()
-
-        for a in range(len(queryRowList)):
-            resultObject[queryRowList[a][0]] = float(queryRowList[a][1])
-
-        return resultObject
 
     def _logicEdgeTraverse(self, database, mcpSessionId, seedList):
         resultList = []
@@ -388,6 +344,50 @@ class Engine:
                 })
 
         return resultList
+
+    def _logicEdgeVecMatch(self, database, mcpSessionId, queryVector):
+        resultList = []
+
+        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
+
+        queryRowList = database.execute(
+            f'SELECT edge_id, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
+            (queryVector, self.candidatePool)
+        ).fetchall()
+
+        candidateList = []
+
+        for a in range(len(queryRowList)):
+            candidateList.append({"edgeId": queryRowList[a][0], "distance": float(queryRowList[a][1])})
+
+        distanceBest = -1
+
+        if len(candidateList) > 0:
+            distanceBest = candidateList[0]["distance"]
+
+        for a in range(len(candidateList)):
+            if len(resultList) >= self.vectorMatchLimit:
+                break
+
+            if candidateList[a]["distance"] <= self.distanceMaxEdge and candidateList[a]["distance"] <= distanceBest + self.marginRelative:
+                resultList.append(candidateList[a]["edgeId"])
+
+        return resultList
+
+    def _logicEdgeRelevance(self, database, mcpSessionId, queryVector):
+        resultObject = {}
+
+        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
+
+        queryRowList = database.execute(
+            f'SELECT edge_id, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
+            (queryVector, self.candidatePool)
+        ).fetchall()
+
+        for a in range(len(queryRowList)):
+            resultObject[queryRowList[a][0]] = float(queryRowList[a][1])
+
+        return resultObject
 
     def _tableFileCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_file")
@@ -1159,7 +1159,7 @@ class Engine:
             const optionObject = {
                 nodes: { shape: "dot", size: 14, font: { color: "#ffffff", size: 12 } },
                 edges: { arrows: "to", color: { color: "#888888" }, smooth: { type: "continuous" } },
-                interaction: { dragNodes: false, hover: true, tooltipDelay: 120 },
+                interaction: { dragNodes: true, hover: true, tooltipDelay: 120 },
                 physics: { stabilization: { iterations: 200 } }
             };
 
@@ -1176,8 +1176,6 @@ class Engine:
                 document.getElementById("loadingBar_fill").style.width = "100%";
                 document.getElementById("loadingBar_text").innerHTML = "100%";
                 document.getElementById("graph_wrapper").style.opacity = 1;
-
-                network.setOptions({ physics: false });
 
                 setTimeout(function() { document.getElementById("loadingBar_wrapper").style.display = "none"; }, 400);
             });
