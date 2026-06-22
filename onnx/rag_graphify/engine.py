@@ -72,6 +72,30 @@ class Engine:
 
         return resultList
 
+    def _logicCitationMatchByFile(self, database, mcpSessionId, fileList, fileId, queryVector):
+        resultList = []
+
+        fileNameObject = {}
+
+        for a in range(len(fileList)):
+            fileNameObject[fileList[a]["id"]] = fileList[a]["name"]
+
+        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag")
+
+        queryRowList = database.execute(
+            f'SELECT chunk, file_id, embedding <-> %s AS distance FROM "{tableName}" WHERE file_id = %s ORDER BY distance LIMIT 1',
+            (queryVector, fileId)
+        ).fetchall()
+
+        for a in range(len(queryRowList)):
+            chunk = queryRowList[a][0]
+            fileIdRow = queryRowList[a][1]
+
+            if chunk and fileNameObject.get(fileIdRow) is not None:
+                resultList.append({"fileName": fileNameObject[fileIdRow], "chunk": chunk, "distance": float(queryRowList[a][2])})
+
+        return resultList
+
     def _logicFtsMatch(self, database, mcpSessionId, fileList, termList):
         resultList = []
 
@@ -150,6 +174,42 @@ class Engine:
                 clauseList.append("name_norm LIKE %s")
 
             queryList = database.execute(f'SELECT name_norm FROM "{tableName}" WHERE {" OR ".join(clauseList)} GROUP BY name_norm ORDER BY length(name_norm) ASC', tuple(likeList)).fetchall()
+
+            for a in range(len(queryList)):
+                resultList.append(queryList[a][0])
+
+        return resultList
+
+    def _logicNodeDetail(self, database, mcpSessionId, nameNormList):
+        resultList = []
+
+        if len(nameNormList) > 0:
+            tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
+
+            placeholder = ",".join("%s" for a in range(len(nameNormList)))
+
+            queryList = database.execute(
+                f'SELECT DISTINCT ON (name_norm) name, type, description FROM "{tableName}" WHERE name_norm IN ({placeholder}) ORDER BY name_norm, length(description) DESC',
+                tuple(nameNormList)
+            ).fetchall()
+
+            for a in range(len(queryList)):
+                resultList.append({"name": queryList[a][0], "type": queryList[a][1], "description": queryList[a][2]})
+
+        return resultList
+
+    def _logicNodeFileList(self, database, mcpSessionId, nameNormList):
+        resultList = []
+
+        if len(nameNormList) > 0:
+            tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
+
+            placeholder = ",".join("%s" for a in range(len(nameNormList)))
+
+            queryList = database.execute(
+                f'SELECT DISTINCT file_id FROM "{tableName}" WHERE name_norm IN ({placeholder})',
+                tuple(nameNormList)
+            ).fetchall()
 
             for a in range(len(queryList)):
                 resultList.append(queryList[a][0])
@@ -970,58 +1030,67 @@ class Engine:
 
         return result
 
-    def _searchCitation(self, database, mcpSessionId, fileList, entityList, entityEmbeddingData, isEntityEmbedding, promptVector):
+    def _searchCitation(self, database, mcpSessionId, fileList, promptVector, entityFileIdList):
         citationList = []
 
         isCitationSemantic = False
 
-        if len(entityList) > 0:
-            for a in range(len(entityList)):
-                citation = None
+        seenObject = {}
 
-                if isEntityEmbedding and len(entityEmbeddingData["data"][a]["embedding"]) > 0:
-                    entityVector = numpy.array(entityEmbeddingData["data"][a]["embedding"], dtype=numpy.float32)
-                    entityCitationList = self._logicCitationMatch(database, mcpSessionId, fileList, 1, entityVector)
+        if promptVector is not None:
+            promptCitationList = self._logicCitationMatch(database, mcpSessionId, fileList, self.candidatePool, promptVector)
 
-                    if len(entityCitationList) > 0:
-                        if entityCitationList[0]["distance"] <= self.distanceMax:
-                            citation = entityCitationList[0]
-                            isCitationSemantic = True
+            distanceBest = -1
 
-                if citation is None:
-                    ftsCitationList = self._logicFtsMatch(database, mcpSessionId, fileList, [entityList[a]])
+            if len(promptCitationList) > 0:
+                distanceBest = promptCitationList[0]["distance"]
 
-                    if len(ftsCitationList) > 0:
-                        citation = ftsCitationList[0]
+            for a in range(len(promptCitationList)):
+                candidate = promptCitationList[a]
 
-                if citation is not None:
-                    isPresent = False
+                if candidate["distance"] <= self.distanceMax and candidate["distance"] <= distanceBest + self.citationMargin:
+                    key = candidate["fileName"] + "|" + candidate["chunk"]
 
-                    for b in range(len(citationList)):
-                        if citationList[b]["fileName"] == citation["fileName"] and citationList[b]["chunk"] == citation["chunk"]:
-                            isPresent = True
+                    if seenObject.get(key) is None:
+                        seenObject[key] = True
 
-                    if not isPresent:
-                        citationList.append(citation)
-        else:
-            if promptVector is not None:
-                vectorCitationList = self._logicCitationMatch(database, mcpSessionId, fileList, self.candidatePool, promptVector)
+                        citationList.append(candidate)
 
-                for a in range(len(vectorCitationList)):
-                    if len(citationList) >= self.citationLimit:
-                        break
-
-                    if vectorCitationList[a]["distance"] <= self.distanceMax:
-                        citationList.append(vectorCitationList[a])
                         isCitationSemantic = True
 
-        if len(citationList) > self.citationLimit:
-            citationList = citationList[0:self.citationLimit]
+        if promptVector is not None:
+            for a in range(len(entityFileIdList)):
+                fileCitationList = self._logicCitationMatchByFile(database, mcpSessionId, fileList, entityFileIdList[a], promptVector)
+
+                for b in range(len(fileCitationList)):
+                    candidate = fileCitationList[b]
+
+                    key = candidate["fileName"] + "|" + candidate["chunk"]
+
+                    if seenObject.get(key) is None:
+                        seenObject[key] = True
+
+                        citationList.append(candidate)
+
+        distanceGlobalBest = -1
+
+        for a in range(len(citationList)):
+            if distanceGlobalBest < 0 or citationList[a]["distance"] < distanceGlobalBest:
+                distanceGlobalBest = citationList[a]["distance"]
+
+        filteredList = []
+
+        for a in range(len(citationList)):
+            if citationList[a]["distance"] <= distanceGlobalBest + self.citationMargin:
+                filteredList.append(citationList[a])
+
+        filteredList.sort(key=lambda citation: citation["distance"])
+
+        citationList = filteredList
 
         return citationList, isCitationSemantic
 
     def _searchSeed(self, database, mcpSessionId, entityList, entityEmbeddingData, isEntityEmbedding):
-        nodeList = []
         seedObject = {}
         seedList = []
 
@@ -1035,20 +1104,6 @@ class Engine:
                         if seedObject.get(nodeMatchList[b]["nameNorm"]) is None:
                             seedObject[nodeMatchList[b]["nameNorm"]] = True
                             seedList.append(nodeMatchList[b]["nameNorm"])
-                            nodeList.append({"name": nodeMatchList[b]["name"], "type": "", "description": nodeMatchList[b]["description"]})
-
-        nodeTypeNormList = []
-
-        for a in range(len(nodeList)):
-            nodeTypeNormList.append(self._utilNodeNormalize(nodeList[a]["name"]))
-
-        nodeTypeObject = self._logicNodeType(database, mcpSessionId, nodeTypeNormList)
-
-        for a in range(len(nodeList)):
-            nameNorm = self._utilNodeNormalize(nodeList[a]["name"])
-
-            if nodeTypeObject.get(nameNorm) is not None:
-                nodeList[a]["type"] = nodeTypeObject[nameNorm]
 
         seedLikeList = self._logicNodeMatch(database, mcpSessionId, entityList)
 
@@ -1057,7 +1112,11 @@ class Engine:
                 seedObject[seedLikeList[a]] = True
                 seedList.append(seedLikeList[a])
 
-        return nodeList, seedObject, seedList
+        nodeList = self._logicNodeDetail(database, mcpSessionId, seedList)
+
+        entityFileIdList = self._logicNodeFileList(database, mcpSessionId, seedList)
+
+        return nodeList, seedObject, seedList, entityFileIdList
 
     def _searchTheme(self, database, cookie, mcpSessionId, uniqueId, themeList, seedObject, seedList):
         graphCandidateList = []
@@ -1158,10 +1217,24 @@ class Engine:
 
         graphDedupList.sort(key=lambda candidate: (candidate["relevance"], -candidate["rank"]))
 
+        relevanceBest = -1
+
+        for a in range(len(graphDedupList)):
+            if graphDedupList[a]["relevance"] <= self.distanceMaxEdge:
+                relevanceBest = graphDedupList[a]["relevance"]
+
+                break
+
         graphTokenTotal = 0
 
         for a in range(len(graphDedupList)):
             candidate = graphDedupList[a]
+
+            if relevanceBest < 0:
+                break
+
+            if candidate["relevance"] > self.distanceMaxEdge or candidate["relevance"] > relevanceBest + self.graphMargin:
+                continue
 
             tokenCount = self._utilTokenEstimate(f"{candidate['source']} {candidate['target']} {candidate['description']}")
 
@@ -1207,11 +1280,11 @@ class Engine:
                 entityEmbeddingData = self.embedding(cookie, uniqueId, "query", entityList)
                 isEntityEmbedding = isinstance(entityEmbeddingData.get("data"), list) and len(entityEmbeddingData["data"]) == len(entityList)
 
-            citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, entityList, entityEmbeddingData, isEntityEmbedding, promptVector)
+            nodeList, seedObject, seedList, entityFileIdList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingData, isEntityEmbedding)
 
-            nodeList, seedObject, seedList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingData, isEntityEmbedding)
+            citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptVector, entityFileIdList)
 
-            isInDomain = isCitationSemantic
+            isInDomain = isCitationSemantic or len(seedList) > 0
 
             if isInDomain:
                 graphCandidateList = self._searchTheme(database, cookie, mcpSessionId, uniqueId, themeList, seedObject, seedList)
@@ -1271,6 +1344,8 @@ class Engine:
         self.distanceMax = 1.00
         self.distanceMaxEdge = 1.20
         self.marginRelative = 0.1
+        self.citationMargin = 0.15
+        self.graphMargin = 0.15
         self.batchLength = 32
         self.vectorDimension = 768
         self.candidatePool = 256
