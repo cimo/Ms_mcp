@@ -261,6 +261,24 @@ class Engine:
 
         return resultObject
 
+    def _logicNodeDegree(self, database, mcpSessionId, nameNormList):
+        resultObject = {}
+
+        if len(nameNormList) > 0:
+            tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
+
+            placeholder = ",".join("%s" for a in range(len(nameNormList)))
+
+            queryList = database.execute(
+                f'SELECT node, COUNT(*) AS degree FROM (SELECT source_norm AS node FROM "{tableName}" UNION ALL SELECT target_norm AS node FROM "{tableName}") AS nodeUnion WHERE node IN ({placeholder}) GROUP BY node',
+                tuple(nameNormList)
+            ).fetchall()
+
+            for a in range(len(queryList)):
+                resultObject[queryList[a][0]] = queryList[a][1]
+
+        return resultObject
+
     def _logicEdgeSelectByFile(self, database, mcpSessionId, fileId):
         resultList = []
 
@@ -370,24 +388,6 @@ class Engine:
                 })
 
         return resultList
-
-    def _logicNodeDegree(self, database, mcpSessionId, nameNormList):
-        resultObject = {}
-
-        if len(nameNormList) > 0:
-            tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
-
-            placeholder = ",".join("%s" for a in range(len(nameNormList)))
-
-            queryList = database.execute(
-                f'SELECT node, COUNT(*) AS degree FROM (SELECT source_norm AS node FROM "{tableName}" UNION ALL SELECT target_norm AS node FROM "{tableName}") AS nodeUnion WHERE node IN ({placeholder}) GROUP BY node',
-                tuple(nameNormList)
-            ).fetchall()
-
-            for a in range(len(queryList)):
-                resultObject[queryList[a][0]] = queryList[a][1]
-
-        return resultObject
 
     def _tableFileCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_file")
@@ -797,79 +797,6 @@ class Engine:
 
         return cleanList
 
-    def embedding(self, cookie, uniqueId, mode, text):
-        inputList = text if isinstance(text, list) else [text]
-
-        inputPrefixList = []
-
-        for a in range(len(inputList)):
-            if mode == "document":
-                inputPrefixList.append(f"title: none | text: {inputList[a]}")
-            else:
-                inputPrefixList.append(f"task: search result | query: {inputList[a]}")
-
-        body = json.dumps({"input": inputPrefixList}).encode("utf-8")
-
-        request = urllib.request.Request(f"{self.urlApi}/api/embedding", data=body, method="POST")
-
-        request.add_header("Content-Type", "application/json")
-        request.add_header("Authorization", f"Bearer {uniqueId}")
-
-        if cookie != "":
-            request.add_header("Cookie", cookie)
-
-        response = urllib.request.urlopen(request, context=self.sslContext)
-
-        data = json.loads(response.read().decode("utf-8"))
-
-        stdout = json.loads(data["response"]["stdout"])
-
-        return stdout
-
-    def process(self, text):
-        chunkList = self._chunk(text)
-
-        entitySeenObject = {}
-        relationSeenObject = {}
-
-        entityList = []
-        relationList = []
-
-        for a in range(len(chunkList)):
-            chunk = chunkList[a]
-
-            entityPredictList = self._predict(chunk)
-
-            sentenceList = self._sentenceSplit(chunk)
-
-            chunkEntityList = self._entity(entityPredictList, sentenceList)
-            chunkRelationList = self._relation(entityPredictList, sentenceList)
-
-            for b in range(len(chunkEntityList)):
-                nameNorm = self._utilNodeNormalize(chunkEntityList[b]["name"])
-
-                if entitySeenObject.get(nameNorm) is None:
-                    entitySeenObject[nameNorm] = True
-
-                    entityList.append(chunkEntityList[b])
-
-            for b in range(len(chunkRelationList)):
-                relation = chunkRelationList[b]
-
-                key = self._utilNodeNormalize(relation["source"]) + "|" + self._utilNodeNormalize(relation["target"])
-
-                if relationSeenObject.get(key) is None:
-                    relationSeenObject[key] = True
-
-                    relationList.append(relation)
-
-        result = {
-            "entityList": entityList,
-            "relationList": relationList
-        }
-
-        return result
-
     def _storeCitation(self, database, cookie, mcpSessionId, uniqueId, fileId, chunkList):
         isFailed = False
 
@@ -967,68 +894,6 @@ class Engine:
                 isFailed = True
 
         return isFailed
-
-    def store(self, cookie, mcpSessionId, uniqueId, fileName):
-        result = "ko"
-
-        database = Database()
-
-        self._tableCreate(database, mcpSessionId)
-
-        fileIdStored = self._logicFileSelect(database, mcpSessionId, fileName)
-
-        if fileIdStored > 0:
-            result = "ok"
-        else:
-            fileId = self._tableFileInsert(database, mcpSessionId, fileName)
-
-            database.commit()
-
-            fileNameOnly = fileName.split("/")[-1]
-            baseName = re.sub(r"\.[^/.]+$", "", fileNameOnly.strip())
-
-            inputFolder = f"{self.pathFileInput}{mcpSessionId}/document/{baseName}/"
-
-            pathResult = f"{inputFolder}result.md"
-
-            if os.path.exists(pathResult):
-                with open(pathResult, "r", encoding="utf-8") as file:
-                    fileContent = file.read()
-
-                chunkList = self._chunk(fileContent)
-
-                isFailed = len(chunkList) == 0
-
-                if not isFailed:
-                    isFailed = self._storeCitation(database, cookie, mcpSessionId, uniqueId, fileId, chunkList)
-
-                if not isFailed:
-                    self._storeRelation(database, mcpSessionId, fileId, chunkList)
-
-                if not isFailed:
-                    isFailed = self._storeNodeVector(database, cookie, mcpSessionId, uniqueId, fileId)
-
-                if not isFailed:
-                    isFailed = self._storeEdgeVector(database, cookie, mcpSessionId, uniqueId, fileId)
-
-                if isFailed:
-                    result = "ko"
-                else:
-                    result = "ok"
-
-            if result == "ok":
-                with open(f"{inputFolder}.rag_done", "w") as file:
-                    file.write("")
-            else:
-                self._tableDelete(database, mcpSessionId, fileName)
-
-                if os.path.isdir(inputFolder):
-                    with open(f"{inputFolder}.fail", "w") as file:
-                        file.write("")
-
-        database.close()
-
-        return result
 
     def _searchCitation(self, database, mcpSessionId, fileList, promptVector, entityFileIdList):
         citationList = []
@@ -1249,6 +1114,341 @@ class Engine:
 
         return graphList
 
+    def _htmlTemplate(self):
+        return """<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>RAG graphify</title>
+        <style>
+            html, body { margin: 0; padding: 0; height: 100%; background: #1e1e1e; font-family: sans-serif; }
+            #index { position: fixed; top: 0; left: 0; width: 240px; height: 100%; overflow-y: auto; box-sizing: border-box; padding: 8px; background: #252526; color: #ffffff; font-size: 13px; }
+            #index label { display: flex; align-items: center; gap: 6px; padding: 3px 2px; cursor: pointer; }
+            #index label input { flex: 0 0 auto; margin: 0; }
+            #index label span:last-child { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+            #index button { padding: 4px 8px; background: #3a3a3a; color: #ffffff; border: 1px solid #555555; border-radius: 3px; font-size: 14px; line-height: 1; cursor: pointer; }
+            #index button:hover { background: #4a4a4a; }
+            #index input { flex: 1 1 auto; min-width: 0; padding: 4px 6px; background: #3a3a3a; color: #ffffff; border: 1px solid #555555; border-radius: 3px; font-size: 12px; }
+            #index .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+            #filter_wrapper { display: flex; gap: 4px; margin-bottom: 6px; }
+            #graph_wrapper { position: fixed; top: 0; left: 240px; right: 0; bottom: 0; background: #1e1e1e; opacity: 0; }
+            #loadingBar_wrapper { position: fixed; top: 0; left: 240px; right: 0; z-index: 10; }
+            #loadingBar_fill { height: 4px; width: 0%; background: #4f9dff; transition: width 0.2s ease; }
+            #loadingBar_text { padding: 2px 6px; font-size: 11px; color: #aaaaaa; }
+            .vis-tooltip { position: absolute; background: #333333; color: #ffffff; border: 1px solid #555555; padding: 4px 6px; font-size: 12px; border-radius: 3px; max-width: 300px; white-space: normal; }
+        </style>
+        <script>__JS_VIS__</script>
+    </head>
+    <body>
+        <div id="index">
+            <div id="filter_wrapper">
+                <button id="toggleAll" title="">&#9744;</button>
+                <input id="filter" type="text" placeholder="" />
+            </div>
+        </div>
+        <div id="graph_wrapper"></div>
+        <div id="loadingBar_wrapper">
+            <div id="loadingBar_fill"></div>
+            <div id="loadingBar_text">0%</div>
+        </div>
+        <script>
+            const nodeList = new vis.DataSet(__NODE_DATA__);
+            const edgeList = new vis.DataSet(__EDGE_DATA__);
+
+            const optionObject = {
+                nodes: { shape: "dot", size: 14, font: { color: "#ffffff", size: 12 } },
+                edges: { arrows: "to", color: { color: "#888888" }, smooth: { type: "continuous" } },
+                interaction: { dragNodes: false, hover: true, tooltipDelay: 120 },
+                physics: { stabilization: { iterations: 200 } }
+            };
+
+            const network = new vis.Network(document.getElementById("graph_wrapper"), { nodes: nodeList, edges: edgeList }, optionObject);
+
+            network.on("stabilizationProgress", function(params) {
+                const percent = Math.round(params.iterations / params.total * 100);
+
+                document.getElementById("loadingBar_fill").style.width = percent + "%";
+                document.getElementById("loadingBar_text").innerHTML = percent + "%";
+            });
+
+            network.once("stabilizationIterationsDone", function() {
+                document.getElementById("loadingBar_fill").style.width = "100%";
+                document.getElementById("loadingBar_text").innerHTML = "100%";
+                document.getElementById("graph_wrapper").style.opacity = 1;
+
+                network.setOptions({ physics: false });
+
+                setTimeout(function() { document.getElementById("loadingBar_wrapper").style.display = "none"; }, 400);
+            });
+
+            const elementIndex = document.getElementById("index");
+            const nodeAllList = nodeList.get();
+            nodeAllList.sort((nodeA, nodeB) => nodeA.label.localeCompare(nodeB.label));
+
+            for (let a = 0; a < nodeAllList.length; a++) {
+                const node = nodeAllList[a];
+
+                const label = document.createElement("label");
+
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.checked = true;
+                checkbox.setAttribute("data-id", node.id);
+                checkbox.addEventListener("change", function() {
+                    nodeList.update({ id: this.getAttribute("data-id"), hidden: !this.checked });
+                });
+
+                const dot = document.createElement("span");
+                dot.className = "dot";
+                dot.style.background = node.color;
+
+                const text = document.createElement("span");
+                text.textContent = node.label;
+
+                label.appendChild(checkbox);
+                label.appendChild(dot);
+                label.appendChild(text);
+                elementIndex.appendChild(label);
+            }
+
+            let isAllSelected = true;
+
+            document.getElementById("toggleAll").addEventListener("click", function() {
+                isAllSelected = !isAllSelected;
+
+                const checkboxList = elementIndex.querySelectorAll("input[type=checkbox]");
+                const updateList = [];
+
+                for (let a = 0; a < checkboxList.length; a++) {
+                    checkboxList[a].checked = isAllSelected;
+
+                    updateList.push({ id: checkboxList[a].getAttribute("data-id"), hidden: !isAllSelected });
+                }
+
+                nodeList.update(updateList);
+
+                this.innerHTML = isAllSelected ? "&#9744;" : "&#9745;";
+            });
+
+            document.getElementById("filter").addEventListener("input", function() {
+                const term = this.value.toLowerCase();
+                const labelList = elementIndex.querySelectorAll("label");
+
+                for (let a = 0; a < labelList.length; a++) {
+                    labelList[a].style.display = labelList[a].textContent.toLowerCase().indexOf(term) === -1 ? "none" : "flex";
+                }
+            });
+        </script>
+    </body>
+</html>
+"""
+    
+    def _htmlGenerate(self, database, mcpSessionId):
+        documentFolder = f"{self.pathFileInput}{mcpSessionId}/document/"
+
+        if not os.path.isdir(documentFolder):
+            return
+
+        colorObject = {
+            "person": "#4f9dff",
+            "organization": "#ff9f40",
+            "place": "#4fd18b",
+            "category": "#c792ea",
+            "event": "#ff6b6b"
+        }
+
+        nodeList = []
+        edgeList = []
+
+        existsRow = database.execute("SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = %s)", (f"{mcpSessionId}_rag_node",)).fetchone()
+
+        if existsRow[0]:
+            nodeTableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
+            edgeTableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
+
+            nodeRowList = database.execute(
+                f'SELECT DISTINCT ON (name_norm) name_norm, name, type, description FROM "{nodeTableName}" ORDER BY name_norm, length(description) DESC'
+            ).fetchall()
+
+            nodeSeenObject = {}
+
+            for a in range(len(nodeRowList)):
+                nameNorm = nodeRowList[a][0]
+
+                nodeSeenObject[nameNorm] = True
+
+                nodeList.append({"id": nameNorm, "label": nodeRowList[a][1], "color": colorObject.get(nodeRowList[a][2], "#888888"), "title": nodeRowList[a][3]})
+
+            edgeRowList = database.execute(f'SELECT source_norm, target_norm, source, target, description FROM "{edgeTableName}"').fetchall()
+
+            for a in range(len(edgeRowList)):
+                sourceNorm = edgeRowList[a][0]
+                targetNorm = edgeRowList[a][1]
+
+                if nodeSeenObject.get(sourceNorm) is None:
+                    nodeSeenObject[sourceNorm] = True
+
+                    nodeList.append({"id": sourceNorm, "label": edgeRowList[a][2], "color": "#888888", "title": ""})
+
+                if nodeSeenObject.get(targetNorm) is None:
+                    nodeSeenObject[targetNorm] = True
+
+                    nodeList.append({"id": targetNorm, "label": edgeRowList[a][3], "color": "#888888", "title": ""})
+
+                edgeList.append({"from": sourceNorm, "to": targetNorm, "title": edgeRowList[a][4]})
+
+        nodeList.sort(key=lambda node: node["label"].lower())
+
+        with open(f"{os.path.dirname(__file__)}/asset/vis-network.min.js", "r", encoding="utf-8") as file:
+            visScript = file.read()
+
+        visScript = re.sub(r"//[#@]\s*sourceMappingURL=\S*", "", visScript)
+
+        html = self._htmlTemplate()
+        html = html.replace("__NODE_DATA__", json.dumps(nodeList, ensure_ascii=False)).replace("__EDGE_DATA__", json.dumps(edgeList, ensure_ascii=False)).replace("__JS_VIS__", visScript)
+
+        with open(f"{documentFolder}rag_graph.html", "w", encoding="utf-8") as file:
+            file.write(html)
+
+    def embedding(self, cookie, uniqueId, mode, text):
+        inputList = text if isinstance(text, list) else [text]
+
+        inputPrefixList = []
+
+        for a in range(len(inputList)):
+            if mode == "document":
+                inputPrefixList.append(f"title: none | text: {inputList[a]}")
+            else:
+                inputPrefixList.append(f"task: search result | query: {inputList[a]}")
+
+        body = json.dumps({"input": inputPrefixList}).encode("utf-8")
+
+        request = urllib.request.Request(f"{self.urlApi}/api/embedding", data=body, method="POST")
+
+        request.add_header("Content-Type", "application/json")
+        request.add_header("Authorization", f"Bearer {uniqueId}")
+
+        if cookie != "":
+            request.add_header("Cookie", cookie)
+
+        response = urllib.request.urlopen(request, context=self.sslContext)
+
+        data = json.loads(response.read().decode("utf-8"))
+
+        stdout = json.loads(data["response"]["stdout"])
+
+        return stdout
+
+    def process(self, text):
+        chunkList = self._chunk(text)
+
+        entitySeenObject = {}
+        relationSeenObject = {}
+
+        entityList = []
+        relationList = []
+
+        for a in range(len(chunkList)):
+            chunk = chunkList[a]
+
+            entityPredictList = self._predict(chunk)
+
+            sentenceList = self._sentenceSplit(chunk)
+
+            chunkEntityList = self._entity(entityPredictList, sentenceList)
+            chunkRelationList = self._relation(entityPredictList, sentenceList)
+
+            for b in range(len(chunkEntityList)):
+                nameNorm = self._utilNodeNormalize(chunkEntityList[b]["name"])
+
+                if entitySeenObject.get(nameNorm) is None:
+                    entitySeenObject[nameNorm] = True
+
+                    entityList.append(chunkEntityList[b])
+
+            for b in range(len(chunkRelationList)):
+                relation = chunkRelationList[b]
+
+                key = self._utilNodeNormalize(relation["source"]) + "|" + self._utilNodeNormalize(relation["target"])
+
+                if relationSeenObject.get(key) is None:
+                    relationSeenObject[key] = True
+
+                    relationList.append(relation)
+
+        result = {
+            "entityList": entityList,
+            "relationList": relationList
+        }
+
+        return result
+
+    def store(self, cookie, mcpSessionId, uniqueId, fileName):
+        result = "ko"
+
+        database = Database()
+
+        self._tableCreate(database, mcpSessionId)
+
+        fileIdStored = self._logicFileSelect(database, mcpSessionId, fileName)
+
+        if fileIdStored > 0:
+            result = "ok"
+        else:
+            fileId = self._tableFileInsert(database, mcpSessionId, fileName)
+
+            database.commit()
+
+            fileNameOnly = fileName.split("/")[-1]
+            baseName = re.sub(r"\.[^/.]+$", "", fileNameOnly.strip())
+
+            inputFolder = f"{self.pathFileInput}{mcpSessionId}/document/{baseName}/"
+
+            pathResult = f"{inputFolder}result.md"
+
+            if os.path.exists(pathResult):
+                with open(pathResult, "r", encoding="utf-8") as file:
+                    fileContent = file.read()
+
+                chunkList = self._chunk(fileContent)
+
+                isFailed = len(chunkList) == 0
+
+                if not isFailed:
+                    isFailed = self._storeCitation(database, cookie, mcpSessionId, uniqueId, fileId, chunkList)
+
+                if not isFailed:
+                    self._storeRelation(database, mcpSessionId, fileId, chunkList)
+
+                if not isFailed:
+                    isFailed = self._storeNodeVector(database, cookie, mcpSessionId, uniqueId, fileId)
+
+                if not isFailed:
+                    isFailed = self._storeEdgeVector(database, cookie, mcpSessionId, uniqueId, fileId)
+
+                if isFailed:
+                    result = "ko"
+                else:
+                    result = "ok"
+
+            if result == "ok":
+                with open(f"{inputFolder}.rag_done", "w") as file:
+                    file.write("")
+            else:
+                self._tableDelete(database, mcpSessionId, fileName)
+
+                if os.path.isdir(inputFolder):
+                    with open(f"{inputFolder}.fail", "w") as file:
+                        file.write("")
+
+        if result == "ok":
+            self._htmlGenerate(database, mcpSessionId)
+
+        database.close()
+
+        return result
+
     def search(self, cookie, mcpSessionId, uniqueId, prompt, entityList, themeList):
         result = {"citationList": [], "nodeList": [], "graphList": []}
 
@@ -1317,6 +1517,8 @@ class Engine:
 
         if fileName != "":
             result = "ok"
+
+            self._htmlGenerate(database, mcpSessionId)
 
         database.close()
 

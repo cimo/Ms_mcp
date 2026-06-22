@@ -435,6 +435,26 @@ export default class Tool {
             }
         });
 
+        this.app.get("/api/rag-graph", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
+            const mcpSessionId = request.headers["mcp-session-id"];
+
+            if (typeof mcpSessionId === "string") {
+                const pathFile = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/rag_graph.html`;
+
+                helperSrc.fileReadStream(pathFile).then((resultFileReadStream) => {
+                    if (Buffer.isBuffer(resultFileReadStream)) {
+                        helperSrc.responseBody(resultFileReadStream.toString("utf-8"), "", response, 200);
+                    } else {
+                        helperSrc.responseBody("ko", "", response, 200);
+                    }
+                });
+            } else {
+                helperSrc.writeLog("Tool.ts - api() - get(/api/rag-graph) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
         this.app.post("/api/skill-upload", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const fileNameHeader = request.headers["filename"];

@@ -27,8 +27,8 @@ export default class Security {
         const config = {
             description: ["Perform a security scan on the docker tag image or repository."].join("\n"),
             example: [
-                "- Scan with the mode 'image' for the target 'cimo001/ms_cronjob:1.0.0'",
-                "- Scan with the mode 'repository' for the target 'https://github.com/cimo/Ms_cronjob'"
+                "- Scan with the mode 'image' the target 'cimo001/ms_cronjob:1.0.0'",
+                "- Scan with the mode 'repository' the target 'https://github.com/cimo/Ms_cronjob'"
             ].join("\n"),
             inputInstruction: [
                 "You MUST build the json schema using ONLY the following parameters:",

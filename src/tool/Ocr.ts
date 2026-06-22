@@ -27,7 +27,7 @@ export default class Ocr {
 
         const config = {
             description: ["Extract data from an image."].join("\n"),
-            example: ["- In the file 'Image.png' search for 'Text' with the language 'en' and mode 'data'."].join("\n"),
+            example: ["- In the file 'Image.png' search 'Text' with the language 'en' and mode 'data'."].join("\n"),
             inputInstruction: [
                 "You MUST build the json schema using ONLY the following parameters:",
                 `Parameter 1 - language: ${this.inputSchema.shape.language.description}`,

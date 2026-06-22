@@ -26,7 +26,7 @@ export default class Document {
 
         const config = {
             description: ["Parse document and extract data."].join("\n"),
-            example: ["- In the file 'Document.docx' search for 'Test'."].join("\n"),
+            example: ["- In the file 'Document.docx' search 'Test'."].join("\n"),
             inputInstruction: [
                 "You MUST build the json schema using ONLY the following parameters:",
                 `Parameter 1 - fileName: ${this.inputSchema.shape.fileName.description}`,
