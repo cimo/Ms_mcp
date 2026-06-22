@@ -415,7 +415,7 @@ export default class Tool {
                     for (let a = 0; a < pathFileList.length; a++) {
                         const pathFile = pathFileList[a];
 
-                        if (pathFile.endsWith(".done")) {
+                        if (pathFile.endsWith(".rag_done")) {
                             status = "Success";
 
                             break;

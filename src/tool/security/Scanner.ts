@@ -3,7 +3,7 @@ import * as helperSrc from "../../HelperSrc.js";
 import * as instance from "./Instance.js";
 import * as modelHelperSrc from "../../model/HelperSrc.js";
 
-const login = async (): Promise<string> => {
+const apiLogin = async (): Promise<string> => {
     return instance.api
         .get<modelHelperSrc.IresponseBody>("/login", {
             headers: {
@@ -22,7 +22,7 @@ const login = async (): Promise<string> => {
         });
 };
 
-const check = async (mode: string, target: string): Promise<string> => {
+const apiCheck = async (mode: string, target: string): Promise<string> => {
     return instance.api
         .post<modelHelperSrc.IresponseBody>(
             "/api/check",
@@ -46,7 +46,7 @@ const check = async (mode: string, target: string): Promise<string> => {
         });
 };
 
-const logout = async (): Promise<string> => {
+const apiLogout = async (): Promise<string> => {
     return instance.api
         .get<modelHelperSrc.IresponseBody>("/logout", {
             headers: {
@@ -69,11 +69,11 @@ export const execute = (mode: string, target: string): Promise<string> => {
     return instance.runWithContext(async () => {
         let result = "";
 
-        await login();
+        await apiLogin();
 
-        result = await check(mode, target);
+        result = await apiCheck(mode, target);
 
-        await logout();
+        await apiLogout();
 
         return result;
     });

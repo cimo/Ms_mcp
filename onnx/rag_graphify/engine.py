@@ -237,7 +237,7 @@ class Engine:
             distanceBest = candidateList[0]["distance"]
 
         for a in range(len(candidateList)):
-            if len(resultList) >= self.vecMatchLimit:
+            if len(resultList) >= self.vectorMatchLimit:
                 break
 
             if candidateList[a]["distance"] <= self.distanceMax and candidateList[a]["distance"] <= distanceBest + self.marginRelative:
@@ -295,7 +295,7 @@ class Engine:
             distanceBest = candidateList[0]["distance"]
 
         for a in range(len(candidateList)):
-            if len(resultList) >= self.vecMatchLimit:
+            if len(resultList) >= self.vectorMatchLimit:
                 break
 
             if candidateList[a]["distance"] <= self.distanceMaxEdge and candidateList[a]["distance"] <= distanceBest + self.marginRelative:
@@ -1017,7 +1017,7 @@ class Engine:
                     result = "ok"
 
             if result == "ok":
-                with open(f"{inputFolder}.done", "w") as file:
+                with open(f"{inputFolder}.rag_done", "w") as file:
                     file.write("")
             else:
                 self._tableDelete(database, mcpSessionId, fileName)
@@ -1048,7 +1048,7 @@ class Engine:
             for a in range(len(promptCitationList)):
                 candidate = promptCitationList[a]
 
-                if candidate["distance"] <= self.distanceMax and candidate["distance"] <= distanceBest + self.citationMargin:
+                if candidate["distance"] <= self.distanceMax and candidate["distance"] <= distanceBest + self.marginGlobal:
                     key = candidate["fileName"] + "|" + candidate["chunk"]
 
                     if seenObject.get(key) is None:
@@ -1081,7 +1081,7 @@ class Engine:
         filteredList = []
 
         for a in range(len(citationList)):
-            if citationList[a]["distance"] <= distanceGlobalBest + self.citationMargin:
+            if citationList[a]["distance"] <= distanceGlobalBest + self.marginGlobal:
                 filteredList.append(citationList[a])
 
         filteredList.sort(key=lambda citation: citation["distance"])
@@ -1233,7 +1233,7 @@ class Engine:
             if relevanceBest < 0:
                 break
 
-            if candidate["relevance"] > self.distanceMaxEdge or candidate["relevance"] > relevanceBest + self.graphMargin:
+            if candidate["relevance"] > self.distanceMaxEdge or candidate["relevance"] > relevanceBest + self.marginGlobal:
                 continue
 
             tokenCount = self._utilTokenEstimate(f"{candidate['source']} {candidate['target']} {candidate['description']}")
@@ -1344,15 +1344,14 @@ class Engine:
         self.distanceMax = 1.00
         self.distanceMaxEdge = 1.20
         self.marginRelative = 0.1
-        self.citationMargin = 0.15
-        self.graphMargin = 0.15
-        self.batchLength = 32
+        self.marginGlobal = 0.15
         self.vectorDimension = 768
-        self.candidatePool = 256
-        self.citationLimit = 4
+        self.vectorMatchLimit = 8
         self.graphLimitPerSeed = 32
         self.graphTokenBudget = 2000
-        self.vecMatchLimit = 8
+        self.batchLength = 32
+        self.candidatePool = 256
+        self.citationLimit = 4
         self.seedLimit = 24
         self.termMin = 3
 

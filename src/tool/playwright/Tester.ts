@@ -3,7 +3,7 @@ import * as helperSrc from "../../HelperSrc.js";
 import * as instance from "./Instance.js";
 import * as modelHelperSrc from "../../model/HelperSrc.js";
 
-const login = async (): Promise<string> => {
+const apiLogin = async (): Promise<string> => {
     return instance.api
         .get<modelHelperSrc.IresponseBody>("/login", {
             headers: {
@@ -22,7 +22,7 @@ const login = async (): Promise<string> => {
         });
 };
 
-const listTest = async (): Promise<string> => {
+const apiListTest = async (): Promise<string> => {
     return instance.api
         .get<modelHelperSrc.IresponseBody>("/api/list-test", {
             headers: {
@@ -42,7 +42,7 @@ const listTest = async (): Promise<string> => {
         });
 };
 
-const run = async (file: string, browser = "desktop_chrome"): Promise<string> => {
+const apiRun = async (file: string, browser = "desktop_chrome"): Promise<string> => {
     return instance.api
         .post<modelHelperSrc.IresponseBody>(
             "/api/run",
@@ -70,7 +70,7 @@ const run = async (file: string, browser = "desktop_chrome"): Promise<string> =>
         });
 };
 
-const listVideo = async (video: string): Promise<string> => {
+const apiListVideo = async (video: string): Promise<string> => {
     return instance.api
         .post<modelHelperSrc.IresponseBody>(
             "/api/list-video",
@@ -96,7 +96,7 @@ const listVideo = async (video: string): Promise<string> => {
         });
 };
 
-const logout = async (): Promise<string> => {
+const apiLogout = async (): Promise<string> => {
     return instance.api
         .get<modelHelperSrc.IresponseBody>("/logout", {
             headers: {
@@ -119,17 +119,17 @@ export const execute = (action: string, file?: string, video?: string, browser?:
     return instance.runWithContext(async () => {
         let result = "";
 
-        await login();
+        await apiLogin();
 
         if (action === "listTest") {
-            result = await listTest();
+            result = await apiListTest();
         } else if (action === "run" && file && browser) {
-            result = await run(file, browser);
+            result = await apiRun(file, browser);
         } else if (action === "listVideo" && video) {
-            result = await listVideo(video);
+            result = await apiListVideo(video);
         }
 
-        await logout();
+        await apiLogout();
 
         return result;
     });

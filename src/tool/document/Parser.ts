@@ -1,12 +1,10 @@
-import Fs from "fs";
-
 // Source
 import * as helperSrc from "../../HelperSrc.js";
 import * as instance from "./Instance.js";
 import * as modelHelperSrc from "../../model/HelperSrc.js";
 import * as modelDocument from "./Model.js";
 
-const login = async (): Promise<string> => {
+const apiLogin = async (): Promise<string> => {
     return instance.api
         .get<modelHelperSrc.IresponseBody>("/login", {
             headers: {
@@ -25,76 +23,22 @@ const login = async (): Promise<string> => {
         });
 };
 
-const toPdf = (inputFolder: string, fileName: string): Promise<boolean> => {
-    return new Promise((resolve, reject) => {
-        const fileDetail = helperSrc.fileDetail(fileName);
+const apiToPdf = async (formData: FormData): Promise<string> => {
+    return instance.api
+        .post<modelHelperSrc.IresponseBody>("/api/toPdf", {}, formData)
+        .then((resultApi) => {
+            const data = resultApi.data;
 
-        if (fileDetail.extension !== "pdf") {
-            helperSrc.fileReadStream(`${inputFolder}${fileDetail.fileName}`).then((resultFileReadStream) => {
-                if (Buffer.isBuffer(resultFileReadStream)) {
-                    const buffer = Buffer.from(resultFileReadStream);
-                    const blob = new Blob([buffer], { type: fileDetail.mimeType });
+            return data.response.stdout;
+        })
+        .catch((error: Error) => {
+            helperSrc.writeLog("Parser.ts - convertToPdf() - api(/toPdf) - catch()", error.message);
 
-                    const formData = new FormData();
-                    formData.append("file", blob, fileDetail.fileName);
-
-                    instance.api
-                        .post<modelHelperSrc.IresponseBody>("/api/toPdf", {}, formData)
-                        .then((resultApi) => {
-                            const data = resultApi.data;
-                            const stdout = data.response.stdout;
-
-                            helperSrc.fileWriteStream(`${inputFolder}converted.pdf`, Buffer.from(stdout, "base64")).then((resultFileWriteStream) => {
-                                if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
-                                    resolve(true);
-
-                                    return;
-                                } else {
-                                    helperSrc.writeLog(
-                                        `Parser.ts - convertToPdf() - api(/toPdf) - fileWriteStream()`,
-                                        resultFileWriteStream.toString()
-                                    );
-
-                                    reject(new Error(`fileWriteStream failed: ${resultFileWriteStream.toString()}`));
-
-                                    return;
-                                }
-                            });
-                        })
-                        .catch((error: Error) => {
-                            helperSrc.writeLog("Parser.ts - convertToPdf() - api(/toPdf) - catch()", error.message);
-
-                            reject(new Error(error.message));
-
-                            return;
-                        });
-                } else {
-                    helperSrc.writeLog(`Parser.ts - convertToPdf() - fileReadStream()`, resultFileReadStream.toString());
-
-                    reject(new Error(`fileReadStream failed: ${resultFileReadStream.toString()}`));
-
-                    return;
-                }
-            });
-        } else {
-            Fs.copyFile(`${inputFolder}${fileName}`, `${inputFolder}converted.pdf`, (error) => {
-                if (error) {
-                    helperSrc.writeLog(`Parser.ts - convertToPdf() - copyFile()`, error.message);
-
-                    reject(new Error(error.message));
-
-                    return;
-                }
-
-                resolve(true);
-
-                return;
-            });
-        }
-    });
+            return "ko";
+        });
 };
 
-const logout = async (): Promise<string> => {
+const apiLogout = async (): Promise<string> => {
     return instance.api
         .get<modelHelperSrc.IresponseBody>("/logout", {
             headers: {
@@ -117,13 +61,39 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
     return instance.runWithContext(async () => {
         let resultObject = {} as modelDocument.Iparser;
 
-        await login();
+        await apiLogin();
 
         const fileDetail = helperSrc.fileDetail(fileName);
 
         const inputFolder = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
 
-        await toPdf(inputFolder, fileName);
+        if (fileDetail.extension !== "pdf") {
+            const resultFileReadStream = await helperSrc.fileReadStream(`${inputFolder}${fileDetail.fileName}`);
+
+            if (Buffer.isBuffer(resultFileReadStream)) {
+                const buffer = Buffer.from(resultFileReadStream);
+                const blob = new Blob([buffer], { type: fileDetail.mimeType });
+
+                const formData = new FormData();
+                formData.append("file", blob, fileDetail.fileName);
+
+                const stdout = await apiToPdf(formData);
+
+                if (stdout !== "ko") {
+                    await helperSrc.fileWriteStream(`${inputFolder}converted.pdf`, Buffer.from(stdout, "base64"));
+                }
+            } else {
+                helperSrc.writeLog(`Parser.ts - convertToPdf() - fileReadStream()`, resultFileReadStream.toString());
+            }
+        } else {
+            const resultFileReadStream = await helperSrc.fileReadStream(`${inputFolder}${fileName}`);
+
+            if (Buffer.isBuffer(resultFileReadStream)) {
+                await helperSrc.fileWriteStream(`${inputFolder}converted.pdf`, resultFileReadStream);
+            } else {
+                helperSrc.writeLog(`Parser.ts - convertToPdf() - fileReadStream()`, resultFileReadStream.toString());
+            }
+        }
 
         let resultExecute = await helperSrc.executionTerminal(
             `python3 "${helperSrc.PATH_ROOT}muPdf/parser.py" "${helperSrc.PATH_ROOT}muPdf/mutool" "${inputFolder}converted.pdf" "${inputFolder}" "${searchInput}" "wholeWord,caseSensitive,both" >> "${helperSrc.PATH_LOG}muPdf_parser.log" 2>&1`
@@ -150,7 +120,7 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
             helperSrc.writeLog("Parser.ts - execute() - Error", resultExecute.error.message);
         }
 
-        await logout();
+        await apiLogout();
 
         return JSON.stringify(resultObject);
     });
