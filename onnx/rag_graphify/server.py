@@ -71,6 +71,6 @@ engine = Engine()
 port = 1111
 serverHttp = ThreadingHTTPServer(("127.0.0.1", port), HandlerHttpRequest)
 
-print(f"Onnx - rag_grphify - Ready on => 127.0.0.1:{port}\n")
+print(f"Onnx - rag_graphify - Ready on => 127.0.0.1:{port}\n")
 
 serverHttp.serve_forever()

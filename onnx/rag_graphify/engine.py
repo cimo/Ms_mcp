@@ -4,6 +4,7 @@ sys.dont_write_bytecode = True
 import os
 import re
 import json
+import ssl
 import sqlite3
 import urllib.request
 import numpy
@@ -17,14 +18,14 @@ from helper import onnxSessionBuild
 
 class Engine:
     def _utilEnvironment(self):
-        locale = self.envName.split("_")[-1]
+        locale = self.ENV_NAME.split("_")[-1]
 
         if locale == "" or locale == "local":
             locale = "jp"
 
         protocol = "https" if locale == "jp" else "http"
 
-        return f"{protocol}://{self.domain}:1046"
+        return f"{protocol}://{self.DOMAIN}:1046"
 
     def _utilTokenEstimate(self, text):
         return (len(text) + 3) // 4
@@ -222,10 +223,10 @@ class Engine:
         if fileId > 0:
             tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
 
-            queryList = database.execute(f'SELECT id, verb, description, keyword FROM "{tableName}" WHERE file_id = ?', (fileId,)).fetchall()
+            queryList = database.execute(f'SELECT id, description FROM "{tableName}" WHERE file_id = ?', (fileId,)).fetchall()
 
             for a in range(len(queryList)):
-                resultList.append({"id": queryList[a][0], "verb": queryList[a][1], "description": queryList[a][2], "keyword": queryList[a][3]})
+                resultList.append({"id": queryList[a][0], "description": queryList[a][1]})
 
         return resultList
 
@@ -275,14 +276,14 @@ class Engine:
             placeholder = ",".join("?" for a in range(len(idList)))
 
             queryList = database.execute(
-                f'SELECT id, source, verb, target, description, keyword, source_norm, target_norm, file_id, chunk_index FROM "{tableName}" WHERE id IN ({placeholder})',
+                f'SELECT id, source, target, description, source_norm, target_norm, file_id, chunk_index FROM "{tableName}" WHERE id IN ({placeholder})',
                 tuple(idList)
             ).fetchall()
 
             for a in range(len(queryList)):
                 query = queryList[a]
 
-                resultList.append({"id": query[0], "source": query[1], "verb": query[2], "target": query[3], "description": query[4], "keyword": query[5], "sourceNorm": query[6], "targetNorm": query[7], "fileId": query[8], "chunkIndex": query[9]})
+                resultList.append({"id": query[0], "source": query[1], "target": query[2], "description": query[3], "sourceNorm": query[4], "targetNorm": query[5], "fileId": query[6], "chunkIndex": query[7]})
 
         return resultList
 
@@ -320,9 +321,9 @@ class Engine:
             placeholder = ",".join("?" for a in range(len(seedList)))
 
             queryList = database.execute(
-                f'SELECT MIN(id) AS id, source, verb, target, MIN(description) AS description, MIN(file_id) AS file_id, MIN(chunk_index) AS chunk_index, source_norm, target_norm FROM "{tableName}" '
+                f'SELECT MIN(id) AS id, source, target, MIN(description) AS description, MIN(file_id) AS file_id, MIN(chunk_index) AS chunk_index, source_norm, target_norm FROM "{tableName}" '
                 f'WHERE source_norm IN ({placeholder}) OR target_norm IN ({placeholder}) '
-                f'GROUP BY source_norm, verb, target_norm LIMIT {limit}',
+                f'GROUP BY source_norm, target_norm LIMIT {limit}',
                 tuple(seedList) + tuple(seedList)
             ).fetchall()
 
@@ -331,13 +332,12 @@ class Engine:
 
                 resultList.append({
                     "source": query[1],
-                    "verb": query[2],
-                    "target": query[3],
-                    "description": query[4],
-                    "chunk": self._logicCitationSelectByIndex(database, mcpSessionId, query[5], query[6]),
+                    "target": query[2],
+                    "description": query[3],
+                    "chunk": self._logicCitationSelectByIndex(database, mcpSessionId, query[4], query[5]),
                     "edgeId": query[0],
-                    "sourceNorm": query[7],
-                    "targetNorm": query[8],
+                    "sourceNorm": query[6],
+                    "targetNorm": query[7],
                     "relevance": 0,
                     "rank": 0
                 })
@@ -362,8 +362,16 @@ class Engine:
 
         return resultObject
 
-    def _databaseConnect(self):
-        return sqlite3.connect(f"{self.pathFileSql}rag.sqlite", check_same_thread=False)
+    def _databaseConnect(self, isInit=False):
+        database = sqlite3.connect(f"{self.pathFileSql}rag.sqlite", check_same_thread=False)
+
+        if isInit:
+            database.execute("PRAGMA journal_mode=WAL")
+
+        database.execute("PRAGMA busy_timeout=5000")
+        database.execute("PRAGMA synchronous=NORMAL")
+
+        return database
 
     def _tableFileCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_file")
@@ -432,7 +440,7 @@ class Engine:
     def _tableEdgeCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
 
-        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id INTEGER PRIMARY KEY, file_id INTEGER, chunk_index INTEGER, source TEXT NOT NULL, verb TEXT NOT NULL, target TEXT NOT NULL, description TEXT NOT NULL, keyword TEXT NOT NULL, source_norm TEXT NOT NULL, target_norm TEXT NOT NULL)')
+        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id INTEGER PRIMARY KEY, file_id INTEGER, chunk_index INTEGER, source TEXT NOT NULL, target TEXT NOT NULL, description TEXT NOT NULL, source_norm TEXT NOT NULL, target_norm TEXT NOT NULL)')
         database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_source" ON "{name}" (source_norm)')
         database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_target" ON "{name}" (target_norm)')
 
@@ -441,8 +449,8 @@ class Engine:
 
         if fileId > 0:
             database.execute(
-                f'INSERT INTO "{name}" (file_id, chunk_index, source, verb, target, description, keyword, source_norm, target_norm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                (fileId, chunkIndex, relation["source"], relation["verb"], relation["target"], relation["description"], relation["keyword"], self._utilNodeNormalize(relation["source"]), self._utilNodeNormalize(relation["target"]))
+                f'INSERT INTO "{name}" (file_id, chunk_index, source, target, description, source_norm, target_norm) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                (fileId, chunkIndex, relation["source"], relation["target"], relation["description"], self._utilNodeNormalize(relation["source"]), self._utilNodeNormalize(relation["target"]))
             )
 
     def _tableEdgeVecCreate(self, database, mcpSessionId):
@@ -739,10 +747,8 @@ class Engine:
 
                     resultList.append({
                         "source": source["text"].strip(),
-                        "verb": "",
                         "target": target["text"].strip(),
-                        "description": sentence["text"],
-                        "keyword": ""
+                        "description": sentence["text"]
                     })
 
         return resultList
@@ -797,7 +803,7 @@ class Engine:
         if cookie != "":
             request.add_header("Cookie", cookie)
 
-        response = urllib.request.urlopen(request)
+        response = urllib.request.urlopen(request, context=self.sslContext)
 
         data = json.loads(response.read().decode("utf-8"))
 
@@ -933,7 +939,7 @@ class Engine:
             edgeTextList = []
 
             for b in range(len(edgeBatchList)):
-                edgeTextList.append(f"{edgeBatchList[b]['verb']} {edgeBatchList[b]['keyword']} {edgeBatchList[b]['description']}".strip())
+                edgeTextList.append(f"{edgeBatchList[b]['description']}".strip())
 
             edgeEmbeddingData = self.embedding(cookie, uniqueId, "document", edgeTextList)
 
@@ -1121,7 +1127,6 @@ class Engine:
 
                 graphCandidateList.append({
                     "source": edgeFull["source"],
-                    "verb": edgeFull["verb"],
                     "target": edgeFull["target"],
                     "description": edgeFull["description"],
                     "chunk": self._logicCitationSelectByIndex(database, mcpSessionId, edgeFull["fileId"], edgeFull["chunkIndex"]),
@@ -1153,7 +1158,7 @@ class Engine:
         for a in range(len(graphCandidateList)):
             candidate = graphCandidateList[a]
 
-            key = f"{candidate['sourceNorm']}|{candidate['verb']}|{candidate['targetNorm']}"
+            key = f"{candidate['sourceNorm']}|{candidate['targetNorm']}"
 
             if graphSeenObject.get(key) is None:
                 graphSeenObject[key] = True
@@ -1200,14 +1205,13 @@ class Engine:
         for a in range(len(graphDedupList)):
             candidate = graphDedupList[a]
 
-            tokenCount = self._utilTokenEstimate(f"{candidate['source']} {candidate['verb']} {candidate['target']} {candidate['description']}")
+            tokenCount = self._utilTokenEstimate(f"{candidate['source']} {candidate['target']} {candidate['description']}")
 
             if graphTokenTotal + tokenCount <= self.graphTokenBudget:
                 graphTokenTotal += tokenCount
 
                 graphList.append({
                     "source": candidate["source"],
-                    "verb": candidate["verb"],
                     "target": candidate["target"],
                     "description": candidate["description"],
                     "chunk": candidate["chunk"]
@@ -1281,15 +1285,17 @@ class Engine:
         return result
 
     def __init__(self):
-        self.envName = os.environ.get("ENV_NAME", "")
-        self.domain = os.environ.get("DOMAIN", "")
-        pathRoot = os.environ.get("PATH_ROOT", "")
-        pathFile = os.environ.get("MS_M_PATH_FILE", "")
+        self.ENV_NAME = os.environ.get("ENV_NAME", "")
+        self.DOMAIN = os.environ.get("DOMAIN", "")
+        PATH_ROOT = os.environ.get("PATH_ROOT", "")
+        PATH_CERTIFICATE_PEM = os.environ.get("MS_M_PATH_CERTIFICATE_PEM", "")
+        PATH_FILE = os.environ.get("MS_M_PATH_FILE", "")
 
         self.pathModel = f"{os.path.dirname(__file__)}/model/"
-        self.pathFileSql = f"{pathRoot}{pathFile}sqlite/"
-        self.pathFileInput = f"{pathRoot}{pathFile}input/"
+        self.pathFileSql = f"{PATH_ROOT}{PATH_FILE}sqlite/"
+        self.pathFileInput = f"{PATH_ROOT}{PATH_FILE}input/"
         self.urlApi = self._utilEnvironment()
+        self.sslContext = ssl.create_default_context(cafile=PATH_CERTIFICATE_PEM)
 
         self.typeAllowList = ["person", "organization", "place", "category", "event"]
         self.chunkLength = 1000
@@ -1330,3 +1336,6 @@ class Engine:
         self.sentencepiece.LoadFromSerializedProto(proto.SerializeToString())
 
         self.session = onnxSessionBuild(f"{self.pathModel}fp32.onnx")
+
+        databaseInit = self._databaseConnect(True)
+        databaseInit.close()

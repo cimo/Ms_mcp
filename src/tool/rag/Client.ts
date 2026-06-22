@@ -7,7 +7,7 @@ import * as modelRag from "./Model.js";
 import * as instance from "./Instance.js";
 
 // Method
-const login = async (uniqueId: string): Promise<string> => {
+const apiLogin = async (uniqueId: string): Promise<string> => {
     return instance.api
         .get<modelHelperSrc.IresponseBody>("/login", {
             headers: {
@@ -27,7 +27,7 @@ const login = async (uniqueId: string): Promise<string> => {
         });
 };
 
-const logout = async (uniqueId: string): Promise<string> => {
+const apiLogout = async (uniqueId: string): Promise<string> => {
     return instance.api
         .get<modelHelperSrc.IresponseBody>("/logout", {
             headers: {
@@ -49,7 +49,7 @@ const logout = async (uniqueId: string): Promise<string> => {
 
 const instanceRagGraphify = new Cr("http://127.0.0.1:1111");
 
-const apiRagGraphify = (path: string, bodyObject: modelRag.IrequestStore | modelRag.IrequestSearch | modelRag.IrequestDelete): Promise<unknown> => {
+const apiCall = (path: string, bodyObject: modelRag.IrequestStore | modelRag.IrequestSearch | modelRag.IrequestDelete): Promise<unknown> => {
     return instance.runWithContext(async () => {
         let uniqueId = "";
 
@@ -57,7 +57,7 @@ const apiRagGraphify = (path: string, bodyObject: modelRag.IrequestStore | model
             uniqueId = bodyObject.uniqueId;
 
             if (uniqueId !== "") {
-                await login(uniqueId);
+                await apiLogin(uniqueId);
             }
         }
 
@@ -81,7 +81,7 @@ const apiRagGraphify = (path: string, bodyObject: modelRag.IrequestStore | model
             });
 
         if (uniqueId !== "") {
-            await logout(uniqueId);
+            await apiLogout(uniqueId);
         }
 
         return result;
@@ -89,7 +89,7 @@ const apiRagGraphify = (path: string, bodyObject: modelRag.IrequestStore | model
 };
 
 export const databaseStore = async (mcpSessionId: string, uniqueId: string, fileName: string): Promise<string> => {
-    return (await apiRagGraphify("/store", { mcpSessionId, uniqueId, fileName })) as string;
+    return (await apiCall("/store", { mcpSessionId, uniqueId, fileName })) as string;
 };
 
 export const databaseSearch = async (
@@ -99,11 +99,11 @@ export const databaseSearch = async (
     entityList: string[],
     themeList: string[]
 ): Promise<string> => {
-    const result = await apiRagGraphify("/search", { mcpSessionId, uniqueId, prompt, entityList, themeList });
+    const result = await apiCall("/search", { mcpSessionId, uniqueId, prompt, entityList, themeList });
 
     return JSON.stringify(result);
 };
 
 export const databaseDelete = async (mcpSessionId: string, fileName: string): Promise<string> => {
-    return (await apiRagGraphify("/delete", { mcpSessionId, fileName })) as string;
+    return (await apiCall("/delete", { mcpSessionId, fileName })) as string;
 };
