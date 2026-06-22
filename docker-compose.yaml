@@ -1,4 +1,22 @@
 services:
+  cimo_ms_mcp_db:
+    container_name: cimo-ms-mcp-db
+    env_file:
+      - ./env/local.env
+      - ./env/local.secret.env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_PASSWORD: ${DB_PASS}
+    shm_size: "2gb"
+    image: pgvector/pgvector:pg14
+    network_mode: "host"
+    volumes:
+      - ./:${PATH_ROOT}
+      - ms_cronjob-volume:${PATH_ROOT}certificate/:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint:
+      - /bin/sh
+      - ${PATH_ROOT}docker/entrypoint_postgresql.sh
   cimo_ms_mcp:
     container_name: cimo-ms-mcp
     env_file:
@@ -28,5 +46,7 @@ services:
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
       - /mnt/wslg:/mnt/wslg
       - /usr/lib/wsl/lib:/usr/lib/wsl/lib
+    depends_on:
+      - cimo_ms_mcp_db
 volumes:
   ms_cronjob-volume:

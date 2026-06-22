@@ -5,7 +5,6 @@ import os
 import re
 import json
 import ssl
-import sqlite3
 import urllib.request
 import numpy
 import sentencepiece
@@ -15,6 +14,7 @@ from sentencepiece import sentencepiece_model_pb2 as sentencepieceModel
 sys.path.append(f"{os.path.dirname(__file__)}/..")
 
 from helper import onnxSessionBuild
+from database import Database
 
 class Engine:
     def _utilEnvironment(self):
@@ -41,7 +41,7 @@ class Engine:
 
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_file")
 
-        queryRow = database.execute(f'SELECT id FROM "{name}" WHERE name = ?', (fileName,)).fetchone()
+        queryRow = database.execute(f'SELECT id FROM "{name}" WHERE name = %s', (fileName,)).fetchone()
 
         if queryRow is not None:
             result = queryRow[0]
@@ -58,63 +58,55 @@ class Engine:
 
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag")
 
-        queryRowList = database.execute(f'SELECT chunk, file_id, embedding FROM "{tableName}"').fetchall()
-
-        embeddingByteList = []
+        queryRowList = database.execute(
+            f'SELECT chunk, file_id, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
+            (queryVector, limit)
+        ).fetchall()
 
         for a in range(len(queryRowList)):
-            embeddingByteList.append(queryRowList[a][2])
-
-        distanceArray, orderArray = self._vectorRank(embeddingByteList, queryVector)
-
-        topCount = min(limit, len(orderArray))
-
-        for a in range(topCount):
-            index = int(orderArray[a])
-
-            chunk = queryRowList[index][0]
-            fileId = queryRowList[index][1]
+            chunk = queryRowList[a][0]
+            fileId = queryRowList[a][1]
 
             if chunk and fileNameObject.get(fileId) is not None:
-                resultList.append({"fileName": fileNameObject[fileId], "chunk": chunk, "distance": float(distanceArray[index])})
+                resultList.append({"fileName": fileNameObject[fileId], "chunk": chunk, "distance": float(queryRowList[a][2])})
 
         return resultList
-
-    def _logicCitationSelectByIndex(self, database, mcpSessionId, fileId, chunkIndex):
-        result = ""
-
-        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag")
-
-        queryRow = database.execute(f'SELECT chunk FROM "{tableName}" WHERE file_id = ? AND chunk_index = ? LIMIT 1', (fileId, chunkIndex)).fetchone()
-
-        if queryRow is not None and queryRow[0] is not None:
-            result = queryRow[0]
-
-        return result
 
     def _logicFtsMatch(self, database, mcpSessionId, fileList, termList):
         resultList = []
 
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_fts")
 
-        matchList = []
+        termCleanList = []
         seenObject = {}
 
         for a in range(len(termList)):
-            term = re.sub(r'"', '""', termList[a].strip().lower())
+            term = termList[a].strip().lower()
 
             if len(term) >= self.termMin and seenObject.get(term) is None:
                 seenObject[term] = True
 
-                matchList.append(f'"{term}"')
+                termCleanList.append(term)
 
-        if len(matchList) > 0:
+        if len(termCleanList) > 0:
             fileNameObject = {}
 
             for a in range(len(fileList)):
                 fileNameObject[fileList[a]["id"]] = fileList[a]["name"]
 
-            queryList = database.execute(f'SELECT chunk, file_id FROM "{tableName}" WHERE "{tableName}" MATCH ? ORDER BY rank LIMIT 1', (" OR ".join(matchList),)).fetchall()
+            clauseList = []
+            likeParamList = []
+
+            for a in range(len(termCleanList)):
+                clauseList.append("chunk ILIKE %s")
+                likeParamList.append(f"%{termCleanList[a]}%")
+
+            orderText = " ".join(termCleanList)
+
+            queryList = database.execute(
+                f'SELECT chunk, file_id FROM "{tableName}" WHERE {" OR ".join(clauseList)} ORDER BY similarity(chunk, %s) DESC LIMIT 1',
+                tuple(likeParamList) + (orderText,)
+            ).fetchall()
 
             for a in range(len(queryList)):
                 chunk = queryList[a][0]
@@ -131,7 +123,7 @@ class Engine:
         if fileId > 0:
             tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
 
-            queryList = database.execute(f'SELECT name, name_norm, description FROM "{tableName}" WHERE file_id = ?', (fileId,)).fetchall()
+            queryList = database.execute(f'SELECT name, name_norm, description FROM "{tableName}" WHERE file_id = %s', (fileId,)).fetchall()
 
             for a in range(len(queryList)):
                 resultList.append({"name": queryList[a][0], "nameNorm": queryList[a][1], "description": queryList[a][2]})
@@ -155,9 +147,9 @@ class Engine:
             clauseList = []
 
             for a in range(len(likeList)):
-                clauseList.append("name_norm LIKE ?")
+                clauseList.append("name_norm LIKE %s")
 
-            queryList = database.execute(f'SELECT DISTINCT name_norm FROM "{tableName}" WHERE {" OR ".join(clauseList)} ORDER BY length(name_norm) ASC', tuple(likeList)).fetchall()
+            queryList = database.execute(f'SELECT name_norm FROM "{tableName}" WHERE {" OR ".join(clauseList)} GROUP BY name_norm ORDER BY length(name_norm) ASC', tuple(likeList)).fetchall()
 
             for a in range(len(queryList)):
                 resultList.append(queryList[a][0])
@@ -169,23 +161,15 @@ class Engine:
 
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
 
-        queryRowList = database.execute(f'SELECT name, name_norm, description, embedding FROM "{tableName}"').fetchall()
-
-        embeddingByteList = []
-
-        for a in range(len(queryRowList)):
-            embeddingByteList.append(queryRowList[a][3])
-
-        distanceArray, orderArray = self._vectorRank(embeddingByteList, queryVector)
-
-        poolCount = min(self.candidatePool, len(orderArray))
+        queryRowList = database.execute(
+            f'SELECT name, name_norm, description, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
+            (queryVector, self.candidatePool)
+        ).fetchall()
 
         candidateList = []
 
-        for a in range(poolCount):
-            index = int(orderArray[a])
-
-            candidateList.append({"name": queryRowList[index][0], "nameNorm": queryRowList[index][1], "description": queryRowList[index][2], "distance": float(distanceArray[index])})
+        for a in range(len(queryRowList)):
+            candidateList.append({"name": queryRowList[a][0], "nameNorm": queryRowList[a][1], "description": queryRowList[a][2], "distance": float(queryRowList[a][3])})
 
         distanceBest = -1
 
@@ -207,7 +191,7 @@ class Engine:
         if len(nameNormList) > 0:
             tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
 
-            placeholder = ",".join("?" for a in range(len(nameNormList)))
+            placeholder = ",".join("%s" for a in range(len(nameNormList)))
 
             queryList = database.execute(f'SELECT name_norm, type FROM "{tableName}" WHERE name_norm IN ({placeholder}) AND type != \'\'', tuple(nameNormList)).fetchall()
 
@@ -223,7 +207,7 @@ class Engine:
         if fileId > 0:
             tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
 
-            queryList = database.execute(f'SELECT id, description FROM "{tableName}" WHERE file_id = ?', (fileId,)).fetchall()
+            queryList = database.execute(f'SELECT id, description FROM "{tableName}" WHERE file_id = %s', (fileId,)).fetchall()
 
             for a in range(len(queryList)):
                 resultList.append({"id": queryList[a][0], "description": queryList[a][1]})
@@ -235,23 +219,15 @@ class Engine:
 
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
 
-        queryRowList = database.execute(f'SELECT edge_id, embedding FROM "{tableName}"').fetchall()
-
-        embeddingByteList = []
-
-        for a in range(len(queryRowList)):
-            embeddingByteList.append(queryRowList[a][1])
-
-        distanceArray, orderArray = self._vectorRank(embeddingByteList, queryVector)
-
-        poolCount = min(self.candidatePool, len(orderArray))
+        queryRowList = database.execute(
+            f'SELECT edge_id, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
+            (queryVector, self.candidatePool)
+        ).fetchall()
 
         candidateList = []
 
-        for a in range(poolCount):
-            index = int(orderArray[a])
-
-            candidateList.append({"edgeId": queryRowList[index][0], "distance": float(distanceArray[index])})
+        for a in range(len(queryRowList)):
+            candidateList.append({"edgeId": queryRowList[a][0], "distance": float(queryRowList[a][1])})
 
         distanceBest = -1
 
@@ -262,7 +238,7 @@ class Engine:
             if len(resultList) >= self.vecMatchLimit:
                 break
 
-            if candidateList[a]["distance"] <= self.distanceMax and candidateList[a]["distance"] <= distanceBest + self.marginRelative:
+            if candidateList[a]["distance"] <= self.distanceMaxEdge and candidateList[a]["distance"] <= distanceBest + self.marginRelative:
                 resultList.append(candidateList[a]["edgeId"])
 
         return resultList
@@ -273,17 +249,17 @@ class Engine:
         if len(idList) > 0:
             tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
 
-            placeholder = ",".join("?" for a in range(len(idList)))
+            placeholder = ",".join("%s" for a in range(len(idList)))
 
             queryList = database.execute(
-                f'SELECT id, source, target, description, source_norm, target_norm, file_id, chunk_index FROM "{tableName}" WHERE id IN ({placeholder})',
+                f'SELECT id, source, target, description, source_norm, target_norm FROM "{tableName}" WHERE id IN ({placeholder})',
                 tuple(idList)
             ).fetchall()
 
             for a in range(len(queryList)):
                 query = queryList[a]
 
-                resultList.append({"id": query[0], "source": query[1], "target": query[2], "description": query[3], "sourceNorm": query[4], "targetNorm": query[5], "fileId": query[6], "chunkIndex": query[7]})
+                resultList.append({"id": query[0], "source": query[1], "target": query[2], "description": query[3], "sourceNorm": query[4], "targetNorm": query[5]})
 
         return resultList
 
@@ -292,21 +268,13 @@ class Engine:
 
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
 
-        queryRowList = database.execute(f'SELECT edge_id, embedding FROM "{tableName}"').fetchall()
-
-        embeddingByteList = []
+        queryRowList = database.execute(
+            f'SELECT edge_id, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
+            (queryVector, self.candidatePool)
+        ).fetchall()
 
         for a in range(len(queryRowList)):
-            embeddingByteList.append(queryRowList[a][1])
-
-        distanceArray, orderArray = self._vectorRank(embeddingByteList, queryVector)
-
-        poolCount = min(self.candidatePool, len(orderArray))
-
-        for a in range(poolCount):
-            index = int(orderArray[a])
-
-            resultObject[queryRowList[index][0]] = float(distanceArray[index])
+            resultObject[queryRowList[a][0]] = float(queryRowList[a][1])
 
         return resultObject
 
@@ -318,12 +286,12 @@ class Engine:
 
             limit = len(seedList) * self.graphLimitPerSeed
 
-            placeholder = ",".join("?" for a in range(len(seedList)))
+            placeholder = ",".join("%s" for a in range(len(seedList)))
 
             queryList = database.execute(
-                f'SELECT MIN(id) AS id, source, target, MIN(description) AS description, MIN(file_id) AS file_id, MIN(chunk_index) AS chunk_index, source_norm, target_norm FROM "{tableName}" '
+                f'SELECT DISTINCT ON (source_norm, target_norm) id, source, target, description, source_norm, target_norm FROM "{tableName}" '
                 f'WHERE source_norm IN ({placeholder}) OR target_norm IN ({placeholder}) '
-                f'GROUP BY source_norm, target_norm LIMIT {limit}',
+                f'ORDER BY source_norm, target_norm, id LIMIT {limit}',
                 tuple(seedList) + tuple(seedList)
             ).fetchall()
 
@@ -334,10 +302,9 @@ class Engine:
                     "source": query[1],
                     "target": query[2],
                     "description": query[3],
-                    "chunk": self._logicCitationSelectByIndex(database, mcpSessionId, query[4], query[5]),
                     "edgeId": query[0],
-                    "sourceNorm": query[6],
-                    "targetNorm": query[7],
+                    "sourceNorm": query[4],
+                    "targetNorm": query[5],
                     "relevance": 0,
                     "rank": 0
                 })
@@ -350,10 +317,10 @@ class Engine:
         if len(nameNormList) > 0:
             tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
 
-            placeholder = ",".join("?" for a in range(len(nameNormList)))
+            placeholder = ",".join("%s" for a in range(len(nameNormList)))
 
             queryList = database.execute(
-                f'SELECT node, COUNT(*) AS degree FROM (SELECT source_norm AS node FROM "{tableName}" UNION ALL SELECT target_norm AS node FROM "{tableName}") WHERE node IN ({placeholder}) GROUP BY node',
+                f'SELECT node, COUNT(*) AS degree FROM (SELECT source_norm AS node FROM "{tableName}" UNION ALL SELECT target_norm AS node FROM "{tableName}") AS nodeUnion WHERE node IN ({placeholder}) GROUP BY node',
                 tuple(nameNormList)
             ).fetchall()
 
@@ -362,64 +329,60 @@ class Engine:
 
         return resultObject
 
-    def _databaseConnect(self, isInit=False):
-        database = sqlite3.connect(f"{self.pathFileSql}rag.sqlite", check_same_thread=False)
-
-        if isInit:
-            database.execute("PRAGMA journal_mode=WAL")
-
-        database.execute("PRAGMA busy_timeout=5000")
-        database.execute("PRAGMA synchronous=NORMAL")
-
-        return database
-
     def _tableFileCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_file")
 
-        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)')
+        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE)')
 
     def _tableFileInsert(self, database, mcpSessionId, fileName):
+        result = 0
+
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_file")
 
-        cursor = database.execute(f'INSERT OR IGNORE INTO "{name}" (name) VALUES (?)', (fileName,))
+        queryRow = database.execute(f'INSERT INTO "{name}" (name) VALUES (%s) ON CONFLICT (name) DO NOTHING RETURNING id', (fileName,)).fetchone()
 
-        return cursor.lastrowid
+        if queryRow is not None:
+            result = queryRow[0]
+
+        return result
 
     def _tableCitationCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag")
 
-        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id INTEGER PRIMARY KEY AUTOINCREMENT, file_id INTEGER, chunk TEXT NOT NULL, chunk_index INTEGER, embedding BLOB)')
+        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, chunk TEXT NOT NULL, embedding vector({self.vectorDimension}))')
 
-    def _tableCitationInsert(self, database, mcpSessionId, fileId, chunk, chunkIndex, embeddingList):
+    def _tableCitationInsert(self, database, mcpSessionId, fileId, chunk, embeddingList):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag")
 
         if fileId > 0:
-            buffer = numpy.array(embeddingList, dtype=numpy.float32).tobytes()
+            embedding = numpy.array(embeddingList, dtype=numpy.float32)
 
-            database.execute(f'INSERT INTO "{name}" (file_id, chunk, chunk_index, embedding) VALUES (?, ?, ?, ?)', (fileId, chunk, chunkIndex, buffer))
+            database.execute(f'INSERT INTO "{name}" (file_id, chunk, embedding) VALUES (%s, %s, %s)', (fileId, chunk, embedding))
 
     def _tableFtsCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_fts")
 
-        database.execute(f"CREATE VIRTUAL TABLE IF NOT EXISTS \"{name}\" USING fts5(chunk, file_id UNINDEXED, tokenize='trigram')")
+        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, chunk TEXT NOT NULL)')
+        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_chunk" ON "{name}" USING gin (chunk gin_trgm_ops)')
 
     def _tableFtsInsert(self, database, mcpSessionId, fileId, chunk):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_fts")
 
         if fileId > 0:
-            database.execute(f'INSERT INTO "{name}" (chunk, file_id) VALUES (?, ?)', (chunk, fileId))
+            database.execute(f'INSERT INTO "{name}" (chunk, file_id) VALUES (%s, %s)', (chunk, fileId))
 
     def _tableNodeCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
 
-        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id INTEGER PRIMARY KEY AUTOINCREMENT, file_id INTEGER, name TEXT NOT NULL, name_norm TEXT NOT NULL, type TEXT NOT NULL, description TEXT NOT NULL, UNIQUE (file_id, name_norm))')
+        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, name TEXT NOT NULL, name_norm TEXT NOT NULL, type TEXT NOT NULL, description TEXT NOT NULL, UNIQUE (file_id, name_norm))')
+        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_norm" ON "{name}" USING gin (name_norm gin_trgm_ops)')
 
     def _tableNodeInsert(self, database, mcpSessionId, fileId, name, type, description):
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
 
         if fileId > 0:
             database.execute(
-                f'INSERT INTO "{tableName}" (file_id, name, name_norm, type, description) VALUES (?, ?, ?, ?, ?) '
+                f'INSERT INTO "{tableName}" (file_id, name, name_norm, type, description) VALUES (%s, %s, %s, %s, %s) '
                 f'ON CONFLICT (file_id, name_norm) DO UPDATE SET description = excluded.description WHERE "{tableName}".description = \'\'',
                 (fileId, name, self._utilNodeNormalize(name), type, description)
             )
@@ -427,46 +390,48 @@ class Engine:
     def _tableNodeVecCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
 
-        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id INTEGER PRIMARY KEY AUTOINCREMENT, file_id INTEGER, name TEXT NOT NULL, name_norm TEXT NOT NULL, description TEXT NOT NULL, embedding BLOB)')
+        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, name TEXT NOT NULL, name_norm TEXT NOT NULL, description TEXT NOT NULL, embedding vector({self.vectorDimension}))')
 
     def _tableNodeVecInsert(self, database, mcpSessionId, fileId, name, nameNorm, description, embeddingList):
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
 
         if fileId > 0:
-            buffer = numpy.array(embeddingList, dtype=numpy.float32).tobytes()
+            embedding = numpy.array(embeddingList, dtype=numpy.float32)
 
-            database.execute(f'INSERT INTO "{tableName}" (file_id, name, name_norm, description, embedding) VALUES (?, ?, ?, ?, ?)', (fileId, name, nameNorm, description, buffer))
+            database.execute(f'INSERT INTO "{tableName}" (file_id, name, name_norm, description, embedding) VALUES (%s, %s, %s, %s, %s)', (fileId, name, nameNorm, description, embedding))
 
     def _tableEdgeCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
 
-        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id INTEGER PRIMARY KEY, file_id INTEGER, chunk_index INTEGER, source TEXT NOT NULL, target TEXT NOT NULL, description TEXT NOT NULL, source_norm TEXT NOT NULL, target_norm TEXT NOT NULL)')
+        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, source TEXT NOT NULL, target TEXT NOT NULL, description TEXT NOT NULL, source_norm TEXT NOT NULL, target_norm TEXT NOT NULL)')
         database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_source" ON "{name}" (source_norm)')
         database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_target" ON "{name}" (target_norm)')
 
-    def _tableEdgeInsert(self, database, mcpSessionId, fileId, chunkIndex, relation):
+    def _tableEdgeInsert(self, database, mcpSessionId, fileId, relation):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
 
         if fileId > 0:
             database.execute(
-                f'INSERT INTO "{name}" (file_id, chunk_index, source, target, description, source_norm, target_norm) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                (fileId, chunkIndex, relation["source"], relation["target"], relation["description"], self._utilNodeNormalize(relation["source"]), self._utilNodeNormalize(relation["target"]))
+                f'INSERT INTO "{name}" (file_id, source, target, description, source_norm, target_norm) VALUES (%s, %s, %s, %s, %s, %s)',
+                (fileId, relation["source"], relation["target"], relation["description"], self._utilNodeNormalize(relation["source"]), self._utilNodeNormalize(relation["target"]))
             )
 
     def _tableEdgeVecCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
 
-        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id INTEGER PRIMARY KEY AUTOINCREMENT, file_id INTEGER, edge_id INTEGER, embedding BLOB)')
+        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, edge_id INTEGER, embedding vector({self.vectorDimension}))')
 
     def _tableEdgeVecInsert(self, database, mcpSessionId, fileId, edgeId, embeddingList):
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
 
         if fileId > 0:
-            buffer = numpy.array(embeddingList, dtype=numpy.float32).tobytes()
+            embedding = numpy.array(embeddingList, dtype=numpy.float32)
 
-            database.execute(f'INSERT INTO "{tableName}" (file_id, edge_id, embedding) VALUES (?, ?, ?)', (fileId, edgeId, buffer))
+            database.execute(f'INSERT INTO "{tableName}" (file_id, edge_id, embedding) VALUES (%s, %s, %s)', (fileId, edgeId, embedding))
 
     def _tableCreate(self, database, mcpSessionId):
+        database.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (mcpSessionId,))
+
         self._tableFileCreate(database, mcpSessionId)
         self._tableCitationCreate(database, mcpSessionId)
         self._tableFtsCreate(database, mcpSessionId)
@@ -474,6 +439,8 @@ class Engine:
         self._tableNodeVecCreate(database, mcpSessionId)
         self._tableEdgeCreate(database, mcpSessionId)
         self._tableEdgeVecCreate(database, mcpSessionId)
+
+        database.commit()
 
     def _tableDelete(self, database, mcpSessionId, fileName):
         tableNameRagEdgeVec = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
@@ -484,35 +451,23 @@ class Engine:
         tableNameRag = self._utilReplaceTableName(f"{mcpSessionId}_rag")
         tableNameRagFile = self._utilReplaceTableName(f"{mcpSessionId}_rag_file")
 
-        if fileName != "":
-            queryRow = database.execute(f'SELECT id FROM "{tableNameRagFile}" WHERE name = ?', (fileName,)).fetchone()
+        existsRow = database.execute("SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = %s)", (f"{mcpSessionId}_rag_file",)).fetchone()
+
+        if fileName != "" and existsRow[0]:
+            queryRow = database.execute(f'SELECT id FROM "{tableNameRagFile}" WHERE name = %s', (fileName,)).fetchone()
 
             if queryRow is not None:
                 fileId = queryRow[0]
 
-                database.execute(f'DELETE FROM "{tableNameRagEdgeVec}" WHERE file_id = ?', (fileId,))
-                database.execute(f'DELETE FROM "{tableNameRagEdge}" WHERE file_id = ?', (fileId,))
-                database.execute(f'DELETE FROM "{tableNameRagNodeVec}" WHERE file_id = ?', (fileId,))
-                database.execute(f'DELETE FROM "{tableNameRagNode}" WHERE file_id = ?', (fileId,))
-                database.execute(f'DELETE FROM "{tableNameRagFts}" WHERE file_id = ?', (fileId,))
-                database.execute(f'DELETE FROM "{tableNameRag}" WHERE file_id = ?', (fileId,))
-                database.execute(f'DELETE FROM "{tableNameRagFile}" WHERE id = ?', (fileId,))
+                database.execute(f'DELETE FROM "{tableNameRagEdgeVec}" WHERE file_id = %s', (fileId,))
+                database.execute(f'DELETE FROM "{tableNameRagEdge}" WHERE file_id = %s', (fileId,))
+                database.execute(f'DELETE FROM "{tableNameRagNodeVec}" WHERE file_id = %s', (fileId,))
+                database.execute(f'DELETE FROM "{tableNameRagNode}" WHERE file_id = %s', (fileId,))
+                database.execute(f'DELETE FROM "{tableNameRagFts}" WHERE file_id = %s', (fileId,))
+                database.execute(f'DELETE FROM "{tableNameRag}" WHERE file_id = %s', (fileId,))
+                database.execute(f'DELETE FROM "{tableNameRagFile}" WHERE id = %s', (fileId,))
 
                 database.commit()
-
-    def _vectorRank(self, embeddingByteList, queryVector):
-        if len(embeddingByteList) == 0:
-            return numpy.array([], dtype=numpy.float32), numpy.array([], dtype=numpy.int64)
-
-        matrix = numpy.frombuffer(b"".join(embeddingByteList), dtype=numpy.float32).reshape(len(embeddingByteList), self.vectorDimension)
-
-        diff = matrix - queryVector
-
-        distanceArray = numpy.sqrt(numpy.sum(diff * diff, axis=1))
-
-        orderArray = numpy.argsort(distanceArray)
-
-        return distanceArray, orderArray
 
     def _wordSplit(self, text):
         resultList = []
@@ -865,7 +820,7 @@ class Engine:
 
             if isinstance(embeddingData.get("data"), list) and len(embeddingData["data"]) == len(chunkBatchList):
                 for b in range(len(chunkBatchList)):
-                    self._tableCitationInsert(database, mcpSessionId, fileId, chunkBatchList[b], a + b, embeddingData["data"][b]["embedding"])
+                    self._tableCitationInsert(database, mcpSessionId, fileId, chunkBatchList[b], embeddingData["data"][b]["embedding"])
                     self._tableFtsInsert(database, mcpSessionId, fileId, chunkBatchList[b])
 
                 database.commit()
@@ -888,7 +843,7 @@ class Engine:
             for b in range(len(graphData["relationList"])):
                 relation = graphData["relationList"][b]
 
-                self._tableEdgeInsert(database, mcpSessionId, fileId, a, relation)
+                self._tableEdgeInsert(database, mcpSessionId, fileId, relation)
                 self._tableNodeInsert(database, mcpSessionId, fileId, relation["source"], "concept", "")
                 self._tableNodeInsert(database, mcpSessionId, fileId, relation["target"], "concept", "")
 
@@ -956,7 +911,7 @@ class Engine:
     def store(self, cookie, mcpSessionId, uniqueId, fileName):
         result = "ko"
 
-        database = self._databaseConnect()
+        database = Database()
 
         self._tableCreate(database, mcpSessionId)
 
@@ -1018,6 +973,8 @@ class Engine:
     def _searchCitation(self, database, mcpSessionId, fileList, entityList, entityEmbeddingData, isEntityEmbedding, promptVector):
         citationList = []
 
+        isCitationSemantic = False
+
         if len(entityList) > 0:
             for a in range(len(entityList)):
                 citation = None
@@ -1029,6 +986,7 @@ class Engine:
                     if len(entityCitationList) > 0:
                         if entityCitationList[0]["distance"] <= self.distanceMax:
                             citation = entityCitationList[0]
+                            isCitationSemantic = True
 
                 if citation is None:
                     ftsCitationList = self._logicFtsMatch(database, mcpSessionId, fileList, [entityList[a]])
@@ -1055,11 +1013,12 @@ class Engine:
 
                     if vectorCitationList[a]["distance"] <= self.distanceMax:
                         citationList.append(vectorCitationList[a])
+                        isCitationSemantic = True
 
         if len(citationList) > self.citationLimit:
             citationList = citationList[0:self.citationLimit]
 
-        return citationList
+        return citationList, isCitationSemantic
 
     def _searchSeed(self, database, mcpSessionId, entityList, entityEmbeddingData, isEntityEmbedding):
         nodeList = []
@@ -1129,7 +1088,6 @@ class Engine:
                     "source": edgeFull["source"],
                     "target": edgeFull["target"],
                     "description": edgeFull["description"],
-                    "chunk": self._logicCitationSelectByIndex(database, mcpSessionId, edgeFull["fileId"], edgeFull["chunkIndex"]),
                     "edgeId": edgeFull["id"],
                     "sourceNorm": edgeFull["sourceNorm"],
                     "targetNorm": edgeFull["targetNorm"],
@@ -1191,7 +1149,7 @@ class Engine:
 
             graphDedupList[a]["rank"] = degreeSource + degreeTarget
 
-            relevance = self.distanceMax + 1
+            relevance = self.distanceMaxEdge + 1
 
             if relevanceObject.get(graphDedupList[a]["edgeId"]) is not None:
                 relevance = relevanceObject[graphDedupList[a]["edgeId"]]
@@ -1213,67 +1171,74 @@ class Engine:
                 graphList.append({
                     "source": candidate["source"],
                     "target": candidate["target"],
-                    "description": candidate["description"],
-                    "chunk": candidate["chunk"]
+                    "description": candidate["description"]
                 })
 
         return graphList
 
     def search(self, cookie, mcpSessionId, uniqueId, prompt, entityList, themeList):
-        database = self._databaseConnect()
+        result = {"citationList": [], "nodeList": [], "graphList": []}
+
+        database = Database()
 
         tableNameRagFile = self._utilReplaceTableName(f"{mcpSessionId}_rag_file")
 
-        fileQueryList = database.execute(f'SELECT id, name FROM "{tableNameRagFile}"').fetchall()
+        existsRow = database.execute("SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = %s)", (f"{mcpSessionId}_rag_file",)).fetchone()
 
-        fileList = []
+        if existsRow[0]:
+            fileQueryList = database.execute(f'SELECT id, name FROM "{tableNameRagFile}"').fetchall()
 
-        for a in range(len(fileQueryList)):
-            fileList.append({"id": fileQueryList[a][0], "name": fileQueryList[a][1]})
+            fileList = []
 
-        promptEmbeddingData = self.embedding(cookie, uniqueId, "query", prompt)
+            for a in range(len(fileQueryList)):
+                fileList.append({"id": fileQueryList[a][0], "name": fileQueryList[a][1]})
 
-        promptVector = None
+            promptEmbeddingData = self.embedding(cookie, uniqueId, "query", prompt)
 
-        if isinstance(promptEmbeddingData.get("data"), list) and len(promptEmbeddingData["data"]) > 0 and len(promptEmbeddingData["data"][0]["embedding"]) > 0:
-            promptVector = numpy.array(promptEmbeddingData["data"][0]["embedding"], dtype=numpy.float32)
+            promptVector = None
 
-        entityEmbeddingData = {}
-        isEntityEmbedding = False
+            if isinstance(promptEmbeddingData.get("data"), list) and len(promptEmbeddingData["data"]) > 0 and len(promptEmbeddingData["data"][0]["embedding"]) > 0:
+                promptVector = numpy.array(promptEmbeddingData["data"][0]["embedding"], dtype=numpy.float32)
 
-        if len(entityList) > 0:
-            entityEmbeddingData = self.embedding(cookie, uniqueId, "query", entityList)
-            isEntityEmbedding = isinstance(entityEmbeddingData.get("data"), list) and len(entityEmbeddingData["data"]) == len(entityList)
+            entityEmbeddingData = {}
+            isEntityEmbedding = False
 
-        citationList = self._searchCitation(database, mcpSessionId, fileList, entityList, entityEmbeddingData, isEntityEmbedding, promptVector)
+            if len(entityList) > 0:
+                entityEmbeddingData = self.embedding(cookie, uniqueId, "query", entityList)
+                isEntityEmbedding = isinstance(entityEmbeddingData.get("data"), list) and len(entityEmbeddingData["data"]) == len(entityList)
 
-        nodeList, seedObject, seedList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingData, isEntityEmbedding)
+            citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, entityList, entityEmbeddingData, isEntityEmbedding, promptVector)
 
-        graphCandidateList = self._searchTheme(database, cookie, mcpSessionId, uniqueId, themeList, seedObject, seedList)
+            nodeList, seedObject, seedList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingData, isEntityEmbedding)
 
-        if len(seedList) > 0:
-            seedSlice = seedList[0:self.seedLimit]
-            traverseList = self._logicEdgeTraverse(database, mcpSessionId, seedSlice)
+            isInDomain = isCitationSemantic
 
-            for a in range(len(traverseList)):
-                graphCandidateList.append(traverseList[a])
+            if isInDomain:
+                graphCandidateList = self._searchTheme(database, cookie, mcpSessionId, uniqueId, themeList, seedObject, seedList)
 
-        graphList = self._searchGraph(database, mcpSessionId, graphCandidateList, promptVector)
+                if len(seedList) > 0:
+                    seedSlice = seedList[0:self.seedLimit]
+                    traverseList = self._logicEdgeTraverse(database, mcpSessionId, seedSlice)
+
+                    for a in range(len(traverseList)):
+                        graphCandidateList.append(traverseList[a])
+
+                graphList = self._searchGraph(database, mcpSessionId, graphCandidateList, promptVector)
+
+                result = {
+                    "citationList": citationList,
+                    "nodeList": nodeList,
+                    "graphList": graphList
+                }
 
         database.close()
-
-        result = {
-            "citationList": citationList,
-            "nodeList": nodeList,
-            "graphList": graphList
-        }
 
         return result
 
     def delete(self, mcpSessionId, fileName):
         result = "ko"
 
-        database = self._databaseConnect()
+        database = Database()
 
         self._tableDelete(database, mcpSessionId, fileName)
 
@@ -1288,14 +1253,13 @@ class Engine:
         self.ENV_NAME = os.environ.get("ENV_NAME", "")
         self.DOMAIN = os.environ.get("DOMAIN", "")
         PATH_ROOT = os.environ.get("PATH_ROOT", "")
-        PATH_CERTIFICATE_PEM = os.environ.get("MS_M_PATH_CERTIFICATE_PEM", "")
+        self.PATH_CERTIFICATE_PEM = os.environ.get("MS_M_PATH_CERTIFICATE_PEM", "")
         PATH_FILE = os.environ.get("MS_M_PATH_FILE", "")
 
         self.pathModel = f"{os.path.dirname(__file__)}/model/"
-        self.pathFileSql = f"{PATH_ROOT}{PATH_FILE}sqlite/"
         self.pathFileInput = f"{PATH_ROOT}{PATH_FILE}input/"
         self.urlApi = self._utilEnvironment()
-        self.sslContext = ssl.create_default_context(cafile=PATH_CERTIFICATE_PEM)
+        self.sslContext = ssl.create_default_context(cafile=self.PATH_CERTIFICATE_PEM)
 
         self.typeAllowList = ["person", "organization", "place", "category", "event"]
         self.chunkLength = 1000
@@ -1304,12 +1268,11 @@ class Engine:
         self.scoreMin = 0.4
         self.relationGapMax = 60
 
-        self.distanceMax = 1.12
+        self.distanceMax = 1.00
+        self.distanceMaxEdge = 1.20
         self.marginRelative = 0.1
-        self.graphifyParallel = 4
         self.batchLength = 32
         self.vectorDimension = 768
-        self.vectorChunkSize = 512
         self.candidatePool = 256
         self.citationLimit = 4
         self.graphLimitPerSeed = 32
@@ -1337,5 +1300,5 @@ class Engine:
 
         self.session = onnxSessionBuild(f"{self.pathModel}fp32.onnx")
 
-        databaseInit = self._databaseConnect(True)
-        databaseInit.close()
+        database = Database(True)
+        database.close()

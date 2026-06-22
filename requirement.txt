@@ -1,5 +1,7 @@
+psycopg2-binary==2.9.10
 numpy==2.4.3
 # rag_graphify
+pgvector==0.3.6
 sentencepiece==0.2.1
 # paddle
 opencv-python-headless==4.13.0.92
