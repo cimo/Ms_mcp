@@ -129,7 +129,7 @@ export default class Server {
             this.app.post("/login", this.limiter, async (request: Request, response: Response) => {
                 Ca.writeCookie(`${helperSrc.LABEL}_authentication`, response);
 
-                const body = request.body as modelServer.IapiLoginBody;
+                const body = request.body as modelServer.IapiDataLoginBody;
 
                 const loginSession = controllerUser.loginSessionVerify(body.username, body.password);
 

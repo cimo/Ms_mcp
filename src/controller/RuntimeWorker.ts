@@ -1,13 +1,13 @@
 // Source
 import * as helperSrc from "../HelperSrc.js";
-import * as modelTool from "../model/Tool.js";
+import * as modelRuntime from "../model/Runtime.js";
 import * as automateDisplay from "../tool/automate/Display.js";
 import * as automateMouse from "../tool/automate/Mouse.js";
 import * as browserChrome from "../tool/browser/Chrome.js";
 import * as ocrExtractor from "../tool/ocr/Extractor.js";
 
-process.on("message", (data: modelTool.IruntimeWorkerMessageData) => {
-    let resultProcessObject = {} as modelTool.IruntimeHandlerData;
+process.on("message", (data: modelRuntime.IdataWorkerMessage) => {
+    let resultProcessObject = {} as modelRuntime.IdataHandler;
 
     if (data.tool === "automateScreenshot") {
         automateDisplay

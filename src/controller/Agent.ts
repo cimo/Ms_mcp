@@ -43,13 +43,13 @@ export default class Agent {
         return isResult;
     };
 
-    private tableSelectList = (mcpSessionId: string): modelAgent.Iagent[] => {
-        const resultList: modelAgent.Iagent[] = [];
+    private tableSelectList = (mcpSessionId: string): modelAgent.Idata[] => {
+        const resultList: modelAgent.Idata[] = [];
 
         if (mcpSessionId !== "") {
             const queryList = this.database
                 .prepare(`SELECT id, name, description, skill_name FROM "${mcpSessionId}_agent";`)
-                .all() as unknown as modelAgent.IdatabaseQueryAgent[];
+                .all() as unknown as modelAgent.IdataDatabaseQuery[];
 
             for (let a = 0; a < queryList.length; a++) {
                 const query = queryList[a];
@@ -107,7 +107,7 @@ export default class Agent {
     api = (): void => {
         this.app.post("/api/agent-create", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelAgent.IapiAgentCreateBody;
+            const body = request.body as modelAgent.IapiDataCreateBody;
 
             const name = body.name;
             const description = body.description;
@@ -130,7 +130,7 @@ export default class Agent {
 
         this.app.post("/api/agent-update", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelAgent.IapiAgentUpdateBody;
+            const body = request.body as modelAgent.IapiDataUpdateBody;
 
             const id = body.id;
             const name = body.name;
@@ -168,7 +168,7 @@ export default class Agent {
 
         this.app.post("/api/agent-delete", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelAgent.IapiAgentDeleteBody;
+            const body = request.body as modelAgent.IapiDataDeleteBody;
 
             const id = body.id;
 

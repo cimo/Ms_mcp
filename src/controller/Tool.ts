@@ -264,7 +264,7 @@ export default class Tool {
             }
         });
 
-        this.app.get("/api/document-list", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.get("/api/document-list", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId === "string") {
@@ -515,7 +515,7 @@ export default class Tool {
             }
         });
 
-        this.app.get("/api/skill-list", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.get("/api/skill-list", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId === "string") {

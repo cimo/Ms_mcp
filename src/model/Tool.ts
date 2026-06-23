@@ -51,19 +51,6 @@ export interface IapiTaskCallBody {
     }[];
 }
 
-export interface IruntimeHandlerData {
-    id: string;
-    result?: string;
-    error?: string;
-}
-
-export interface IruntimeWorkerMessageData {
-    id: string;
-    mcpSessionId: string;
-    tool: string;
-    argumentList: unknown[];
-}
-
 export interface Irpc<TSchema extends z.ZodTypeAny> {
     name: string;
     config: {

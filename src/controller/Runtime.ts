@@ -2,7 +2,7 @@ import { ChildProcess } from "child_process";
 
 // Source
 import * as helperSrc from "../HelperSrc.js";
-import * as modelTool from "../model/Tool.js";
+import * as modelRuntime from "../model/Runtime.js";
 
 export default class Runtime {
     private runtimeWorker: ChildProcess;
@@ -23,7 +23,7 @@ export default class Runtime {
 
             const id = crypto.randomUUID();
 
-            const handler = (data: modelTool.IruntimeHandlerData) => {
+            const handler = (data: modelRuntime.IdataHandler) => {
                 if (data.id === id) {
                     clearTimeout(timeout);
 

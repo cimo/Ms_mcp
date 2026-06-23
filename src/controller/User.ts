@@ -65,12 +65,12 @@ export default class User {
         return isResult;
     };
 
-    private tableSelect = (email: string, mcpSessionId: string): modelUser.Iuser => {
-        const resultObject = {} as modelUser.Iuser;
+    private tableSelect = (email: string, mcpSessionId: string): modelUser.Idata => {
+        const resultObject = {} as modelUser.Idata;
 
         const queryRow = this.database
             .prepare('SELECT id, email, password, mcp_session_id FROM "user" WHERE email = ? OR mcp_session_id = ?;')
-            .get(email, mcpSessionId) as unknown as modelUser.IdatabaseQueryUser;
+            .get(email, mcpSessionId) as unknown as modelUser.IdataDatabaseQuery;
 
         if (queryRow) {
             resultObject.id = queryRow.id;
@@ -99,7 +99,7 @@ export default class User {
         const fileReadStream = await helperSrc.fileReadStream(`${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}fixture/dev/user.json`);
 
         if (Buffer.isBuffer(fileReadStream)) {
-            const userList = JSON.parse(fileReadStream.toString()) as modelUser.Iuser[];
+            const userList = JSON.parse(fileReadStream.toString()) as modelUser.Idata[];
 
             if (userList.length > 0) {
                 for (const user of userList) {
@@ -113,8 +113,8 @@ export default class User {
         return isResult;
     };
 
-    loginSessionVerify = (username: string, password: string): modelUser.IloginSession => {
-        const resultObject = {} as modelUser.IloginSession;
+    loginSessionVerify = (username: string, password: string): modelUser.IdataLoginSession => {
+        const resultObject = {} as modelUser.IdataLoginSession;
 
         const user = this.tableSelect(username, "");
 
@@ -163,7 +163,7 @@ export default class User {
 
         this.app.post("/api/user-update", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelUser.IapiUserUpdateBody;
+            const body = request.body as modelUser.IapiDataUpdateBody;
 
             const id = body.id;
             const email = body.email;

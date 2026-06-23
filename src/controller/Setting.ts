@@ -39,13 +39,13 @@ export default class Setting {
         return isResult;
     };
 
-    private tableSelect = (mcpSessionId: string): modelSetting.Isetting => {
-        const resultObject = {} as modelSetting.Isetting;
+    private tableSelect = (mcpSessionId: string): modelSetting.Idata => {
+        const resultObject = {} as modelSetting.Idata;
 
         if (mcpSessionId !== "") {
             const queryRow = this.database
                 .prepare(`SELECT id, api_id FROM "${mcpSessionId}_setting" WHERE id = 1;`)
-                .get() as unknown as modelSetting.IdatabaseQuerySetting;
+                .get() as unknown as modelSetting.IdataDatabaseQuery;
 
             if (queryRow) {
                 resultObject.id = queryRow.id;
@@ -79,7 +79,7 @@ export default class Setting {
             if (Buffer.isBuffer(fileReadStream)) {
                 const fileReadStreamContent = fileReadStream.toString();
 
-                const settingList = JSON.parse(fileReadStreamContent) as modelSetting.Isetting[];
+                const settingList = JSON.parse(fileReadStreamContent) as modelSetting.Idata[];
 
                 if (settingList.length > 0) {
                     for (const setting of settingList) {
@@ -116,7 +116,7 @@ export default class Setting {
 
         this.app.post("/api/setting-update", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelSetting.IapiSettingUpdateBody;
+            const body = request.body as modelSetting.IapiDataUpdateBody;
 
             const id = body.id;
             const apiId = body.apiId;
