@@ -22,6 +22,9 @@ then
     python3 -m pip install onnxruntime-openvino==1.24.1
 fi
 
+# Onnx - document_parser
+curl -fsSL "https://huggingface.co/PaddlePaddle/PP-DocLayout_plus-L_onnx/resolve/main/inference.onnx" -o "/home/app/onnx/paddle/model/pp-docLayout_plus-l.onnx"
+
 # Onnx - rag_graphify
 curl -fsSL "https://huggingface.co/onnx-community/gliner_multi-v2.1/resolve/main/onnx/model.onnx" -o "/home/app/onnx/rag_graphify/model/fp32.onnx"
 curl -fsSL "https://huggingface.co/onnx-community/gliner_multi-v2.1/resolve/main/gliner_config.json" -o "/home/app/onnx/rag_graphify/model/gliner_config.json"

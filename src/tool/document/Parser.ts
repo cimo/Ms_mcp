@@ -101,7 +101,7 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
 
         if (!resultExecute.error) {
             resultExecute = await helperSrc.executionTerminal(
-                `python3 "${helperSrc.PATH_ROOT}onnx/paddle/layout.py" "${helperSrc.PATH_ROOT}onnx/paddle/model/pp-doclayout_plus-l.inference.onnx" "${inputFolder}image/" "${inputFolder}layout/" >> "${helperSrc.PATH_LOG}paddle_layout.log" 2>&1`
+                `python3 "${helperSrc.PATH_ROOT}onnx/paddle/layout.py" "${helperSrc.PATH_ROOT}onnx/paddle/model/pp-docLayout_plus-l.onnx" "${inputFolder}image/" "${inputFolder}layout/" >> "${helperSrc.PATH_LOG}paddle_layout.log" 2>&1`
             );
         }
 

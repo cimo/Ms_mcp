@@ -3,6 +3,7 @@ sys.dont_write_bytecode = True
 
 import os
 import re
+import time
 import json
 import ssl
 import urllib.request
@@ -490,8 +491,6 @@ class Engine:
             database.execute(f'INSERT INTO "{tableName}" (file_id, edge_id, embedding) VALUES (%s, %s, %s)', (fileId, edgeId, embedding))
 
     def _tableCreate(self, database, mcpSessionId):
-        database.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (mcpSessionId,))
-
         self._tableFileCreate(database, mcpSessionId)
         self._tableCitationCreate(database, mcpSessionId)
         self._tableFtsCreate(database, mcpSessionId)
@@ -1387,6 +1386,10 @@ class Engine:
 
         database = Database()
 
+        database.execute("SELECT pg_advisory_lock(hashtext(%s))", (mcpSessionId,))
+
+        timeStart = time.perf_counter()
+
         self._tableCreate(database, mcpSessionId)
 
         fileIdStored = self._logicFileSelect(database, mcpSessionId, fileName)
@@ -1444,6 +1447,10 @@ class Engine:
             self._htmlGenerate(database, mcpSessionId)
 
         database.close()
+
+        timeEnd = time.perf_counter() - timeStart
+
+        print(f"Time: {round(timeEnd, 3)} - {fileName}\n")
 
         return result
 
@@ -1510,6 +1517,8 @@ class Engine:
         result = "ko"
 
         database = Database()
+
+        database.execute("SELECT pg_advisory_lock(hashtext(%s))", (mcpSessionId,))
 
         self._tableDelete(database, mcpSessionId, fileName)
 
