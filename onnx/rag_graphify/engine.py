@@ -1156,10 +1156,11 @@ class Engine:
             const edgeList = new vis.DataSet(__EDGE_DATA__);
 
             const optionObject = {
+                layout: { improvedLayout: false },
                 nodes: { shape: "dot", size: 14, font: { color: "#ffffff", size: 12 } },
-                edges: { arrows: "to", color: { color: "#888888" }, smooth: { type: "continuous" } },
-                interaction: { dragNodes: true, hover: true, tooltipDelay: 120 },
-                physics: { stabilization: { iterations: 200 } }
+                edges: { arrows: "to", color: { color: "#888888" }, smooth: false },
+                interaction: { dragNodes: true, hover: true, tooltipDelay: 120, hideEdgesOnDrag: true, hideEdgesOnZoom: true },
+                physics: { stabilization: { iterations: 200 }, barnesHut: { avoidOverlap: 0.2 } }
             };
 
             const network = new vis.Network(document.getElementById("graph_wrapper"), { nodes: nodeList, edges: edgeList }, optionObject);
@@ -1172,6 +1173,8 @@ class Engine:
             });
 
             network.once("stabilizationIterationsDone", function() {
+                network.setOptions({ physics: false });
+
                 document.getElementById("loadingBar_fill").style.width = "100%";
                 document.getElementById("loadingBar_text").innerHTML = "100%";
                 document.getElementById("graph_wrapper").style.opacity = 1;
