@@ -1160,7 +1160,16 @@ class Engine:
                 nodes: { shape: "dot", size: 14, font: { color: "#ffffff", size: 12 } },
                 edges: { arrows: "to", color: { color: "#888888" }, smooth: false },
                 interaction: { dragNodes: true, hover: true, tooltipDelay: 120, hideEdgesOnDrag: true, hideEdgesOnZoom: true },
-                physics: { stabilization: { iterations: 200 }, barnesHut: { avoidOverlap: 0.2 } }
+                physics: {
+                    enabled: true,
+                    solver: "barnesHut",
+                    barnesHut: { theta: 0.9, gravitationalConstant: -2000, centralGravity: 0.3, springLength: 120, springConstant: 0.04, damping: 0.6, avoidOverlap: 0.2 },
+                    maxVelocity: 30,
+                    minVelocity: 1,
+                    timestep: 0.5,
+                    adaptiveTimestep: true,
+                    stabilization: { enabled: true, iterations: 200, updateInterval: 25, fit: true }
+                }
             };
 
             const network = new vis.Network(document.getElementById("graph_wrapper"), { nodes: nodeList, edges: edgeList }, optionObject);
@@ -1173,8 +1182,6 @@ class Engine:
             });
 
             network.once("stabilizationIterationsDone", function() {
-                network.setOptions({ physics: false });
-
                 document.getElementById("loadingBar_fill").style.width = "100%";
                 document.getElementById("loadingBar_text").innerHTML = "100%";
                 document.getElementById("graph_wrapper").style.opacity = 1;
