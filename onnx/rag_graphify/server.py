@@ -1,24 +1,29 @@
 import sys
 sys.dont_write_bytecode = True
 
+import os
 import json
+import time
+import signal
+import socket
+import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # Source
 from engine import Engine
 
 class HandlerHttpRequest(BaseHTTPRequestHandler):
-    def _store(self, text):
+    engine = Engine()
+
+    def _routeDelete(self, text):
         payload = json.loads(text)
 
-        cookie = payload.get("cookie", "")
         mcpSessionId = payload.get("mcpSessionId", "")
-        uniqueId = payload.get("uniqueId", "")
         fileName = payload.get("fileName", "")
 
-        return engine.store(cookie, mcpSessionId, uniqueId, fileName)
+        return self.engine.delete(mcpSessionId, fileName)
 
-    def _search(self, text):
+    def _routeSearch(self, text):
         payload = json.loads(text)
 
         cookie = payload.get("cookie", "")
@@ -28,15 +33,17 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
         entityList = payload.get("entityList", [])
         themeList = payload.get("themeList", [])
 
-        return engine.search(cookie, mcpSessionId, uniqueId, prompt, entityList, themeList)
+        return self.engine.search(cookie, mcpSessionId, uniqueId, prompt, entityList, themeList)
 
-    def _delete(self, text):
+    def _routeStore(self, text):
         payload = json.loads(text)
 
+        cookie = payload.get("cookie", "")
         mcpSessionId = payload.get("mcpSessionId", "")
+        uniqueId = payload.get("uniqueId", "")
         fileName = payload.get("fileName", "")
 
-        return engine.delete(mcpSessionId, fileName)
+        return self.engine.store(cookie, mcpSessionId, uniqueId, fileName)
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
@@ -46,13 +53,13 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
         result = {}
 
         if self.path == "/store":
-            result = self._store(text)
+            result = self._routeStore(text)
         elif self.path == "/search":
-            result = self._search(text)
+            result = self._routeSearch(text)
         elif self.path == "/delete":
-            result = self._delete(text)
+            result = self._routeDelete(text)
         else:
-            result = engine.process(text)
+            result = self.engine.process(text)
 
         body = json.dumps(result, ensure_ascii=False).encode("utf-8")
 
@@ -66,11 +73,31 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
     def log_message(self, format, *argumentList):
         return
 
-engine = Engine()
-
+host = "127.0.0.1"
 port = 1111
-serverHttp = ThreadingHTTPServer(("127.0.0.1", port), HandlerHttpRequest)
 
-print(f"Onnx - rag_graphify - Ready on => 127.0.0.1:{port}\n")
+checkSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+isRunning = checkSocket.connect_ex((host, port)) == 0
+checkSocket.close()
+
+if isRunning:
+    pathScript = os.path.dirname(os.path.abspath(__file__))
+    pgrepRun = subprocess.run(["pgrep", "-f", f"{pathScript}/server.py"], capture_output=True, text=True)
+    pidSplit = pgrepRun.stdout.split()
+
+    for a in range(len(pidSplit)):
+        if int(pidSplit[a]) != os.getpid():
+            os.kill(int(pidSplit[a]), signal.SIGTERM)
+
+    while isRunning:
+        time.sleep(0.1)
+
+        checkSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        isRunning = checkSocket.connect_ex((host, port)) == 0
+        checkSocket.close()
+
+serverHttp = ThreadingHTTPServer((host, port), HandlerHttpRequest)
+
+print(f"Onnx - rag_graphify - Ready on => {host}:{port}\n")
 
 serverHttp.serve_forever()

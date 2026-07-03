@@ -12,10 +12,10 @@ import sentencepiece
 from sentencepiece import sentencepiece_model_pb2 as sentencepieceModel
 
 # Source
-sys.path.append(f"{os.path.dirname(__file__)}/..")
-
-from helper import onnxSessionBuild
 from database import Database
+
+sys.path.append(f"{os.path.dirname(__file__)}/..")
+from helper import onnxSessionBuild
 
 class Engine:
     def _utilEnvironment(self):
