@@ -39,8 +39,6 @@ file/input/*
 !file/input/.gitkeep
 file/tmp/*
 !file/tmp/.gitkeep
-file/sqlite/*
-!file/sqlite/.gitkeep
 log/*
 !log/.gitkeep
 node_modules

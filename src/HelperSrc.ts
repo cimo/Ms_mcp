@@ -30,6 +30,11 @@ export const PATH_PUBLIC = Ce.checkVariable("MS_M_PATH_PUBLIC");
 export const PATH_SCRIPT = Ce.checkVariable("MS_M_PATH_SCRIPT");
 export const MIME_TYPE = Ce.checkVariable("MS_M_MIME_TYPE") || (process.env["MS_M_MIME_TYPE"] as string);
 export const FILE_SIZE_MB = Ce.checkVariable("MS_M_FILE_SIZE_MB") || (process.env["MS_M_FILE_SIZE_MB"] as string);
+export const DB_NAME = Ce.checkVariable("DB_NAME") || (process.env["DB_NAME"] as string);
+export const DB_HOST = Ce.checkVariable("DB_HOST") || (process.env["DB_HOST"] as string);
+export const DB_PORT = Ce.checkVariable("DB_PORT") || (process.env["DB_PORT"] as string);
+export const DB_USER = Ce.checkVariable("DB_USER") || (process.env["DB_USER"] as string);
+export const DB_PASS = Ce.checkVariable("DB_PASS") || (process.env["DB_PASS"] as string);
 
 // Custom
 // Custom

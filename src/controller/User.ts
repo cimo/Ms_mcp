@@ -1,19 +1,18 @@
 import Express, { Request, Response } from "express";
 import { RateLimitRequestHandler } from "express-rate-limit";
-import Database from "better-sqlite3";
-import Crypto from "node:crypto";
+import * as Crypto from "crypto";
+import Pg from "pg";
 import { Ca } from "@cimo/authentication/dist/src/Main.js";
 
 // Source
 import * as helperSrc from "../HelperSrc.js";
+import * as database from "../Database.js";
 import * as modelUser from "../model/User.js";
 
 export default class User {
     // Variable
     private app: Express.Express;
     private limiter: RateLimitRequestHandler;
-
-    private database: Database.Database;
 
     // Method
     private passwordHash = (password: string): string => {
@@ -37,88 +36,124 @@ export default class User {
         return isResult;
     };
 
-    private tableInsert = (id: number, email: string, name: string, surname: string, password: string, mcpSessionId: string): boolean => {
-        let isResult = false;
-
+    private tableInsert = (id: number, email: string, name: string, surname: string, password: string, mcpSessionId: string): Promise<boolean> => {
         const hash = password === "" ? null : this.passwordHash(password);
 
-        this.database
-            .prepare("INSERT OR IGNORE INTO \"user\" (id, email, name, surname, password, mcp_session_id) VALUES (?, ?, ?, ?, ?, NULLIF(?, ''));")
-            .run(id, email, name, surname, hash, mcpSessionId);
+        return database.pool
+            .query(
+                `INSERT INTO "user" (id, email, name, surname, password, mcp_session_id) VALUES ($1, $2, $3, $4, $5, NULLIF($6, '')) ON CONFLICT DO NOTHING;`,
+                [id, email, name, surname, hash, mcpSessionId]
+            )
+            .then(() => {
+                return true;
+            })
+            .catch((error: Error) => {
+                helperSrc.writeLog("User.ts - tableInsert() - catch()", error.message);
 
-        isResult = true;
-
-        return isResult;
+                return false;
+            });
     };
 
-    private tableUpdate = (id: number, name: string, surname: string, password: string, mcpSessionId: string): boolean => {
-        let isResult = false;
-
+    private tableUpdate = (id: number, name: string, surname: string, password: string, mcpSessionId: string): Promise<boolean> => {
         const hash = password === "" ? null : this.passwordHash(password);
 
-        this.database
-            .prepare("UPDATE \"user\" SET name = ?, surname = ?, password = COALESCE(?, password), mcp_session_id = NULLIF(?, '') WHERE id = ?;")
-            .run(name, surname, hash, mcpSessionId, id);
+        return database.pool
+            .query(`UPDATE "user" SET name = $1, surname = $2, password = COALESCE($3, password), mcp_session_id = NULLIF($4, '') WHERE id = $5;`, [
+                name,
+                surname,
+                hash,
+                mcpSessionId,
+                id
+            ])
+            .then(() => {
+                return true;
+            })
+            .catch((error: Error) => {
+                helperSrc.writeLog("User.ts - tableUpdate() - catch()", error.message);
 
-        isResult = true;
-
-        return isResult;
+                return false;
+            });
     };
 
-    private tableSelect = (email: string, mcpSessionId: string): modelUser.Idata => {
-        const resultObject = {} as modelUser.Idata;
+    private tableSelect = (email: string, mcpSessionId: string): Promise<modelUser.Idata> => {
+        return database.pool
+            .query(`SELECT id, email, name, surname, password, mcp_session_id FROM "user" WHERE email = $1 OR mcp_session_id = $2;`, [
+                email,
+                mcpSessionId
+            ])
+            .then((queryResult: Pg.QueryResult<modelUser.IdataDatabaseQuery>) => {
+                const resultObject = {} as modelUser.Idata;
 
-        const queryRow = this.database
-            .prepare('SELECT id, email, name, surname, password, mcp_session_id FROM "user" WHERE email = ? OR mcp_session_id = ?;')
-            .get(email, mcpSessionId) as unknown as modelUser.IdataDatabaseQuery;
+                if (queryResult.rows.length > 0) {
+                    const queryRow = queryResult.rows[0];
 
-        if (queryRow) {
-            resultObject.id = queryRow.id;
-            resultObject.email = queryRow.email;
-            resultObject.name = queryRow.name;
-            resultObject.surname = queryRow.surname;
-            resultObject.password = queryRow.password;
-            resultObject.mcpSessionId = queryRow.mcp_session_id;
-        }
+                    resultObject.id = queryRow.id;
+                    resultObject.email = queryRow.email;
+                    resultObject.name = queryRow.name;
+                    resultObject.surname = queryRow.surname;
+                    resultObject.password = queryRow.password;
+                    resultObject.mcpSessionId = queryRow.mcp_session_id;
+                }
 
-        return resultObject;
+                return resultObject;
+            })
+            .catch((error: Error) => {
+                helperSrc.writeLog("User.ts - tableSelect() - catch()", error.message);
+
+                return {} as modelUser.Idata;
+            });
     };
 
     constructor(app: Express.Express, limiter: RateLimitRequestHandler) {
         this.app = app;
         this.limiter = limiter;
-
-        this.database = new Database(`${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}sqlite/user.sqlite`);
     }
 
     tableCreate = async (): Promise<boolean> => {
         let isResult = false;
 
-        this.database.exec(
-            'CREATE TABLE IF NOT EXISTS "user" (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, surname TEXT NOT NULL, password TEXT NOT NULL, mcp_session_id TEXT UNIQUE);'
-        );
+        const isQuery = await database.pool
+            .query(
+                `CREATE TABLE IF NOT EXISTS "user" (id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, surname TEXT NOT NULL, password TEXT NOT NULL, mcp_session_id TEXT UNIQUE);`
+            )
+            .then(() => {
+                return true;
+            })
+            .catch((error: Error) => {
+                helperSrc.writeLog("User.ts - tableCreate() - catch()", error.message);
 
-        const fileReadStream = await helperSrc.fileReadStream(`${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}fixture/dev/user.json`);
+                return false;
+            });
 
-        if (Buffer.isBuffer(fileReadStream)) {
-            const userList = JSON.parse(fileReadStream.toString()) as modelUser.Idata[];
+        if (isQuery) {
+            const fileReadStream = await helperSrc.fileReadStream(`${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}fixture/dev/user.json`);
 
-            if (userList.length > 0) {
-                for (const user of userList) {
-                    this.tableInsert(user.id, user.email, user.name, user.surname, user.password, user.mcpSessionId || "");
+            if (Buffer.isBuffer(fileReadStream)) {
+                const userList = JSON.parse(fileReadStream.toString()) as modelUser.Idata[];
+
+                if (userList.length > 0) {
+                    for (const user of userList) {
+                        await this.tableInsert(user.id, user.email, user.name, user.surname, user.password, user.mcpSessionId || "");
+                    }
+
+                    await database.pool
+                        .query(`SELECT setval(pg_get_serial_sequence('"user"', 'id'), (SELECT COALESCE(MAX(id), 0) + 1 FROM "user"), false);`)
+                        .catch((error: Error) => {
+                            helperSrc.writeLog("User.ts - tableCreate() - SELECT setval() - catch()", error.message);
+                        });
+
+                    isResult = true;
                 }
-
-                isResult = true;
             }
         }
 
         return isResult;
     };
 
-    loginSessionVerify = (username: string, password: string): modelUser.IdataLoginSession => {
+    loginSessionVerify = async (username: string, password: string): Promise<modelUser.IdataLoginSession> => {
         const resultObject = {} as modelUser.IdataLoginSession;
 
-        const user = this.tableSelect(username, "");
+        const user = await this.tableSelect(username, "");
 
         if (user.id) {
             if (this.passwordVerify(password, user.password)) {
@@ -129,7 +164,7 @@ export default class User {
                     resultObject.mcpSessionId = helperSrc.generateUniqueId();
                     resultObject.message = "";
 
-                    this.tableUpdate(user.id, user.name, user.surname, "", resultObject.mcpSessionId);
+                    await this.tableUpdate(user.id, user.name, user.surname, "", resultObject.mcpSessionId);
                 }
             } else {
                 resultObject.mcpSessionId = "";
@@ -144,11 +179,11 @@ export default class User {
     };
 
     api = (): void => {
-        this.app.get("/api/user-info", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
+        this.app.get("/api/user-info", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId === "string") {
-                const user = this.tableSelect("", mcpSessionId);
+                const user = await this.tableSelect("", mcpSessionId);
 
                 const resultObject = {
                     id: user.id,
@@ -165,7 +200,7 @@ export default class User {
             }
         });
 
-        this.app.post("/api/user-update", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
+        this.app.post("/api/user-update", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body as modelUser.IapiDataUpdateBody;
 
@@ -175,7 +210,7 @@ export default class User {
             const password = body.password;
 
             if (typeof mcpSessionId === "string") {
-                const isUpdate = this.tableUpdate(id, name, surname, password, mcpSessionId);
+                const isUpdate = await this.tableUpdate(id, name, surname, password, mcpSessionId);
 
                 if (isUpdate) {
                     helperSrc.responseBody("ok", "", response, 200);

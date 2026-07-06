@@ -148,10 +148,10 @@ class Engine:
         if fileId > 0:
             tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
 
-            queryList = database.execute(f'SELECT name, name_norm, description FROM "{tableName}" WHERE file_id = %s', (fileId,)).fetchall()
+            queryList = database.execute(f'SELECT name, name_normalized, description FROM "{tableName}" WHERE file_id = %s', (fileId,)).fetchall()
 
             for a in range(len(queryList)):
-                resultList.append({"name": queryList[a][0], "nameNorm": queryList[a][1], "description": queryList[a][2]})
+                resultList.append({"name": queryList[a][0], "nameNormalized": queryList[a][1], "description": queryList[a][2]})
 
         return resultList
 
@@ -172,26 +172,26 @@ class Engine:
             clauseList = []
 
             for a in range(len(likeList)):
-                clauseList.append("name_norm LIKE %s")
+                clauseList.append("name_normalized LIKE %s")
 
-            queryList = database.execute(f'SELECT name_norm FROM "{tableName}" WHERE {" OR ".join(clauseList)} GROUP BY name_norm ORDER BY length(name_norm) ASC', tuple(likeList)).fetchall()
+            queryList = database.execute(f'SELECT name_normalized FROM "{tableName}" WHERE {" OR ".join(clauseList)} GROUP BY name_normalized ORDER BY length(name_normalized) ASC', tuple(likeList)).fetchall()
 
             for a in range(len(queryList)):
                 resultList.append(queryList[a][0])
 
         return resultList
 
-    def _logicNodeDetail(self, database, mcpSessionId, nameNormList):
+    def _logicNodeDetail(self, database, mcpSessionId, nameNormalizedList):
         resultList = []
 
-        if len(nameNormList) > 0:
+        if len(nameNormalizedList) > 0:
             tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
 
-            placeholder = ",".join("%s" for a in range(len(nameNormList)))
+            placeholder = ",".join("%s" for a in range(len(nameNormalizedList)))
 
             queryList = database.execute(
-                f'SELECT DISTINCT ON (name_norm) name, type, description FROM "{tableName}" WHERE name_norm IN ({placeholder}) ORDER BY name_norm, length(description) DESC',
-                tuple(nameNormList)
+                f'SELECT DISTINCT ON (name_normalized) name, type, description FROM "{tableName}" WHERE name_normalized IN ({placeholder}) ORDER BY name_normalized, length(description) DESC',
+                tuple(nameNormalizedList)
             ).fetchall()
 
             for a in range(len(queryList)):
@@ -199,17 +199,17 @@ class Engine:
 
         return resultList
 
-    def _logicNodeFileList(self, database, mcpSessionId, nameNormList):
+    def _logicNodeFileList(self, database, mcpSessionId, nameNormalizedList):
         resultList = []
 
-        if len(nameNormList) > 0:
+        if len(nameNormalizedList) > 0:
             tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
 
-            placeholder = ",".join("%s" for a in range(len(nameNormList)))
+            placeholder = ",".join("%s" for a in range(len(nameNormalizedList)))
 
             queryList = database.execute(
-                f'SELECT DISTINCT file_id FROM "{tableName}" WHERE name_norm IN ({placeholder})',
-                tuple(nameNormList)
+                f'SELECT DISTINCT file_id FROM "{tableName}" WHERE name_normalized IN ({placeholder})',
+                tuple(nameNormalizedList)
             ).fetchall()
 
             for a in range(len(queryList)):
@@ -217,15 +217,15 @@ class Engine:
 
         return resultList
 
-    def _logicNodeType(self, database, mcpSessionId, nameNormList):
+    def _logicNodeType(self, database, mcpSessionId, nameNormalizedList):
         resultObject = {}
 
-        if len(nameNormList) > 0:
+        if len(nameNormalizedList) > 0:
             tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
 
-            placeholder = ",".join("%s" for a in range(len(nameNormList)))
+            placeholder = ",".join("%s" for a in range(len(nameNormalizedList)))
 
-            queryList = database.execute(f'SELECT name_norm, type FROM "{tableName}" WHERE name_norm IN ({placeholder}) AND type != \'\'', tuple(nameNormList)).fetchall()
+            queryList = database.execute(f'SELECT name_normalized, type FROM "{tableName}" WHERE name_normalized IN ({placeholder}) AND type != \'\'', tuple(nameNormalizedList)).fetchall()
 
             for a in range(len(queryList)):
                 if resultObject.get(queryList[a][0]) is None:
@@ -233,17 +233,17 @@ class Engine:
 
         return resultObject
 
-    def _logicNodeDegree(self, database, mcpSessionId, nameNormList):
+    def _logicNodeDegree(self, database, mcpSessionId, nameNormalizedList):
         resultObject = {}
 
-        if len(nameNormList) > 0:
+        if len(nameNormalizedList) > 0:
             tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
 
-            placeholder = ",".join("%s" for a in range(len(nameNormList)))
+            placeholder = ",".join("%s" for a in range(len(nameNormalizedList)))
 
             queryList = database.execute(
-                f'SELECT node, COUNT(*) AS degree FROM (SELECT source_norm AS node FROM "{tableName}" UNION ALL SELECT target_norm AS node FROM "{tableName}") AS nodeUnion WHERE node IN ({placeholder}) GROUP BY node',
-                tuple(nameNormList)
+                f'SELECT node, COUNT(*) AS degree FROM (SELECT source_normalized AS node FROM "{tableName}" UNION ALL SELECT target_normalized AS node FROM "{tableName}") AS nodeUnion WHERE node IN ({placeholder}) GROUP BY node',
+                tuple(nameNormalizedList)
             ).fetchall()
 
             for a in range(len(queryList)):
@@ -257,14 +257,14 @@ class Engine:
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
 
         queryRowList = database.execute(
-            f'SELECT name, name_norm, description, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
+            f'SELECT name, name_normalized, description, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
             (queryVector, self.candidatePool)
         ).fetchall()
 
         candidateList = []
 
         for a in range(len(queryRowList)):
-            candidateList.append({"name": queryRowList[a][0], "nameNorm": queryRowList[a][1], "description": queryRowList[a][2], "distance": float(queryRowList[a][3])})
+            candidateList.append({"name": queryRowList[a][0], "nameNormalized": queryRowList[a][1], "description": queryRowList[a][2], "distance": float(queryRowList[a][3])})
 
         distanceBest = -1
 
@@ -302,14 +302,14 @@ class Engine:
             placeholder = ",".join("%s" for a in range(len(idList)))
 
             queryList = database.execute(
-                f'SELECT id, source, target, description, source_norm, target_norm FROM "{tableName}" WHERE id IN ({placeholder})',
+                f'SELECT id, source, target, description, source_normalized, target_normalized FROM "{tableName}" WHERE id IN ({placeholder})',
                 tuple(idList)
             ).fetchall()
 
             for a in range(len(queryList)):
                 query = queryList[a]
 
-                resultList.append({"id": query[0], "source": query[1], "target": query[2], "description": query[3], "sourceNorm": query[4], "targetNorm": query[5]})
+                resultList.append({"id": query[0], "source": query[1], "target": query[2], "description": query[3], "sourceNormalized": query[4], "targetNormalized": query[5]})
 
         return resultList
 
@@ -324,9 +324,9 @@ class Engine:
             placeholder = ",".join("%s" for a in range(len(seedList)))
 
             queryList = database.execute(
-                f'SELECT DISTINCT ON (source_norm, target_norm) id, source, target, description, source_norm, target_norm FROM "{tableName}" '
-                f'WHERE source_norm IN ({placeholder}) OR target_norm IN ({placeholder}) '
-                f'ORDER BY source_norm, target_norm, id LIMIT {limit}',
+                f'SELECT DISTINCT ON (source_normalized, target_normalized) id, source, target, description, source_normalized, target_normalized FROM "{tableName}" '
+                f'WHERE source_normalized IN ({placeholder}) OR target_normalized IN ({placeholder}) '
+                f'ORDER BY source_normalized, target_normalized, id LIMIT {limit}',
                 tuple(seedList) + tuple(seedList)
             ).fetchall()
 
@@ -338,8 +338,8 @@ class Engine:
                     "target": query[2],
                     "description": query[3],
                     "edgeId": query[0],
-                    "sourceNorm": query[4],
-                    "targetNorm": query[5],
+                    "sourceNormalized": query[4],
+                    "targetNormalized": query[5],
                     "relevance": 0,
                     "rank": 0
                 })
@@ -435,45 +435,45 @@ class Engine:
     def _tableNodeCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
 
-        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, name TEXT NOT NULL, name_norm TEXT NOT NULL, type TEXT NOT NULL, description TEXT NOT NULL, UNIQUE (file_id, name_norm))')
-        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_norm" ON "{name}" USING gin (name_norm gin_trgm_ops)')
+        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, name TEXT NOT NULL, name_normalized TEXT NOT NULL, type TEXT NOT NULL, description TEXT NOT NULL, UNIQUE (file_id, name_normalized))')
+        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_normalized" ON "{name}" USING gin (name_normalized gin_trgm_ops)')
 
     def _tableNodeInsert(self, database, mcpSessionId, fileId, name, type, description):
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
 
         if fileId > 0:
             database.execute(
-                f'INSERT INTO "{tableName}" (file_id, name, name_norm, type, description) VALUES (%s, %s, %s, %s, %s) '
-                f'ON CONFLICT (file_id, name_norm) DO UPDATE SET description = excluded.description WHERE "{tableName}".description = \'\'',
+                f'INSERT INTO "{tableName}" (file_id, name, name_normalized, type, description) VALUES (%s, %s, %s, %s, %s) '
+                f'ON CONFLICT (file_id, name_normalized) DO UPDATE SET description = excluded.description WHERE "{tableName}".description = \'\'',
                 (fileId, name, self._utilNodeNormalize(name), type, description)
             )
 
     def _tableNodeVecCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
 
-        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, name TEXT NOT NULL, name_norm TEXT NOT NULL, description TEXT NOT NULL, embedding vector({self.vectorDimension}))')
+        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, name TEXT NOT NULL, name_normalized TEXT NOT NULL, description TEXT NOT NULL, embedding vector({self.vectorDimension}))')
 
-    def _tableNodeVecInsert(self, database, mcpSessionId, fileId, name, nameNorm, description, embeddingList):
+    def _tableNodeVecInsert(self, database, mcpSessionId, fileId, name, nameNormalized, description, embeddingList):
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
 
         if fileId > 0:
             embedding = numpy.array(embeddingList, dtype=numpy.float32)
 
-            database.execute(f'INSERT INTO "{tableName}" (file_id, name, name_norm, description, embedding) VALUES (%s, %s, %s, %s, %s)', (fileId, name, nameNorm, description, embedding))
+            database.execute(f'INSERT INTO "{tableName}" (file_id, name, name_normalized, description, embedding) VALUES (%s, %s, %s, %s, %s)', (fileId, name, nameNormalized, description, embedding))
 
     def _tableEdgeCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
 
-        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, source TEXT NOT NULL, target TEXT NOT NULL, description TEXT NOT NULL, source_norm TEXT NOT NULL, target_norm TEXT NOT NULL)')
-        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_source" ON "{name}" (source_norm)')
-        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_target" ON "{name}" (target_norm)')
+        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, source TEXT NOT NULL, target TEXT NOT NULL, description TEXT NOT NULL, source_normalized TEXT NOT NULL, target_normalized TEXT NOT NULL)')
+        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_source" ON "{name}" (source_normalized)')
+        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_target" ON "{name}" (target_normalized)')
 
     def _tableEdgeInsert(self, database, mcpSessionId, fileId, relation):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
 
         if fileId > 0:
             database.execute(
-                f'INSERT INTO "{name}" (file_id, source, target, description, source_norm, target_norm) VALUES (%s, %s, %s, %s, %s, %s)',
+                f'INSERT INTO "{name}" (file_id, source, target, description, source_normalized, target_normalized) VALUES (%s, %s, %s, %s, %s, %s)',
                 (fileId, relation["source"], relation["target"], relation["description"], self._utilNodeNormalize(relation["source"]), self._utilNodeNormalize(relation["target"]))
             )
 
@@ -702,9 +702,9 @@ class Engine:
             if len(name) < self.nameMinLength or name.lower().find("http") != -1:
                 continue
 
-            nameNorm = self._utilNodeNormalize(name)
+            nameNormalized = self._utilNodeNormalize(name)
 
-            entity["nameNorm"] = nameNorm
+            entity["nameNormalized"] = nameNormalized
 
             description = ""
 
@@ -714,8 +714,8 @@ class Engine:
 
                     break
 
-            if seenObject.get(nameNorm) is None:
-                seenObject[nameNorm] = True
+            if seenObject.get(nameNormalized) is None:
+                seenObject[nameNormalized] = True
 
                 resultList.append({"name": name, "type": entity["label"], "description": description})
 
@@ -734,7 +734,7 @@ class Engine:
             for b in range(len(entityPredictList)):
                 entity = entityPredictList[b]
 
-                if entity.get("nameNorm") is None:
+                if entity.get("nameNormalized") is None:
                     continue
 
                 if entity["start"] >= sentence["start"] and entity["start"] < sentence["end"]:
@@ -746,7 +746,7 @@ class Engine:
                 source = sentenceEntityList[b]
                 target = sentenceEntityList[b + 1]
 
-                if source["nameNorm"] == target["nameNorm"]:
+                if source["nameNormalized"] == target["nameNormalized"]:
                     continue
 
                 gap = target["start"] - source["end"]
@@ -754,7 +754,7 @@ class Engine:
                 if gap < 0 or gap > self.relationGapMax:
                     continue
 
-                key = source["nameNorm"] + "|" + target["nameNorm"]
+                key = source["nameNormalized"] + "|" + target["nameNormalized"]
 
                 if seenObject.get(key) is None:
                     seenObject[key] = True
@@ -858,7 +858,7 @@ class Engine:
 
             if isinstance(nodeEmbeddingData.get("data"), list) and len(nodeEmbeddingData["data"]) == len(nodeBatchList):
                 for b in range(len(nodeBatchList)):
-                    self._tableNodeVecInsert(database, mcpSessionId, fileId, nodeBatchList[b]["name"], nodeBatchList[b]["nameNorm"], nodeBatchList[b]["description"], nodeEmbeddingData["data"][b]["embedding"])
+                    self._tableNodeVecInsert(database, mcpSessionId, fileId, nodeBatchList[b]["name"], nodeBatchList[b]["nameNormalized"], nodeBatchList[b]["description"], nodeEmbeddingData["data"][b]["embedding"])
 
                 database.commit()
             else:
@@ -965,9 +965,9 @@ class Engine:
                     nodeMatchList = self._logicNodeVecMatch(database, mcpSessionId, nodeVector)
 
                     for b in range(len(nodeMatchList)):
-                        if seedObject.get(nodeMatchList[b]["nameNorm"]) is None:
-                            seedObject[nodeMatchList[b]["nameNorm"]] = True
-                            seedList.append(nodeMatchList[b]["nameNorm"])
+                        if seedObject.get(nodeMatchList[b]["nameNormalized"]) is None:
+                            seedObject[nodeMatchList[b]["nameNormalized"]] = True
+                            seedList.append(nodeMatchList[b]["nameNormalized"])
 
         seedLikeList = self._logicNodeMatch(database, mcpSessionId, entityList)
 
@@ -1012,19 +1012,19 @@ class Engine:
                     "target": edgeFull["target"],
                     "description": edgeFull["description"],
                     "edgeId": edgeFull["id"],
-                    "sourceNorm": edgeFull["sourceNorm"],
-                    "targetNorm": edgeFull["targetNorm"],
+                    "sourceNormalized": edgeFull["sourceNormalized"],
+                    "targetNormalized": edgeFull["targetNormalized"],
                     "relevance": 0,
                     "rank": 0
                 })
 
-                if seedObject.get(edgeFull["sourceNorm"]) is None:
-                    seedObject[edgeFull["sourceNorm"]] = True
-                    seedList.append(edgeFull["sourceNorm"])
+                if seedObject.get(edgeFull["sourceNormalized"]) is None:
+                    seedObject[edgeFull["sourceNormalized"]] = True
+                    seedList.append(edgeFull["sourceNormalized"])
 
-                if seedObject.get(edgeFull["targetNorm"]) is None:
-                    seedObject[edgeFull["targetNorm"]] = True
-                    seedList.append(edgeFull["targetNorm"])
+                if seedObject.get(edgeFull["targetNormalized"]) is None:
+                    seedObject[edgeFull["targetNormalized"]] = True
+                    seedList.append(edgeFull["targetNormalized"])
 
         return graphCandidateList
 
@@ -1033,27 +1033,27 @@ class Engine:
 
         graphSeenObject = {}
         graphDedupList = []
-        nodeNormObject = {}
-        nodeNormList = []
+        nodeNormalizedObject = {}
+        nodeNormalizedList = []
 
         for a in range(len(graphCandidateList)):
             candidate = graphCandidateList[a]
 
-            key = f"{candidate['sourceNorm']}|{candidate['targetNorm']}"
+            key = f"{candidate['sourceNormalized']}|{candidate['targetNormalized']}"
 
             if graphSeenObject.get(key) is None:
                 graphSeenObject[key] = True
                 graphDedupList.append(candidate)
 
-                if nodeNormObject.get(candidate["sourceNorm"]) is None:
-                    nodeNormObject[candidate["sourceNorm"]] = True
-                    nodeNormList.append(candidate["sourceNorm"])
+                if nodeNormalizedObject.get(candidate["sourceNormalized"]) is None:
+                    nodeNormalizedObject[candidate["sourceNormalized"]] = True
+                    nodeNormalizedList.append(candidate["sourceNormalized"])
 
-                if nodeNormObject.get(candidate["targetNorm"]) is None:
-                    nodeNormObject[candidate["targetNorm"]] = True
-                    nodeNormList.append(candidate["targetNorm"])
+                if nodeNormalizedObject.get(candidate["targetNormalized"]) is None:
+                    nodeNormalizedObject[candidate["targetNormalized"]] = True
+                    nodeNormalizedList.append(candidate["targetNormalized"])
 
-        degreeObject = self._logicNodeDegree(database, mcpSessionId, nodeNormList)
+        degreeObject = self._logicNodeDegree(database, mcpSessionId, nodeNormalizedList)
 
         relevanceObject = {}
 
@@ -1064,11 +1064,11 @@ class Engine:
             degreeSource = 0
             degreeTarget = 0
 
-            if degreeObject.get(graphDedupList[a]["sourceNorm"]) is not None:
-                degreeSource = degreeObject[graphDedupList[a]["sourceNorm"]]
+            if degreeObject.get(graphDedupList[a]["sourceNormalized"]) is not None:
+                degreeSource = degreeObject[graphDedupList[a]["sourceNormalized"]]
 
-            if degreeObject.get(graphDedupList[a]["targetNorm"]) is not None:
-                degreeTarget = degreeObject[graphDedupList[a]["targetNorm"]]
+            if degreeObject.get(graphDedupList[a]["targetNormalized"]) is not None:
+                degreeTarget = degreeObject[graphDedupList[a]["targetNormalized"]]
 
             graphDedupList[a]["rank"] = degreeSource + degreeTarget
 
@@ -1275,35 +1275,35 @@ class Engine:
             edgeTableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
 
             nodeRowList = database.execute(
-                f'SELECT DISTINCT ON (name_norm) name_norm, name, type, description FROM "{nodeTableName}" ORDER BY name_norm, length(description) DESC'
+                f'SELECT DISTINCT ON (name_normalized) name_normalized, name, type, description FROM "{nodeTableName}" ORDER BY name_normalized, length(description) DESC'
             ).fetchall()
 
             nodeSeenObject = {}
 
             for a in range(len(nodeRowList)):
-                nameNorm = nodeRowList[a][0]
+                nameNormalized = nodeRowList[a][0]
 
-                nodeSeenObject[nameNorm] = True
+                nodeSeenObject[nameNormalized] = True
 
-                nodeList.append({"id": nameNorm, "label": nodeRowList[a][1], "color": colorObject.get(nodeRowList[a][2], "#888888"), "title": nodeRowList[a][3]})
+                nodeList.append({"id": nameNormalized, "label": nodeRowList[a][1], "color": colorObject.get(nodeRowList[a][2], "#888888"), "title": nodeRowList[a][3]})
 
-            edgeRowList = database.execute(f'SELECT source_norm, target_norm, source, target, description FROM "{edgeTableName}"').fetchall()
+            edgeRowList = database.execute(f'SELECT source_normalized, target_normalized, source, target, description FROM "{edgeTableName}"').fetchall()
 
             for a in range(len(edgeRowList)):
-                sourceNorm = edgeRowList[a][0]
-                targetNorm = edgeRowList[a][1]
+                sourceNormalized = edgeRowList[a][0]
+                targetNormalized = edgeRowList[a][1]
 
-                if nodeSeenObject.get(sourceNorm) is None:
-                    nodeSeenObject[sourceNorm] = True
+                if nodeSeenObject.get(sourceNormalized) is None:
+                    nodeSeenObject[sourceNormalized] = True
 
-                    nodeList.append({"id": sourceNorm, "label": edgeRowList[a][2], "color": "#888888", "title": ""})
+                    nodeList.append({"id": sourceNormalized, "label": edgeRowList[a][2], "color": "#888888", "title": ""})
 
-                if nodeSeenObject.get(targetNorm) is None:
-                    nodeSeenObject[targetNorm] = True
+                if nodeSeenObject.get(targetNormalized) is None:
+                    nodeSeenObject[targetNormalized] = True
 
-                    nodeList.append({"id": targetNorm, "label": edgeRowList[a][3], "color": "#888888", "title": ""})
+                    nodeList.append({"id": targetNormalized, "label": edgeRowList[a][3], "color": "#888888", "title": ""})
 
-                edgeList.append({"from": sourceNorm, "to": targetNorm, "title": edgeRowList[a][4]})
+                edgeList.append({"from": sourceNormalized, "to": targetNormalized, "title": edgeRowList[a][4]})
 
         nodeList.sort(key=lambda node: node["label"].lower())
 
@@ -1367,10 +1367,10 @@ class Engine:
             chunkRelationList = self._relation(entityPredictList, sentenceList)
 
             for b in range(len(chunkEntityList)):
-                nameNorm = self._utilNodeNormalize(chunkEntityList[b]["name"])
+                nameNormalized = self._utilNodeNormalize(chunkEntityList[b]["name"])
 
-                if entitySeenObject.get(nameNorm) is None:
-                    entitySeenObject[nameNorm] = True
+                if entitySeenObject.get(nameNormalized) is None:
+                    entitySeenObject[nameNormalized] = True
 
                     entityList.append(chunkEntityList[b])
 

@@ -1,10 +1,11 @@
 import Express, { Request, Response } from "express";
 import { RateLimitRequestHandler } from "express-rate-limit";
-import Database from "better-sqlite3";
+import Pg from "pg";
 import { Ca } from "@cimo/authentication/dist/src/Main.js";
 
 // Source
 import * as helperSrc from "../HelperSrc.js";
+import * as database from "../Database.js";
 import * as modelAgent from "../model/Agent.js";
 
 export default class Agent {
@@ -12,67 +13,96 @@ export default class Agent {
     private app: Express.Express;
     private limiter: RateLimitRequestHandler;
 
-    private database: Database.Database;
-
     // Method
-    private tableInsert = (mcpSessionId: string, name: string, description: string, skillName: string): boolean => {
+    private tableInsert = async (mcpSessionId: string, name: string, description: string, skillName: string): Promise<boolean> => {
         let isResult = false;
 
         if (mcpSessionId !== "") {
-            this.database
-                .prepare(`INSERT INTO "${mcpSessionId}_agent" (name, description, skill_name) VALUES (?, ?, ?);`)
-                .run(name, description, skillName);
+            isResult = await database.pool
+                .query(`INSERT INTO "${mcpSessionId}_agent" (name, description, skill_name) VALUES ($1, $2, $3);`, [name, description, skillName])
+                .then(() => {
+                    return true;
+                })
+                .catch((error: Error) => {
+                    helperSrc.writeLog("Agent.ts - tableInsert() - catch()", error.message);
 
-            isResult = true;
-        }
-
-        return isResult;
-    };
-
-    private tableUpdate = (mcpSessionId: string, id: number, name: string, description: string, skillName: string): boolean => {
-        let isResult = false;
-
-        if (mcpSessionId !== "") {
-            this.database
-                .prepare(`UPDATE "${mcpSessionId}_agent" SET name = ?, description = ?, skill_name = ? WHERE id = ?;`)
-                .run(name, description, skillName, id);
-
-            isResult = true;
-        }
-
-        return isResult;
-    };
-
-    private tableSelectList = (mcpSessionId: string): modelAgent.Idata[] => {
-        const resultList: modelAgent.Idata[] = [];
-
-        if (mcpSessionId !== "") {
-            const queryList = this.database
-                .prepare(`SELECT id, name, description, skill_name FROM "${mcpSessionId}_agent";`)
-                .all() as unknown as modelAgent.IdataDatabaseQuery[];
-
-            for (let a = 0; a < queryList.length; a++) {
-                const query = queryList[a];
-
-                resultList.push({
-                    id: query.id,
-                    name: query.name,
-                    description: query.description,
-                    skillName: query.skill_name
+                    return false;
                 });
-            }
+        }
+
+        return isResult;
+    };
+
+    private tableUpdate = async (mcpSessionId: string, id: number, name: string, description: string, skillName: string): Promise<boolean> => {
+        let isResult = false;
+
+        if (mcpSessionId !== "") {
+            isResult = await database.pool
+                .query(`UPDATE "${mcpSessionId}_agent" SET name = $1, description = $2, skill_name = $3 WHERE id = $4;`, [
+                    name,
+                    description,
+                    skillName,
+                    id
+                ])
+                .then(() => {
+                    return true;
+                })
+                .catch((error: Error) => {
+                    helperSrc.writeLog("Agent.ts - tableUpdate() - catch()", error.message);
+
+                    return false;
+                });
+        }
+
+        return isResult;
+    };
+
+    private tableSelectList = async (mcpSessionId: string): Promise<modelAgent.Idata[]> => {
+        let resultList: modelAgent.Idata[] = [];
+
+        if (mcpSessionId !== "") {
+            resultList = await database.pool
+                .query(`SELECT id, name, description, skill_name FROM "${mcpSessionId}_agent";`)
+                .then((queryResult: Pg.QueryResult<modelAgent.IdataDatabaseQuery>) => {
+                    const dataList: modelAgent.Idata[] = [];
+
+                    for (let a = 0; a < queryResult.rows.length; a++) {
+                        const queryRow = queryResult.rows[a];
+
+                        dataList.push({
+                            id: queryRow.id,
+                            name: queryRow.name,
+                            description: queryRow.description,
+                            skillName: queryRow.skill_name
+                        });
+                    }
+
+                    return dataList;
+                })
+                .catch((error: Error) => {
+                    helperSrc.writeLog("Agent.ts - tableSelectList() - catch()", error.message);
+
+                    return [];
+                });
         }
 
         return resultList;
     };
 
-    private tableDelete = (mcpSessionId: string, id: number): boolean => {
+    private tableDelete = async (mcpSessionId: string, id: number): Promise<boolean> => {
         let isResult = false;
 
         if (mcpSessionId !== "") {
-            this.database.prepare(`DELETE FROM "${mcpSessionId}_agent" WHERE id = ?;`).run(id);
+            isResult = await database.pool
+                .query(`DELETE FROM "${mcpSessionId}_agent" WHERE id = $1;`, [id])
+                .then(() => {
+                    return true;
+                })
+                .catch((error: Error) => {
+                    helperSrc.writeLog("Agent.ts - tableDelete() - catch()", error.message);
 
-            isResult = true;
+                    return false;
+                });
         }
 
         return isResult;
@@ -81,31 +111,31 @@ export default class Agent {
     constructor(app: Express.Express, limiter: RateLimitRequestHandler) {
         this.app = app;
         this.limiter = limiter;
-
-        this.database = new Database(`${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}sqlite/agent.sqlite`);
     }
 
-    tableCreate = (mcpSessionId: string): boolean => {
+    tableCreate = async (mcpSessionId: string): Promise<boolean> => {
         let isResult = false;
 
         if (mcpSessionId !== "") {
-            this.database.exec(`
-                CREATE TABLE IF NOT EXISTS "${mcpSessionId}_agent" (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    description TEXT,
-                    skill_name TEXT
-                );
-            `);
+            isResult = await database.pool
+                .query(
+                    `CREATE TABLE IF NOT EXISTS "${mcpSessionId}_agent" (id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, name TEXT NOT NULL, description TEXT, skill_name TEXT);`
+                )
+                .then(() => {
+                    return true;
+                })
+                .catch((error: Error) => {
+                    helperSrc.writeLog("Agent.ts - tableCreate() - catch()", error.message);
 
-            isResult = true;
+                    return false;
+                });
         }
 
         return isResult;
     };
 
     api = (): void => {
-        this.app.post("/api/agent-create", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
+        this.app.post("/api/agent-create", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body as modelAgent.IapiDataCreateBody;
 
@@ -114,7 +144,7 @@ export default class Agent {
             const skillName = body.skillName;
 
             if (typeof mcpSessionId === "string") {
-                const isInsert = this.tableInsert(mcpSessionId, name, description, skillName);
+                const isInsert = await this.tableInsert(mcpSessionId, name, description, skillName);
 
                 if (isInsert) {
                     helperSrc.responseBody("ok", "", response, 200);
@@ -128,7 +158,7 @@ export default class Agent {
             }
         });
 
-        this.app.post("/api/agent-update", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
+        this.app.post("/api/agent-update", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body as modelAgent.IapiDataUpdateBody;
 
@@ -138,7 +168,7 @@ export default class Agent {
             const skillName = body.skillName;
 
             if (typeof mcpSessionId === "string") {
-                const isUpdate = this.tableUpdate(mcpSessionId, id, name, description, skillName);
+                const isUpdate = await this.tableUpdate(mcpSessionId, id, name, description, skillName);
 
                 if (isUpdate) {
                     helperSrc.responseBody("ok", "", response, 200);
@@ -152,11 +182,11 @@ export default class Agent {
             }
         });
 
-        this.app.get("/api/agent-list", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
+        this.app.get("/api/agent-list", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId === "string") {
-                const resultList = this.tableSelectList(mcpSessionId);
+                const resultList = await this.tableSelectList(mcpSessionId);
 
                 helperSrc.responseBody(JSON.stringify(resultList), "", response, 200);
             } else {
@@ -166,14 +196,14 @@ export default class Agent {
             }
         });
 
-        this.app.post("/api/agent-delete", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
+        this.app.post("/api/agent-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body as modelAgent.IapiDataDeleteBody;
 
             const id = body.id;
 
             if (typeof mcpSessionId === "string") {
-                const isDelete = this.tableDelete(mcpSessionId, id);
+                const isDelete = await this.tableDelete(mcpSessionId, id);
 
                 if (isDelete) {
                     helperSrc.responseBody("ok", "", response, 200);

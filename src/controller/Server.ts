@@ -131,7 +131,7 @@ export default class Server {
 
                 const body = request.body as modelServer.IapiDataLoginBody;
 
-                const loginSession = controllerUser.loginSessionVerify(body.username, body.password);
+                const loginSession = await controllerUser.loginSessionVerify(body.username, body.password);
 
                 if (loginSession.mcpSessionId !== "" && loginSession.message === "") {
                     const loginRpc = await controllerTool.loginRpc(response, loginSession.mcpSessionId);
