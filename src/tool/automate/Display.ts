@@ -7,18 +7,18 @@ import sharp, { Channels } from "sharp";
 import * as helperSrc from "../../HelperSrc.js";
 
 const drawCursor = async (mcpSessionId: string, buffer: Buffer): Promise<void> => {
-    const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/screenshot.jpg`;
+    const pathFile = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/screenshot.jpg`;
 
-    const directory = Path.dirname(input);
+    const directory = Path.dirname(pathFile);
     Fs.mkdirSync(directory, { recursive: true });
 
     const cursor = Buffer.from(`<svg width="20" height="20"><circle cx="5" cy="5" r="5" fill="red"/></svg>`);
 
     const mousePosition = await mouse.getPosition();
 
-    await sharp(buffer)
+    sharp(buffer)
         .composite([{ input: cursor, top: mousePosition.y, left: mousePosition.x }])
-        .toFile(input);
+        .toFile(pathFile);
 };
 
 export const screenshot = async (mcpSessionId: string): Promise<string> => {
@@ -36,7 +36,7 @@ export const screenshot = async (mcpSessionId: string): Promise<string> => {
         .toBuffer();
 
     if (helperSrc.IS_DEBUG) {
-        await drawCursor(mcpSessionId, imageBuffer);
+        drawCursor(mcpSessionId, imageBuffer);
     }
 
     return imageBuffer.toString("base64");

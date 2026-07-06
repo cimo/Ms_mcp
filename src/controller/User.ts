@@ -37,28 +37,28 @@ export default class User {
         return isResult;
     };
 
-    private tableInsert = (id: number, email: string, password: string, mcpSessionId: string): boolean => {
+    private tableInsert = (id: number, email: string, name: string, surname: string, password: string, mcpSessionId: string): boolean => {
         let isResult = false;
 
         const hash = password === "" ? null : this.passwordHash(password);
 
         this.database
-            .prepare("INSERT OR IGNORE INTO \"user\" (id, email, password, mcp_session_id) VALUES (?, ?, ?, NULLIF(?, ''));")
-            .run(id, email, hash, mcpSessionId);
+            .prepare("INSERT OR IGNORE INTO \"user\" (id, email, name, surname, password, mcp_session_id) VALUES (?, ?, ?, ?, ?, NULLIF(?, ''));")
+            .run(id, email, name, surname, hash, mcpSessionId);
 
         isResult = true;
 
         return isResult;
     };
 
-    private tableUpdate = (id: number, email: string, password: string, mcpSessionId: string): boolean => {
+    private tableUpdate = (id: number, name: string, surname: string, password: string, mcpSessionId: string): boolean => {
         let isResult = false;
 
         const hash = password === "" ? null : this.passwordHash(password);
 
         this.database
-            .prepare("UPDATE \"user\" SET email = ?, password = COALESCE(?, password), mcp_session_id = NULLIF(?, '') WHERE id = ?;")
-            .run(email, hash, mcpSessionId, id);
+            .prepare("UPDATE \"user\" SET name = ?, surname = ?, password = COALESCE(?, password), mcp_session_id = NULLIF(?, '') WHERE id = ?;")
+            .run(name, surname, hash, mcpSessionId, id);
 
         isResult = true;
 
@@ -69,12 +69,14 @@ export default class User {
         const resultObject = {} as modelUser.Idata;
 
         const queryRow = this.database
-            .prepare('SELECT id, email, password, mcp_session_id FROM "user" WHERE email = ? OR mcp_session_id = ?;')
+            .prepare('SELECT id, email, name, surname, password, mcp_session_id FROM "user" WHERE email = ? OR mcp_session_id = ?;')
             .get(email, mcpSessionId) as unknown as modelUser.IdataDatabaseQuery;
 
         if (queryRow) {
             resultObject.id = queryRow.id;
             resultObject.email = queryRow.email;
+            resultObject.name = queryRow.name;
+            resultObject.surname = queryRow.surname;
             resultObject.password = queryRow.password;
             resultObject.mcpSessionId = queryRow.mcp_session_id;
         }
@@ -93,7 +95,7 @@ export default class User {
         let isResult = false;
 
         this.database.exec(
-            'CREATE TABLE IF NOT EXISTS "user" (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE, password TEXT NOT NULL, mcp_session_id TEXT UNIQUE);'
+            'CREATE TABLE IF NOT EXISTS "user" (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, surname TEXT NOT NULL, password TEXT NOT NULL, mcp_session_id TEXT UNIQUE);'
         );
 
         const fileReadStream = await helperSrc.fileReadStream(`${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}fixture/dev/user.json`);
@@ -103,7 +105,7 @@ export default class User {
 
             if (userList.length > 0) {
                 for (const user of userList) {
-                    this.tableInsert(user.id, user.email, user.password, user.mcpSessionId || "");
+                    this.tableInsert(user.id, user.email, user.name, user.surname, user.password, user.mcpSessionId || "");
                 }
 
                 isResult = true;
@@ -127,7 +129,7 @@ export default class User {
                     resultObject.mcpSessionId = helperSrc.generateUniqueId();
                     resultObject.message = "";
 
-                    this.tableUpdate(user.id, user.email, "", resultObject.mcpSessionId);
+                    this.tableUpdate(user.id, user.name, user.surname, "", resultObject.mcpSessionId);
                 }
             } else {
                 resultObject.mcpSessionId = "";
@@ -150,7 +152,9 @@ export default class User {
 
                 const resultObject = {
                     id: user.id,
-                    email: user.email
+                    email: user.email,
+                    name: user.name,
+                    surname: user.surname
                 };
 
                 helperSrc.responseBody(JSON.stringify(resultObject), "", response, 200);
@@ -166,11 +170,12 @@ export default class User {
             const body = request.body as modelUser.IapiDataUpdateBody;
 
             const id = body.id;
-            const email = body.email;
+            const name = body.name;
+            const surname = body.surname;
             const password = body.password;
 
             if (typeof mcpSessionId === "string") {
-                const isUpdate = this.tableUpdate(id, email, password, mcpSessionId);
+                const isUpdate = this.tableUpdate(id, name, surname, password, mcpSessionId);
 
                 if (isUpdate) {
                     helperSrc.responseBody("ok", "", response, 200);

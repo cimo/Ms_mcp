@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 export interface IapiDocumentReadBody {
-    pageNumber: number;
     fileName: string;
 }
 

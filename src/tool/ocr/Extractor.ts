@@ -95,12 +95,12 @@ export const execute = (mcpSessionId: string, language: string, fileName: string
 
         const fileDetail = helperSrc.fileDetail(fileName);
 
-        const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/${fileName}`;
+        const pathFile = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/${fileName}`;
 
-        const resultFileReadStream = await helperSrc.fileReadStream(input);
+        const fileReadStream = await helperSrc.fileReadStream(pathFile);
 
-        if (Buffer.isBuffer(resultFileReadStream)) {
-            const buffer = Buffer.from(resultFileReadStream);
+        if (Buffer.isBuffer(fileReadStream)) {
+            const buffer = Buffer.from(fileReadStream);
             const blob = new Blob([buffer], { type: fileDetail.mimeType });
 
             const formData = new FormData();
@@ -111,7 +111,7 @@ export const execute = (mcpSessionId: string, language: string, fileName: string
 
             resultList = await apiExtract(formData);
         } else {
-            helperSrc.writeLog(`Extractor.ts - extract() - fileReadStream()`, resultFileReadStream.toString());
+            helperSrc.writeLog(`Extractor.ts - extract() - fileReadStream()`, fileReadStream.toString());
         }
 
         await apiLogout();

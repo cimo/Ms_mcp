@@ -235,10 +235,10 @@ export default class Tool {
             const fileDetail = helperSrc.fileDetail(fileName);
 
             if (typeof mcpSessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
+                const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
 
                 this.controllerUpload
-                    .execute(request, true, true, input)
+                    .execute(request, true, true, pathDocument)
                     .then(async (resultControllerUploadList) => {
                         if (resultControllerUploadList.length > 0) {
                             if (fileDetail.category === "document") {
@@ -282,26 +282,24 @@ export default class Tool {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body as modelTool.IapiDocumentReadBody;
 
-            const pageNumber = body.pageNumber;
             const fileName = body.fileName;
             const fileDetail = helperSrc.fileDetail(fileName);
 
             if (typeof mcpSessionId === "string") {
-                let input = "";
+                const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
+
                 let inputExtension = "";
                 let inputFileName = "";
 
                 if (fileDetail.category === "document") {
-                    input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/page/`;
-                    inputExtension = "html";
-                    inputFileName = `${pageNumber}.${inputExtension}`;
+                    inputExtension = "pdf";
+                    inputFileName = `converted.${inputExtension}`;
                 } else if (fileDetail.category === "image") {
-                    input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
                     inputExtension = fileDetail.extension;
                     inputFileName = fileDetail.fileName;
                 }
 
-                helperSrc.findInDirectoryRecursive(input, inputExtension).then((pathFileList) => {
+                helperSrc.findInDirectoryRecursive(pathDocument, inputExtension).then((pathFileList) => {
                     let isFound = false;
 
                     for (let a = 0; a < pathFileList.length; a++) {
@@ -353,9 +351,9 @@ export default class Tool {
             const fileDetail = helperSrc.fileDetail(fileName);
 
             if (typeof mcpSessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
+                const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
 
-                const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(input);
+                const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(pathDocument);
 
                 if (typeof fileOrFolderDelete !== "boolean") {
                     helperSrc.writeLog("Tool.ts - api() - post(/api/document-delete) - fileOrFolderDelete()", fileOrFolderDelete.toString());
@@ -407,9 +405,9 @@ export default class Tool {
             const fileDetail = helperSrc.fileDetail(fileName);
 
             if (typeof mcpSessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
+                const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
 
-                helperSrc.findInDirectoryRecursive(input, ".*").then((pathFileList) => {
+                helperSrc.findInDirectoryRecursive(pathDocument, ".*").then((pathFileList) => {
                     let status = "Ongoing";
 
                     for (let a = 0; a < pathFileList.length; a++) {
@@ -469,13 +467,13 @@ export default class Tool {
             }
 
             if (typeof mcpSessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/`;
+                const pathSkill = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/`;
 
                 this.controllerUpload
-                    .execute(request, true, true, input)
+                    .execute(request, true, true, pathSkill)
                     .then((resultControllerUploadList) => {
                         if (resultControllerUploadList.length > 0) {
-                            const zip = new AdmZip(`${input}${fileDetail.baseName}/${fileDetail.fileName}`);
+                            const zip = new AdmZip(`${pathSkill}${fileDetail.baseName}/${fileDetail.fileName}`);
                             const entryList = zip.getEntries();
 
                             let isSkillMd = false;
@@ -495,7 +493,7 @@ export default class Tool {
                             }
 
                             if (isSkillMd && isAssetFolder && isScriptFolder) {
-                                zip.extractAllTo(`${input}${fileDetail.baseName}`, true);
+                                zip.extractAllTo(`${pathSkill}${fileDetail.baseName}`, true);
                             }
 
                             helperSrc.responseBody(JSON.stringify({ fileName: fileDetail.fileName, status: "Success" }), "", response, 200);
@@ -536,9 +534,9 @@ export default class Tool {
             const fileName = body.fileName;
 
             if (typeof mcpSessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/${fileName}/`;
+                const pathSkill = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/${fileName}/`;
 
-                helperSrc.findInDirectoryRecursive(input, ".md").then((pathFileList) => {
+                helperSrc.findInDirectoryRecursive(pathSkill, ".md").then((pathFileList) => {
                     let isFound = false;
 
                     for (let a = 0; a < pathFileList.length; a++) {
@@ -581,9 +579,9 @@ export default class Tool {
             const fileName = body.fileName;
 
             if (typeof mcpSessionId === "string") {
-                const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/${fileName}/`;
+                const pathSkill = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/${fileName}/`;
 
-                const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(input);
+                const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(pathSkill);
 
                 if (typeof fileOrFolderDelete !== "boolean") {
                     helperSrc.writeLog("Tool.ts - api() - post(/api/skill-delete) - fileOrFolderDelete()", fileOrFolderDelete.toString());
@@ -757,9 +755,9 @@ export default class Tool {
 
                             await new Promise((resolve) => setTimeout(resolve, 3000));
 
-                            const input = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/screenshot.jpg`;
+                            const pathFile = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/screenshot.jpg`;
 
-                            const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(input);
+                            const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(pathFile);
 
                             if (typeof fileOrFolderDelete !== "boolean") {
                                 helperSrc.writeLog("Tool.ts - api() - post(/api/task-call) - fileOrFolderDelete()", fileOrFolderDelete.toString());

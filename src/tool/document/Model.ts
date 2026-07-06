@@ -4,5 +4,5 @@ export interface IinstanceContext {
 
 export interface Iparser {
     fileName: string;
-    resultExecute: string;
+    searchInput: string;
 }

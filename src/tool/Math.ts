@@ -37,7 +37,7 @@ export default class Math {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultExecute = await mathExpression.execute(argument.prompt);
+                const resultExecute = mathExpression.execute(argument.prompt);
                 result = JSON.stringify({ name, result: resultExecute });
             }
 

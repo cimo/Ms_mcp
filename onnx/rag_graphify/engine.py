@@ -1414,9 +1414,9 @@ class Engine:
             fileNameOnly = fileName.split("/")[-1]
             baseName = re.sub(r"\.[^/.]+$", "", fileNameOnly.strip())
 
-            inputFolder = f"{self.pathFileInput}{mcpSessionId}/document/{baseName}/"
+            pathInputFolder = f"{self.pathFileInput}{mcpSessionId}/document/{baseName}/"
 
-            pathResult = f"{inputFolder}result.md"
+            pathResult = f"{pathInputFolder}result.md"
 
             if os.path.exists(pathResult):
                 with open(pathResult, "r", encoding="utf-8") as file:
@@ -1444,13 +1444,13 @@ class Engine:
                     result = "ok"
 
             if result == "ok":
-                with open(f"{inputFolder}.rag_done", "w") as file:
+                with open(f"{pathInputFolder}.rag_done", "w") as file:
                     file.write("")
             else:
                 self._tableDelete(database, mcpSessionId, fileName)
 
-                if os.path.isdir(inputFolder):
-                    with open(f"{inputFolder}.fail", "w") as file:
+                if os.path.isdir(pathInputFolder):
+                    with open(f"{pathInputFolder}.fail", "w") as file:
                         file.write("")
 
         if result == "ok":
