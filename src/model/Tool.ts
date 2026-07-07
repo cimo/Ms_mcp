@@ -1,25 +1,5 @@
 import { z } from "zod";
 
-export interface IapiDocumentReadBody {
-    fileName: string;
-}
-
-export interface IapiDocumentDeleteBody {
-    fileName: string;
-}
-
-export interface IapiRagEmbeddingCheckBody {
-    fileName: string;
-}
-
-export interface IapiSkillReadBody {
-    fileName: string;
-}
-
-export interface IapiSkillDeleteBody {
-    fileName: string;
-}
-
 export interface IapiRpcBody {
     jsonrpc: string;
     id?: number;

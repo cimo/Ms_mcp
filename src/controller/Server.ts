@@ -15,6 +15,9 @@ import ControllerUser from "./User.js";
 import ControllerSetting from "./Setting.js";
 import ControllerAgent from "./Agent.js";
 import ControllerTool from "./Tool.js";
+import ControllerDocument from "./Document.js";
+import ControllerRag from "./Rag.js";
+import ControllerSkill from "./Skill.js";
 import ControllerXvfb from "./Xvfb.js";
 
 export default class Server {
@@ -109,6 +112,15 @@ export default class Server {
             const controllerTool = new ControllerTool(this.app, this.limiter, this.sessionObject);
             controllerTool.api();
             controllerTool.rpc();
+
+            const controllerDocument = new ControllerDocument(this.app, this.limiter, this.sessionObject);
+            controllerDocument.api();
+
+            const controllerRag = new ControllerRag(this.app, this.limiter, this.sessionObject);
+            controllerRag.api();
+
+            const controllerSkill = new ControllerSkill(this.app, this.limiter);
+            controllerSkill.api();
 
             const controllerXvfb = new ControllerXvfb(this.sessionObject);
 
