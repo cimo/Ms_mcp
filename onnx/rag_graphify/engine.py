@@ -97,51 +97,6 @@ class Engine:
 
         return resultList
 
-    def _logicFtsMatch(self, database, mcpSessionId, fileList, termList):
-        resultList = []
-
-        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_fts")
-
-        termCleanList = []
-        seenObject = {}
-
-        for a in range(len(termList)):
-            term = termList[a].strip().lower()
-
-            if len(term) >= self.termMin and seenObject.get(term) is None:
-                seenObject[term] = True
-
-                termCleanList.append(term)
-
-        if len(termCleanList) > 0:
-            fileNameObject = {}
-
-            for a in range(len(fileList)):
-                fileNameObject[fileList[a]["id"]] = fileList[a]["name"]
-
-            clauseList = []
-            likeParamList = []
-
-            for a in range(len(termCleanList)):
-                clauseList.append("chunk ILIKE %s")
-                likeParamList.append(f"%{termCleanList[a]}%")
-
-            orderText = " ".join(termCleanList)
-
-            queryList = database.execute(
-                f'SELECT chunk, file_id FROM "{tableName}" WHERE {" OR ".join(clauseList)} ORDER BY similarity(chunk, %s) DESC LIMIT 1',
-                tuple(likeParamList) + (orderText,)
-            ).fetchall()
-
-            for a in range(len(queryList)):
-                chunk = queryList[a][0]
-                fileId = queryList[a][1]
-
-                if chunk and fileNameObject.get(fileId) is not None:
-                    resultList.append({"fileName": fileNameObject[fileId], "chunk": chunk, "distance": 0})
-
-        return resultList
-
     def _logicNodeSelectByFile(self, database, mcpSessionId, fileId):
         resultList = []
 
@@ -216,22 +171,6 @@ class Engine:
                 resultList.append(queryList[a][0])
 
         return resultList
-
-    def _logicNodeType(self, database, mcpSessionId, nameNormalizedList):
-        resultObject = {}
-
-        if len(nameNormalizedList) > 0:
-            tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
-
-            placeholder = ",".join("%s" for a in range(len(nameNormalizedList)))
-
-            queryList = database.execute(f'SELECT name_normalized, type FROM "{tableName}" WHERE name_normalized IN ({placeholder}) AND type != \'\'', tuple(nameNormalizedList)).fetchall()
-
-            for a in range(len(queryList)):
-                if resultObject.get(queryList[a][0]) is None:
-                    resultObject[queryList[a][0]] = queryList[a][1]
-
-        return resultObject
 
     def _logicNodeDegree(self, database, mcpSessionId, nameNormalizedList):
         resultObject = {}
@@ -420,18 +359,6 @@ class Engine:
 
             database.execute(f'INSERT INTO "{name}" (file_id, chunk, embedding) VALUES (%s, %s, %s)', (fileId, chunk, embedding))
 
-    def _tableFtsCreate(self, database, mcpSessionId):
-        name = self._utilReplaceTableName(f"{mcpSessionId}_rag_fts")
-
-        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, chunk TEXT NOT NULL)')
-        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_chunk" ON "{name}" USING gin (chunk gin_trgm_ops)')
-
-    def _tableFtsInsert(self, database, mcpSessionId, fileId, chunk):
-        name = self._utilReplaceTableName(f"{mcpSessionId}_rag_fts")
-
-        if fileId > 0:
-            database.execute(f'INSERT INTO "{name}" (chunk, file_id) VALUES (%s, %s)', (chunk, fileId))
-
     def _tableNodeCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
 
@@ -493,7 +420,6 @@ class Engine:
     def _tableCreate(self, database, mcpSessionId):
         self._tableFileCreate(database, mcpSessionId)
         self._tableCitationCreate(database, mcpSessionId)
-        self._tableFtsCreate(database, mcpSessionId)
         self._tableNodeCreate(database, mcpSessionId)
         self._tableNodeVecCreate(database, mcpSessionId)
         self._tableEdgeCreate(database, mcpSessionId)
@@ -506,7 +432,6 @@ class Engine:
         tableNameRagEdge = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
         tableNameRagNodeVec = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
         tableNameRagNode = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
-        tableNameRagFts = self._utilReplaceTableName(f"{mcpSessionId}_rag_fts")
         tableNameRag = self._utilReplaceTableName(f"{mcpSessionId}_rag")
         tableNameRagFile = self._utilReplaceTableName(f"{mcpSessionId}_rag_file")
 
@@ -522,7 +447,6 @@ class Engine:
                 database.execute(f'DELETE FROM "{tableNameRagEdge}" WHERE file_id = %s', (fileId,))
                 database.execute(f'DELETE FROM "{tableNameRagNodeVec}" WHERE file_id = %s', (fileId,))
                 database.execute(f'DELETE FROM "{tableNameRagNode}" WHERE file_id = %s', (fileId,))
-                database.execute(f'DELETE FROM "{tableNameRagFts}" WHERE file_id = %s', (fileId,))
                 database.execute(f'DELETE FROM "{tableNameRag}" WHERE file_id = %s', (fileId,))
                 database.execute(f'DELETE FROM "{tableNameRagFile}" WHERE id = %s', (fileId,))
 
@@ -609,7 +533,7 @@ class Engine:
             "span_mask": spanMask
         }
 
-        logits = self.session.run(["logits"], feedObject)[0]
+        logits = self.onnxSession.run(["logits"], feedObject)[0]
 
         probability = 1.0 / (1.0 + numpy.exp(-logits[0]))
 
@@ -802,12 +726,11 @@ class Engine:
         for a in range(0, len(chunkList), self.batchLength):
             chunkBatchList = chunkList[a:a + self.batchLength]
 
-            embeddingData = self.embedding(cookie, uniqueId, "document", chunkBatchList)
+            embeddingData = self._embedding(cookie, uniqueId, "document", chunkBatchList)
 
             if isinstance(embeddingData.get("data"), list) and len(embeddingData["data"]) == len(chunkBatchList):
                 for b in range(len(chunkBatchList)):
                     self._tableCitationInsert(database, mcpSessionId, fileId, chunkBatchList[b], embeddingData["data"][b]["embedding"])
-                    self._tableFtsInsert(database, mcpSessionId, fileId, chunkBatchList[b])
 
                 database.commit()
             else:
@@ -819,15 +742,20 @@ class Engine:
 
     def _storeRelation(self, database, mcpSessionId, fileId, chunkList):
         for a in range(len(chunkList)):
-            graphData = self.process(chunkList[a])
+            entityPredictList = self._predict(chunkList[a])
 
-            for b in range(len(graphData["entityList"])):
-                entity = graphData["entityList"][b]
+            sentenceList = self._sentenceSplit(chunkList[a])
+
+            entityList = self._entity(entityPredictList, sentenceList)
+            relationList = self._relation(entityPredictList, sentenceList)
+
+            for b in range(len(entityList)):
+                entity = entityList[b]
 
                 self._tableNodeInsert(database, mcpSessionId, fileId, entity["name"], entity["type"], entity["description"])
 
-            for b in range(len(graphData["relationList"])):
-                relation = graphData["relationList"][b]
+            for b in range(len(relationList)):
+                relation = relationList[b]
 
                 self._tableEdgeInsert(database, mcpSessionId, fileId, relation)
                 self._tableNodeInsert(database, mcpSessionId, fileId, relation["source"], "concept", "")
@@ -854,7 +782,7 @@ class Engine:
                 else:
                     nodeTextList.append(f"{nodeBatchList[b]['name']}: {nodeBatchList[b]['description']}")
 
-            nodeEmbeddingData = self.embedding(cookie, uniqueId, "document", nodeTextList)
+            nodeEmbeddingData = self._embedding(cookie, uniqueId, "document", nodeTextList)
 
             if isinstance(nodeEmbeddingData.get("data"), list) and len(nodeEmbeddingData["data"]) == len(nodeBatchList):
                 for b in range(len(nodeBatchList)):
@@ -882,7 +810,7 @@ class Engine:
             for b in range(len(edgeBatchList)):
                 edgeTextList.append(f"{edgeBatchList[b]['description']}".strip())
 
-            edgeEmbeddingData = self.embedding(cookie, uniqueId, "document", edgeTextList)
+            edgeEmbeddingData = self._embedding(cookie, uniqueId, "document", edgeTextList)
 
             if isinstance(edgeEmbeddingData.get("data"), list) and len(edgeEmbeddingData["data"]) == len(edgeBatchList):
                 for b in range(len(edgeBatchList)):
@@ -986,7 +914,7 @@ class Engine:
         graphCandidateList = []
 
         if len(themeList) > 0:
-            themeEmbeddingData = self.embedding(cookie, uniqueId, "query", themeList)
+            themeEmbeddingData = self._embedding(cookie, uniqueId, "query", themeList)
             isThemeEmbedding = isinstance(themeEmbeddingData.get("data"), list) and len(themeEmbeddingData["data"]) == len(themeList)
 
             edgeIdObject = {}
@@ -1130,7 +1058,7 @@ class Engine:
             #index button:hover { background: #4a4a4a; }
             #index input { flex: 1 1 auto; min-width: 0; padding: 4px 6px; background: #3a3a3a; color: #ffffff; border: 1px solid #555555; border-radius: 3px; font-size: 12px; }
             #index .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
-            #filter_wrapper { display: flex; gap: 4px; margin-bottom: 6px; }
+            #filter_wrapper { display: flex; gap: 4px; margin: 0 10px 5px 0; }
             #graph_wrapper { position: fixed; top: 0; left: 240px; right: 0; bottom: 0; background: #1e1e1e; opacity: 0; }
             #loadingBar_wrapper { position: fixed; top: 0; left: 240px; right: 0; z-index: 10; }
             #loadingBar_fill { height: 4px; width: 0%; background: #4f9dff; transition: width 0.2s ease; }
@@ -1252,9 +1180,9 @@ class Engine:
 """
     
     def _htmlGenerate(self, database, mcpSessionId):
-        documentFolder = f"{self.pathFileInput}{mcpSessionId}/document/"
+        pathDocument = f"{self.pathFileInput}{mcpSessionId}/document/"
 
-        if not os.path.isdir(documentFolder):
+        if not os.path.isdir(pathDocument):
             return
 
         colorObject = {
@@ -1307,7 +1235,7 @@ class Engine:
 
         nodeList.sort(key=lambda node: node["label"].lower())
 
-        with open(f"{os.path.dirname(__file__)}/asset/vis-network.min.js", "r", encoding="utf-8") as file:
+        with open(f"{self.osPathDirName}asset/vis-network.min.js", "r", encoding="utf-8") as file:
             visScript = file.read()
 
         visScript = re.sub(r"//[#@]\s*sourceMappingURL=\S*", "", visScript)
@@ -1315,10 +1243,10 @@ class Engine:
         html = self._htmlTemplate()
         html = html.replace("__NODE_DATA__", json.dumps(nodeList, ensure_ascii=False)).replace("__EDGE_DATA__", json.dumps(edgeList, ensure_ascii=False)).replace("__JS_VIS__", visScript)
 
-        with open(f"{documentFolder}rag_graph.html", "w", encoding="utf-8") as file:
+        with open(f"{pathDocument}rag_graph.html", "w", encoding="utf-8") as file:
             file.write(html)
 
-    def embedding(self, cookie, uniqueId, mode, text):
+    def _embedding(self, cookie, uniqueId, mode, text):
         inputList = text if isinstance(text, list) else [text]
 
         inputPrefixList = []
@@ -1347,50 +1275,6 @@ class Engine:
 
         return stdout
 
-    def process(self, text):
-        chunkList = self._chunk(text)
-
-        entitySeenObject = {}
-        relationSeenObject = {}
-
-        entityList = []
-        relationList = []
-
-        for a in range(len(chunkList)):
-            chunk = chunkList[a]
-
-            entityPredictList = self._predict(chunk)
-
-            sentenceList = self._sentenceSplit(chunk)
-
-            chunkEntityList = self._entity(entityPredictList, sentenceList)
-            chunkRelationList = self._relation(entityPredictList, sentenceList)
-
-            for b in range(len(chunkEntityList)):
-                nameNormalized = self._utilNodeNormalize(chunkEntityList[b]["name"])
-
-                if entitySeenObject.get(nameNormalized) is None:
-                    entitySeenObject[nameNormalized] = True
-
-                    entityList.append(chunkEntityList[b])
-
-            for b in range(len(chunkRelationList)):
-                relation = chunkRelationList[b]
-
-                key = self._utilNodeNormalize(relation["source"]) + "|" + self._utilNodeNormalize(relation["target"])
-
-                if relationSeenObject.get(key) is None:
-                    relationSeenObject[key] = True
-
-                    relationList.append(relation)
-
-        result = {
-            "entityList": entityList,
-            "relationList": relationList
-        }
-
-        return result
-
     def store(self, cookie, mcpSessionId, uniqueId, fileName):
         result = "ko"
 
@@ -1414,12 +1298,12 @@ class Engine:
             fileNameOnly = fileName.split("/")[-1]
             baseName = re.sub(r"\.[^/.]+$", "", fileNameOnly.strip())
 
-            pathInputFolder = f"{self.pathFileInput}{mcpSessionId}/document/{baseName}/"
+            pathInputBasename = f"{self.pathFileInput}{mcpSessionId}/document/{baseName}/"
 
-            pathResult = f"{pathInputFolder}result.md"
+            pathMarkdown = f"{pathInputBasename}result.md"
 
-            if os.path.exists(pathResult):
-                with open(pathResult, "r", encoding="utf-8") as file:
+            if os.path.exists(pathMarkdown):
+                with open(pathMarkdown, "r", encoding="utf-8") as file:
                     fileContent = file.read()
 
                 chunkList = self._chunk(fileContent)
@@ -1444,13 +1328,13 @@ class Engine:
                     result = "ok"
 
             if result == "ok":
-                with open(f"{pathInputFolder}.rag_done", "w") as file:
+                with open(f"{pathInputBasename}.rag_done", "w") as file:
                     file.write("")
             else:
                 self._tableDelete(database, mcpSessionId, fileName)
 
-                if os.path.isdir(pathInputFolder):
-                    with open(f"{pathInputFolder}.fail", "w") as file:
+                if os.path.isdir(pathInputBasename):
+                    with open(f"{pathInputBasename}.fail", "w") as file:
                         file.write("")
 
         if result == "ok":
@@ -1460,7 +1344,7 @@ class Engine:
 
         timeEnd = time.perf_counter() - timeStart
 
-        print(f"Time: {round(timeEnd, 3)} - {fileName}\n")
+        print(f"\nTime: {round(timeEnd, 3)} - {fileName}")
 
         return result
 
@@ -1481,7 +1365,7 @@ class Engine:
             for a in range(len(fileQueryList)):
                 fileList.append({"id": fileQueryList[a][0], "name": fileQueryList[a][1]})
 
-            promptEmbeddingData = self.embedding(cookie, uniqueId, "query", prompt)
+            promptEmbeddingData = self._embedding(cookie, uniqueId, "query", prompt)
 
             promptVector = None
 
@@ -1492,7 +1376,7 @@ class Engine:
             isEntityEmbedding = False
 
             if len(entityList) > 0:
-                entityEmbeddingData = self.embedding(cookie, uniqueId, "query", entityList)
+                entityEmbeddingData = self._embedding(cookie, uniqueId, "query", entityList)
                 isEntityEmbedding = isinstance(entityEmbeddingData.get("data"), list) and len(entityEmbeddingData["data"]) == len(entityList)
 
             nodeList, seedObject, seedList, entityFileIdList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingData, isEntityEmbedding)
@@ -1542,13 +1426,14 @@ class Engine:
         return result
 
     def __init__(self):
-        self.ENV_NAME = os.environ.get("ENV_NAME", "")
-        self.DOMAIN = os.environ.get("DOMAIN", "")
-        PATH_ROOT = os.environ.get("PATH_ROOT", "")
-        self.PATH_CERTIFICATE_PEM = os.environ.get("MS_M_PATH_CERTIFICATE_PEM", "")
-        PATH_FILE = os.environ.get("MS_M_PATH_FILE", "")
+        self.ENV_NAME = os.environ.get("ENV_NAME")
+        self.DOMAIN = os.environ.get("DOMAIN")
+        PATH_ROOT = os.environ.get("PATH_ROOT")
+        self.PATH_CERTIFICATE_PEM = os.environ.get("MS_M_PATH_CERTIFICATE_PEM")
+        PATH_FILE = os.environ.get("MS_M_PATH_FILE")
 
-        self.pathModel = f"{os.path.dirname(__file__)}/model/"
+        self.osPathDirName = f"{os.path.dirname(__file__)}/"
+        self.pathModel = f"{self.osPathDirName}model/"
         self.pathFileInput = f"{PATH_ROOT}{PATH_FILE}input/"
         self.urlApi = self._utilEnvironment()
         self.sslContext = ssl.create_default_context(cafile=self.PATH_CERTIFICATE_PEM)
@@ -1570,7 +1455,6 @@ class Engine:
         self.graphTokenBudget = 2000
         self.batchLength = 32
         self.candidatePool = 256
-        self.citationLimit = 4
         self.seedLimit = 24
         self.termMin = 3
 
@@ -1591,7 +1475,7 @@ class Engine:
         self.sentencepiece = sentencepiece.SentencePieceProcessor()
         self.sentencepiece.LoadFromSerializedProto(proto.SerializeToString())
 
-        self.session = onnxSessionBuild(f"{self.pathModel}fp32.onnx")
+        self.onnxSession = onnxSessionBuild(f"{self.pathModel}model.onnx")
 
         database = Database(True)
         database.close()

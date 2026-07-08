@@ -92,7 +92,7 @@ export default class Tool {
                     return "ok";
                 })
                 .catch((error: Error) => {
-                    helperSrc.writeLog("Tool.ts - login() - catch()", error.message);
+                    helperSrc.writeLog("Tool.ts - loginRpc() - catch()", error.message);
 
                     return "ko";
                 });
@@ -135,7 +135,7 @@ export default class Tool {
                     return mcpSessionId;
                 })
                 .catch((error: Error) => {
-                    helperSrc.writeLog("Tool.ts - logout() - catch()", error.message);
+                    helperSrc.writeLog("Tool.ts - logoutRpc() - catch()", error.message);
 
                     return "ko";
                 });

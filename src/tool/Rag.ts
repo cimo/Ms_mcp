@@ -4,7 +4,7 @@ import { z } from "zod";
 import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import * as modelTool from "../model/Tool.js";
-import * as ragClient from "./rag/Client.js";
+import * as ragProcess from "./rag/Process.js";
 
 export default class Rag {
     // Variable
@@ -64,7 +64,7 @@ export default class Rag {
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const uniqueId = helperSrc.generateUniqueId();
 
-                const resultStore = await ragClient.databaseStore(extra.sessionId, uniqueId, argument.fileName);
+                const resultStore = await ragProcess.databaseStore(extra.sessionId, uniqueId, argument.fileName);
                 result = JSON.stringify({ name, result: resultStore });
             }
 
@@ -105,7 +105,7 @@ export default class Rag {
                 if (documentList.length > 0) {
                     const uniqueId = helperSrc.generateUniqueId();
 
-                    const resultSearch = await ragClient.databaseSearch(extra.sessionId, uniqueId, argument.prompt, argument.entity, argument.theme);
+                    const resultSearch = await ragProcess.databaseSearch(extra.sessionId, uniqueId, argument.prompt, argument.entity, argument.theme);
                     result = JSON.stringify({ name, result: JSON.parse(resultSearch) });
                 }
             }
@@ -137,7 +137,7 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultDelete = await ragClient.databaseDelete(extra.sessionId, argument.fileName);
+                const resultDelete = await ragProcess.databaseDelete(extra.sessionId, argument.fileName);
                 result = JSON.stringify({ name, result: resultDelete });
             }
 

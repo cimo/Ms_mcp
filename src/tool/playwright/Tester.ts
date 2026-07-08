@@ -16,7 +16,7 @@ const apiLogin = async (): Promise<string> => {
             return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Test.ts - login() - api(/login) - catch()", error.message);
+            helperSrc.writeLog("Test.ts - apiLogin() - catch()", error.message);
 
             return "ko";
         });
@@ -36,7 +36,7 @@ const apiListTest = async (): Promise<string> => {
             return stdout;
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Test.ts - listTest() - api(/api/list-test) - catch()", error.message);
+            helperSrc.writeLog("Test.ts - apiListTest() - catch()", error.message);
 
             return "ko";
         });
@@ -64,7 +64,7 @@ const apiRun = async (file: string, browser = "desktop_chrome"): Promise<string>
             return stdout;
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Test.ts - run() - api(/api/run) - catch()", error.message);
+            helperSrc.writeLog("Test.ts - apiRun() - catch()", error.message);
 
             return "ko";
         });
@@ -90,7 +90,7 @@ const apiListVideo = async (video: string): Promise<string> => {
             return stdout;
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Test.ts - listVideo() - api(/api/list-video) - catch()", error.message);
+            helperSrc.writeLog("Test.ts - apiListVideo() - catch()", error.message);
 
             return "ko";
         });
@@ -109,7 +109,7 @@ const apiLogout = async (): Promise<string> => {
             return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Test.ts - logout() - api(/logout) - catch()", error.message);
+            helperSrc.writeLog("Test.ts - apiLogout() - catch()", error.message);
 
             return "ko";
         });

@@ -23,16 +23,46 @@ then
 fi
 
 # Onnx - document_parser
-curl -fsSL "https://huggingface.co/PaddlePaddle/PP-DocLayout_plus-L_onnx/resolve/main/inference.onnx" -o "/home/app/onnx/paddle/model/pp-docLayout_plus-l.onnx"
+pathModel="/home/app/onnx/document_parser/model/"
+urlModel="https://huggingface.co/PaddlePaddle/PP-DocLayout_plus-L_onnx/resolve/main/"
+
+fileName="pp-docLayout_plus-l.onnx"
+
+if [ ! -f "${pathModel}${fileName}" ]
+then
+    echo "Download document_parser: ${fileName}"
+
+    if ! curl -fsSL "${urlModel}inference.onnx" -o "${pathModel}${fileName}"
+    then
+        echo "Skip document_parser - ${fileName}: download failed."
+
+        rm -f "${pathModel}${fileName}"
+    fi
+fi
+
+python3 "${PATH_ROOT}onnx/document_parser/server.py" >> "${PATH_ROOT}${MS_M_PATH_LOG}document_parser.log" 2>&1 &
 
 # Onnx - rag_graphify
-curl -fsSL "https://huggingface.co/onnx-community/gliner_multi-v2.1/resolve/main/onnx/model.onnx" -o "/home/app/onnx/rag_graphify/model/fp32.onnx"
-curl -fsSL "https://huggingface.co/onnx-community/gliner_multi-v2.1/resolve/main/gliner_config.json" -o "/home/app/onnx/rag_graphify/model/gliner_config.json"
-curl -fsSL "https://huggingface.co/onnx-community/gliner_multi-v2.1/resolve/main/config.json" -o "/home/app/onnx/rag_graphify/model/config.json"
-curl -fsSL "https://huggingface.co/onnx-community/gliner_multi-v2.1/resolve/main/tokenizer.json" -o "/home/app/onnx/rag_graphify/model/tokenizer.json"
-curl -fsSL "https://huggingface.co/onnx-community/gliner_multi-v2.1/resolve/main/tokenizer_config.json" -o "/home/app/onnx/rag_graphify/model/tokenizer_config.json"
-curl -fsSL "https://huggingface.co/onnx-community/gliner_multi-v2.1/resolve/main/spm.model" -o "/home/app/onnx/rag_graphify/model/spm.model"
-curl -fsSL "https://huggingface.co/onnx-community/gliner_multi-v2.1/resolve/main/special_tokens_map.json" -o "/home/app/onnx/rag_graphify/model/special_tokens_map.json"
-curl -fsSL "https://huggingface.co/onnx-community/gliner_multi-v2.1/resolve/main/added_tokens.json" -o "/home/app/onnx/rag_graphify/model/added_tokens.json"
+pathModel="/home/app/onnx/rag_graphify/model/"
+urlModel="https://huggingface.co/onnx-community/gliner_multi-v2.1/resolve/main/"
+
+fileList="onnx/model.onnx gliner_config.json config.json tokenizer.json tokenizer_config.json spm.model special_tokens_map.json added_tokens.json"
+
+for file in ${fileList}
+do
+    fileName=$(basename "${file}")
+
+    if [ ! -f "${pathModel}${fileName}" ]
+    then
+        echo "Download rag_graphify: ${fileName}"
+
+        if ! curl -fsSL "${urlModel}${file}" -o "${pathModel}${fileName}"
+        then
+            echo "Skip rag_graphify - ${fileName}: download failed."
+
+            rm -f "${pathModel}${fileName}"
+        fi
+    fi
+done
 
 python3 "${PATH_ROOT}onnx/rag_graphify/server.py" >> "${PATH_ROOT}${MS_M_PATH_LOG}rag_graphify.log" 2>&1 &

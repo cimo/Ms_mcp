@@ -17,7 +17,7 @@ const apiLogin = async (): Promise<string> => {
             return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Extractor.ts - login() - api(/login) - catch()", error.message);
+            helperSrc.writeLog("Extractor.ts - apiLogin() - catch()", error.message);
 
             return "ko";
         });
@@ -62,7 +62,7 @@ const apiExtract = async (formData: FormData): Promise<model.ItoolOcrResult[]> =
             return resultList;
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Extractor.ts - extract() - api(/extract) - catch()", error.message);
+            helperSrc.writeLog("Extractor.ts - apiExtract() - catch()", error.message);
 
             return [];
         });
@@ -81,7 +81,7 @@ const apiLogout = async (): Promise<string> => {
             return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Extractor.ts - logout() - api(/logout) - catch()", error.message);
+            helperSrc.writeLog("Extractor.ts - apiLogout() - catch()", error.message);
 
             return "ko";
         });
@@ -111,7 +111,7 @@ export const execute = (mcpSessionId: string, language: string, fileName: string
 
             resultList = await apiExtract(formData);
         } else {
-            helperSrc.writeLog(`Extractor.ts - extract() - fileReadStream()`, fileReadStream.toString());
+            helperSrc.writeLog(`Extractor.ts - execute() - fileReadStream()`, fileReadStream.toString());
         }
 
         await apiLogout();

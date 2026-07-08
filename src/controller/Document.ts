@@ -98,7 +98,7 @@ export default class Document {
 
                 if (fileDetail.category === "document") {
                     inputExtension = "pdf";
-                    inputFileName = `converted.${inputExtension}`;
+                    inputFileName = `result.${inputExtension}`;
                 } else if (fileDetail.category === "image") {
                     inputExtension = fileDetail.extension;
                     inputFileName = fileDetail.fileName;

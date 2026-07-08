@@ -1,4 +1,5 @@
 import Fs from /* webpackIgnore: true */ "fs";
+import Path from /* webpackIgnore: true */ "path";
 import { exec, execFile, ChildProcess } from /* webpackIgnore: true */ "child_process";
 import { Request, Response } from /* webpackIgnore: true */ "express";
 import { Ce } from "@cimo/environment/dist/src/Main.js";
@@ -434,19 +435,25 @@ export const fileCheckSize = (byte: number): boolean => {
 
 export const fileWriteStream = (filePath: string, buffer: Buffer): Promise<boolean | NodeJS.ErrnoException> => {
     return new Promise((resolve) => {
-        const writeStream = Fs.createWriteStream(filePath);
+        Fs.mkdir(Path.dirname(filePath), { recursive: true }, (error) => {
+            if (error) {
+                resolve(error);
+            } else {
+                const writeStream = Fs.createWriteStream(filePath);
 
-        writeStream.on("open", () => {
-            writeStream.write(buffer);
-            writeStream.end();
-        });
+                writeStream.on("open", () => {
+                    writeStream.write(buffer);
+                    writeStream.end();
+                });
 
-        writeStream.on("finish", () => {
-            resolve(true);
-        });
+                writeStream.on("finish", () => {
+                    resolve(true);
+                });
 
-        writeStream.on("error", (error: Error) => {
-            resolve(error);
+                writeStream.on("error", (error: Error) => {
+                    resolve(error);
+                });
+            }
         });
     });
 };

@@ -16,7 +16,7 @@ const apiLogin = async (): Promise<string> => {
             return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Scanner.ts - login() - api(/login) - catch()", error.message);
+            helperSrc.writeLog("Scanner.ts - apiLogin() - catch()", error.message);
 
             return "ko";
         });
@@ -40,7 +40,7 @@ const apiCheck = async (mode: string, target: string): Promise<string> => {
             return Buffer.from(stdout, "base64").toString("utf-8");
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Scanner.ts - check() - api(/api/check) - catch()", error.message);
+            helperSrc.writeLog("Scanner.ts - apiCheck() - catch()", error.message);
 
             return "ko";
         });
@@ -59,7 +59,7 @@ const apiLogout = async (): Promise<string> => {
             return JSON.stringify(data, null, 2);
         })
         .catch((error: Error) => {
-            helperSrc.writeLog("Scanner.ts - logout() - api(/logout) - catch()", error.message);
+            helperSrc.writeLog("Scanner.ts - apiLogout() - catch()", error.message);
 
             return "ko";
         });

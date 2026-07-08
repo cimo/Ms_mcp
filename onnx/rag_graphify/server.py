@@ -18,30 +18,30 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
     def _routeDelete(self, text):
         payload = json.loads(text)
 
-        mcpSessionId = payload.get("mcpSessionId", "")
-        fileName = payload.get("fileName", "")
+        mcpSessionId = payload.get("mcpSessionId")
+        fileName = payload.get("fileName")
 
         return self.engine.delete(mcpSessionId, fileName)
 
     def _routeSearch(self, text):
         payload = json.loads(text)
 
-        cookie = payload.get("cookie", "")
-        mcpSessionId = payload.get("mcpSessionId", "")
-        uniqueId = payload.get("uniqueId", "")
-        prompt = payload.get("prompt", "")
-        entityList = payload.get("entityList", [])
-        themeList = payload.get("themeList", [])
+        cookie = payload.get("cookie")
+        mcpSessionId = payload.get("mcpSessionId")
+        uniqueId = payload.get("uniqueId")
+        prompt = payload.get("prompt")
+        entityList = payload.get("entityList")
+        themeList = payload.get("themeList")
 
         return self.engine.search(cookie, mcpSessionId, uniqueId, prompt, entityList, themeList)
 
     def _routeStore(self, text):
         payload = json.loads(text)
 
-        cookie = payload.get("cookie", "")
-        mcpSessionId = payload.get("mcpSessionId", "")
-        uniqueId = payload.get("uniqueId", "")
-        fileName = payload.get("fileName", "")
+        cookie = payload.get("cookie")
+        mcpSessionId = payload.get("mcpSessionId")
+        uniqueId = payload.get("uniqueId")
+        fileName = payload.get("fileName")
 
         return self.engine.store(cookie, mcpSessionId, uniqueId, fileName)
 
@@ -58,8 +58,6 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
             result = self._routeSearch(text)
         elif self.path == "/delete":
             result = self._routeDelete(text)
-        else:
-            result = self.engine.process(text)
 
         body = json.dumps(result, ensure_ascii=False).encode("utf-8")
 
@@ -74,7 +72,7 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
         return
 
 host = "127.0.0.1"
-port = 1111
+port = 1112
 
 checkSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 isRunning = checkSocket.connect_ex((host, port)) == 0
@@ -98,6 +96,6 @@ if isRunning:
 
 serverHttp = ThreadingHTTPServer((host, port), HandlerHttpRequest)
 
-print(f"Onnx - rag_graphify - Ready on => {host}:{port}\n")
+print(f"Onnx - rag_graphify - Ready on => {host}:{port}")
 
 serverHttp.serve_forever()
