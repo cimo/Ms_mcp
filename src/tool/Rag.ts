@@ -100,7 +100,7 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const documentList = await helperSrc.uploadedDocumentList(extra.sessionId, ".*");
+                const documentList = await helperSrc.uploadedDocumentRead(extra.sessionId, ".*");
 
                 if (documentList.length > 0) {
                     const uniqueId = helperSrc.generateUniqueId();

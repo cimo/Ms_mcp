@@ -175,7 +175,7 @@ export const generateUniqueId = (): string => {
     return `${timestamp}-${randomPart}`;
 };
 
-export const isJson = (value: string): boolean => {
+export const jsonCheck = (value: string): boolean => {
     try {
         JSON.parse(value);
 
@@ -636,7 +636,7 @@ export const responseBody = (stdoutValue: string, stderrValue: string | Error, r
 };
 
 // Custom
-export const uploadedDocumentList = (mcpSessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
+export const uploadedDocumentRead = (mcpSessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
     return new Promise<modelHelperSrc.IfileDetail[]>((resolve) => {
         const input = `${PATH_ROOT}${PATH_FILE}input/${mcpSessionId}/document/`;
 
@@ -667,7 +667,7 @@ export const uploadedDocumentList = (mcpSessionId: string, extension: string): P
     });
 };
 
-export const uploadedSkillList = (mcpSessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
+export const uploadedSkillRead = (mcpSessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
     return new Promise<modelHelperSrc.IfileDetail[]>((resolve) => {
         const input = `${PATH_ROOT}${PATH_FILE}input/${mcpSessionId}/skill/`;
 

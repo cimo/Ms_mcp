@@ -71,7 +71,7 @@ export const execute = async (urlPage: string): Promise<void> => {
 
                 end = pending.indexOf("\x00");
 
-                if (helperSrc.isJson(message)) {
+                if (helperSrc.jsonCheck(message)) {
                     resolve(JSON.parse(message));
                 } else {
                     reject("Chrome.ts - execute() - incoming - ondata(): Invalid JSON message.");

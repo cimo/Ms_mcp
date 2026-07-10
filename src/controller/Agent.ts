@@ -57,7 +57,7 @@ export default class Agent {
         return isResult;
     };
 
-    private tableSelectList = async (mcpSessionId: string): Promise<modelAgent.Idata[]> => {
+    private tableSelect = async (mcpSessionId: string): Promise<modelAgent.Idata[]> => {
         let resultList: modelAgent.Idata[] = [];
 
         if (mcpSessionId !== "") {
@@ -80,7 +80,7 @@ export default class Agent {
                     return dataList;
                 })
                 .catch((error: Error) => {
-                    helperSrc.writeLog("Agent.ts - tableSelectList() - catch()", error.message);
+                    helperSrc.writeLog("Agent.ts - tableSelect() - catch()", error.message);
 
                     return [];
                 });
@@ -186,7 +186,7 @@ export default class Agent {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId === "string") {
-                const resultList = await this.tableSelectList(mcpSessionId);
+                const resultList = await this.tableSelect(mcpSessionId);
 
                 helperSrc.responseBody(JSON.stringify(resultList), "", response, 200);
             } else {

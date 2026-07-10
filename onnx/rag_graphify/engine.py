@@ -6,6 +6,7 @@ import re
 import time
 import json
 import ssl
+import unicodedata
 import urllib.request
 import numpy
 import sentencepiece
@@ -28,8 +29,42 @@ class Engine:
 
         return f"{protocol}://{self.DOMAIN}:1046"
 
+    def _utilWideCheck(self, character):
+        return character != "" and unicodedata.east_asian_width(character) in ("W", "F")
+
+    def _utilWideContainCheck(self, text):
+        result = False
+
+        for a in range(len(text)):
+            if self._utilWideCheck(text[a]):
+                result = True
+
+                break
+
+        return result
+
+    def _utilSentenceEndCheck(self, character):
+        result = False
+
+        if character == "\n":
+            result = True
+        elif character != "":
+            name = unicodedata.name(character, "")
+
+            if "INVERTED" not in name:
+                if "FULL STOP" in name or "QUESTION MARK" in name or "EXCLAMATION MARK" in name or "DANDA" in name or character == "…":
+                    result = True
+
+        return result
+
     def _utilTokenEstimate(self, text):
-        return (len(text) + 3) // 4
+        countWide = 0
+
+        for a in range(len(text)):
+            if self._utilWideCheck(text[a]):
+                countWide += 1
+
+        return countWide + (len(text) - countWide + 3) // 4
 
     def _utilReplaceTableName(self, name):
         return name.replace('"', '""')
@@ -154,7 +189,7 @@ class Engine:
 
         return resultList
 
-    def _logicNodeFileList(self, database, mcpSessionId, nameNormalizedList):
+    def _logicNodeFileSelect(self, database, mcpSessionId, nameNormalizedList):
         resultList = []
 
         if len(nameNormalizedList) > 0:
@@ -232,7 +267,7 @@ class Engine:
 
         return resultList
 
-    def _logicEdgeSelectByIdList(self, database, mcpSessionId, idList):
+    def _logicEdgeSelectById(self, database, mcpSessionId, idList):
         resultList = []
 
         if len(idList) > 0:
@@ -456,7 +491,30 @@ class Engine:
         resultList = []
 
         for match in re.finditer(r"\w+(?:[-_]\w+)*|[^\w\s]", text):
-            resultList.append({"text": match.group(0), "start": match.start(), "end": match.end()})
+            word = match.group(0)
+            start = match.start()
+
+            segment = ""
+            segmentStart = start
+
+            for a in range(len(word)):
+                if self._utilWideCheck(word[a]):
+                    if segment != "":
+                        resultList.append({"text": segment, "start": segmentStart, "end": segmentStart + len(segment)})
+
+                        segment = ""
+
+                    resultList.append({"text": word[a], "start": start + a, "end": start + a + 1})
+
+                    segmentStart = start + a + 1
+                else:
+                    if segment == "":
+                        segmentStart = start + a
+
+                    segment += word[a]
+
+            if segment != "":
+                resultList.append({"text": segment, "start": segmentStart, "end": segmentStart + len(segment)})
 
         return resultList
 
@@ -595,21 +653,28 @@ class Engine:
     def _sentenceSplit(self, text):
         resultList = []
 
-        cursor = 0
+        start = 0
 
-        for match in re.finditer(r"[^.!?\n]+[.!?\n]?", text):
-            sentence = match.group(0).strip()
+        for a in range(len(text)):
+            isEnd = self._utilSentenceEndCheck(text[a])
 
-            if sentence != "":
-                resultList.append({"text": sentence, "start": match.start(), "end": match.end()})
+            if isEnd and text[a] != "\n" and a + 1 < len(text):
+                if text[a + 1].isalnum() and self._utilWideCheck(text[a + 1]) == False:
+                    isEnd = False
 
-            cursor = match.end()
+            if isEnd:
+                sentence = text[start:a + 1].strip()
 
-        if cursor < len(text):
-            rest = text[cursor:].strip()
+                if sentence != "":
+                    resultList.append({"text": sentence, "start": start, "end": a + 1})
+
+                start = a + 1
+
+        if start < len(text):
+            rest = text[start:].strip()
 
             if rest != "":
-                resultList.append({"text": rest, "start": cursor, "end": len(text)})
+                resultList.append({"text": rest, "start": start, "end": len(text)})
 
         return resultList
 
@@ -623,7 +688,9 @@ class Engine:
 
             name = entity["text"].strip()
 
-            if len(name) < self.nameMinLength or name.lower().find("http") != -1:
+            nameMinLength = self.nameMinLengthWide if self._utilWideContainCheck(name) else self.nameMinLength
+
+            if len(name) < nameMinLength or name.lower().find("http") != -1:
                 continue
 
             nameNormalized = self._utilNodeNormalize(name)
@@ -691,20 +758,46 @@ class Engine:
 
         return resultList
 
+    def _chunkPartBuild(self, text):
+        resultList = []
+
+        sentenceList = self._sentenceSplit(text)
+
+        for a in range(len(sentenceList)):
+            sentence = sentenceList[a]["text"]
+
+            if self._utilTokenEstimate(sentence) <= self.chunkTokenLength:
+                resultList.append(sentence)
+            else:
+                for word in sentence.split():
+                    if self._utilTokenEstimate(word) <= self.chunkTokenLength:
+                        resultList.append(word)
+                    else:
+                        for b in range(0, len(word), self.chunkTokenLength):
+                            resultList.append(word[b:b + self.chunkTokenLength])
+
+        return resultList
+
     def _chunk(self, text):
         resultList = []
 
         chunkText = ""
 
-        for word in text.split():
+        partList = self._chunkPartBuild(text)
+
+        for a in range(len(partList)):
+            part = partList[a]
+
             if chunkText == "":
-                chunkText = word
-            elif len(chunkText) + len(word) + 1 > self.chunkLength:
+                chunkText = part
+            elif self._utilTokenEstimate(chunkText) + self._utilTokenEstimate(part) + 1 > self.chunkTokenLength:
                 resultList.append(chunkText)
 
-                chunkText = word
+                chunkText = part
             else:
-                chunkText = f"{chunkText} {word}"
+                separator = "" if self._utilWideCheck(chunkText[-1:]) and self._utilWideCheck(part[0:1]) else " "
+
+                chunkText = f"{chunkText}{separator}{part}"
 
         if chunkText != "":
             resultList.append(chunkText)
@@ -715,7 +808,7 @@ class Engine:
             clean = re.sub(r"https?://\S+", "", resultList[a])
             clean = re.sub(r"\s+", " ", clean).strip()
 
-            if len(clean) >= self.chunkLengthMin:
+            if self._utilTokenEstimate(clean) >= self.chunkTokenMin:
                 cleanList.append(clean)
 
         return cleanList
@@ -906,7 +999,7 @@ class Engine:
 
         nodeList = self._logicNodeDetail(database, mcpSessionId, seedList)
 
-        entityFileIdList = self._logicNodeFileList(database, mcpSessionId, seedList)
+        entityFileIdList = self._logicNodeFileSelect(database, mcpSessionId, seedList)
 
         return nodeList, seedObject, seedList, entityFileIdList
 
@@ -930,7 +1023,7 @@ class Engine:
                             edgeIdObject[edgeMatchList[b]] = True
                             edgeIdList.append(edgeMatchList[b])
 
-            edgeFullList = self._logicEdgeSelectByIdList(database, mcpSessionId, edgeIdList)
+            edgeFullList = self._logicEdgeSelectById(database, mcpSessionId, edgeIdList)
 
             for a in range(len(edgeFullList)):
                 edgeFull = edgeFullList[a]
@@ -1439,9 +1532,10 @@ class Engine:
         self.sslContext = ssl.create_default_context(cafile=self.PATH_CERTIFICATE_PEM)
 
         self.typeAllowList = ["person", "organization", "place", "category", "event"]
-        self.chunkLength = 1000
-        self.chunkLengthMin = 100
+        self.chunkTokenLength = 250
+        self.chunkTokenMin = 25
         self.nameMinLength = 3
+        self.nameMinLengthWide = 2
         self.scoreMin = 0.4
         self.relationGapMax = 60
 

@@ -10,15 +10,15 @@ import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # Source
-from layout import Layout
+from layout import Pdf, Docx
 from engine import Engine
 
 class HandlerHttpRequest(BaseHTTPRequestHandler):
-    layout = Layout()
+    layoutPdf = Pdf()
 
     def _routeEngine(self, text):
         engine = Engine()
-        
+
         payload = json.loads(text)
 
         pathInput = payload.get("pathInput")
@@ -32,7 +32,18 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
         pathInput = payload.get("pathInput")
         pathOutput = payload.get("pathOutput")
 
-        return self.layout.execute(pathInput, pathOutput)
+        extension = os.path.splitext(pathInput)[1].lower()
+
+        result = {}
+
+        if extension == ".pdf":
+            result = self.layoutPdf.execute(f"{os.path.dirname(pathInput)}/image/", pathOutput)
+        elif extension == ".docx":
+            layoutDocx = Docx()
+
+            result = layoutDocx.execute(pathInput, pathOutput)
+
+        return result
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))

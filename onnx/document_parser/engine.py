@@ -6,12 +6,13 @@ import re
 import math
 import time
 import json
+import unicodedata
 
 class Pdf:
-    def _isWhitespace(self, code):
+    def _whitespaceCheck(self, code):
         return code == 0 or code == 9 or code == 10 or code == 12 or code == 13 or code == 32
 
-    def _isDelimiter(self, code):
+    def _delimiterCheck(self, code):
         character = chr(code)
 
         return (
@@ -27,7 +28,7 @@ class Pdf:
             or character == "%"
         )
 
-    def _isDigit(self, code):
+    def _digitCheck(self, code):
         return code >= 48 and code <= 57
 
     def _floatParse(self, text):
@@ -43,7 +44,7 @@ class Pdf:
     def _byteText(self, byteList):
         return byteList.decode("latin-1")
 
-    def _textByteList(self, text):
+    def _textByte(self, text):
         resultList = bytearray(len(text))
 
         for a in range(len(text)):
@@ -314,7 +315,7 @@ class Pdf:
             else:
                 code = self.byteList[self.position]
 
-                if self._isWhitespace(code):
+                if self._whitespaceCheck(code):
                     self.position += 1
                 elif code == 37:
                     while self.position < len(self.byteList) and self.byteList[self.position] != 10 and self.byteList[self.position] != 13:
@@ -334,7 +335,7 @@ class Pdf:
             else:
                 code = self.byteList[self.position]
 
-                if self._isWhitespace(code) or self._isDelimiter(code):
+                if self._whitespaceCheck(code) or self._delimiterCheck(code):
                     isRunning = False
                 elif code == 35:
                     hexText = self.text[self.position + 1:self.position + 3]
@@ -411,7 +412,7 @@ class Pdf:
         while self.position < len(self.byteList) and self.byteList[self.position] != 62:
             code = self.byteList[self.position]
 
-            if self._isWhitespace(code) == False:
+            if self._whitespaceCheck(code) == False:
                 hexText += chr(code)
 
             self.position += 1
@@ -464,7 +465,7 @@ class Pdf:
 
         return result
 
-    def _filterList(self, entryObject):
+    def _filterExtract(self, entryObject):
         resultList = []
 
         filterNode = entryObject.get("Filter")
@@ -534,7 +535,7 @@ class Pdf:
 
         self.position = endIndex + 9
 
-        filterList = self._filterList(entryObject)
+        filterList = self._filterExtract(entryObject)
         isImage = "Image" in category or "DCTDecode" in filterList or "JPXDecode" in filterList
 
         result = {
@@ -602,7 +603,7 @@ class Pdf:
             else:
                 code = self.byteList[self.position]
 
-                if self._isDigit(code) or code == 43 or code == 45 or code == 46:
+                if self._digitCheck(code) or code == 43 or code == 45 or code == 46:
                     numberText += chr(code)
                     self.position += 1
                 else:
@@ -619,7 +620,7 @@ class Pdf:
 
             secondText = ""
 
-            while self.position < len(self.byteList) and self._isDigit(self.byteList[self.position]):
+            while self.position < len(self.byteList) and self._digitCheck(self.byteList[self.position]):
                 secondText += chr(self.byteList[self.position])
                 self.position += 1
 
@@ -654,7 +655,7 @@ class Pdf:
             result = self._parseHexString()
         elif code == 91:
             result = self._parseArray()
-        elif self._isDigit(code) or code == 43 or code == 45 or code == 46:
+        elif self._digitCheck(code) or code == 43 or code == 45 or code == 46:
             result = self._parseNumberOrReference()
         elif self.text[self.position:self.position + 4] == "true":
             self.position += 4
@@ -670,8 +671,8 @@ class Pdf:
 
             while (
                 self.position < len(self.byteList)
-                and self._isWhitespace(self.byteList[self.position]) == False
-                and self._isDelimiter(self.byteList[self.position]) == False
+                and self._whitespaceCheck(self.byteList[self.position]) == False
+                and self._delimiterCheck(self.byteList[self.position]) == False
             ):
                 operator += chr(self.byteList[self.position])
                 self.position += 1
@@ -680,7 +681,7 @@ class Pdf:
 
         return result
 
-    def _streamIndirectList(self, indirect):
+    def _streamIndirectExpand(self, indirect):
         resultList = []
 
         streamNode = indirect["value"]
@@ -698,7 +699,7 @@ class Pdf:
                 savedPosition = self.position
 
                 self.text = streamNode["content"]
-                self.byteList = self._textByteList(streamNode["content"])
+                self.byteList = self._textByte(streamNode["content"])
 
                 headerList = []
 
@@ -731,7 +732,7 @@ class Pdf:
 
         return resultList
 
-    def _parseIndirectList(self):
+    def _parseIndirect(self):
         resultList = []
 
         matchList = list(re.finditer(r"(\d+)\s+(\d+)\s+obj\b", self.text))
@@ -756,7 +757,7 @@ class Pdf:
         expandedList = []
 
         for a in range(len(resultList)):
-            nestedList = self._streamIndirectList(resultList[a])
+            nestedList = self._streamIndirectExpand(resultList[a])
 
             for b in range(len(nestedList)):
                 expandedList.append(nestedList[b])
@@ -1220,7 +1221,7 @@ class Pdf:
         fontObject = self._resourceFont(resourceObject)
         externalObject = self._resourceExternal(resourceObject)
 
-        self.byteList = self._textByteList(content)
+        self.byteList = self._textByte(content)
         self.text = content
         self.position = 0
 
@@ -1336,6 +1337,9 @@ class Pdf:
                                 "uri": uri
                             })
 
+    def _wideCheck(self, character):
+        return character != "" and unicodedata.east_asian_width(character) in ("W", "F")
+
     def _mergeText(self, elementList):
         resultList = []
 
@@ -1366,6 +1370,9 @@ class Pdf:
                     elementText = element["text"] if element.get("text") is not None else ""
                     isSpace = gap > size * 0.15 and previousText[-1:] != " " and elementText[0:1] != " "
 
+                    if self._wideCheck(previousText[-1:]) and self._wideCheck(elementText[0:1]):
+                        isSpace = False
+
                     current["text"] = f"{previousText} {elementText}" if isSpace else f"{previousText}{elementText}"
                     current["x1"] = element["x1"]
                     current["y0"] = min(current["y0"], element["y0"])
@@ -1387,7 +1394,7 @@ class Pdf:
 
         return resultList
 
-    def _buildPageList(self):
+    def _buildPage(self):
         resultList = []
 
         trailerIndex = self.text.rfind("trailer")
@@ -1456,14 +1463,14 @@ class Pdf:
         self.text = self._byteText(self.byteList)
         self.position = 0
 
-        indirectList = self._parseIndirectList()
+        indirectList = self._parseIndirect()
 
         self.indirectObject = {}
 
         for a in range(len(indirectList)):
             self.indirectObject[indirectList[a]["number"]] = indirectList[a]
 
-        return self._buildPageList()
+        return self._buildPage()
 
     def __init__(self):
         self.lengthBaseList = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258]
@@ -1512,229 +1519,311 @@ class Pdf:
         self.indirectObject = {}
 
 class Markdown:
-    def _medianFontSize(self, elementList):
-        result = 12
+    class Pdf:
+        def _medianFontSize(self, elementList):
+            result = 12
 
-        sizeList = []
+            sizeList = []
 
-        for a in range(len(elementList)):
-            sizeList.append(elementList[a]["fontSize"])
+            for a in range(len(elementList)):
+                sizeList.append(elementList[a]["fontSize"])
 
-        sizeList.sort()
+            sizeList.sort()
 
-        if len(sizeList) > 0 and sizeList[len(sizeList) // 2] > 0:
-            result = sizeList[len(sizeList) // 2]
+            if len(sizeList) > 0 and sizeList[len(sizeList) // 2] > 0:
+                result = sizeList[len(sizeList) // 2]
 
-        return result
+            return result
 
-    def _titleSizeKey(self, elementList):
-        return math.floor(self._medianFontSize(elementList) + 0.5)
+        def _titleSizeKey(self, elementList):
+            return math.floor(self._medianFontSize(elementList) + 0.5)
 
-    def _titleSizeRankList(self, pageObject, astPageList):
-        resultList = []
+        def _titleSizeRank(self, pageObject, astPageList):
+            resultList = []
 
-        for a in range(len(astPageList)):
-            astPage = astPageList[a]
+            for a in range(len(astPageList)):
+                astPage = astPageList[a]
 
-            if astPage["number"] in pageObject:
-                page = pageObject[astPage["number"]]
+                if astPage["number"] in pageObject:
+                    page = pageObject[astPage["number"]]
 
-                scaleX = page["width"] / astPage["imageWidth"]
-                scaleY = page["height"] / astPage["imageHeight"]
+                    scaleX = page["width"] / astPage["imageWidth"]
+                    scaleY = page["height"] / astPage["imageHeight"]
 
-                for b in range(len(astPage["itemMainList"])):
-                    item = astPage["itemMainList"][b]
+                    for b in range(len(astPage["itemMainList"])):
+                        item = astPage["itemMainList"][b]
 
-                    if item["label"] == "paragraph_title":
-                        elementList = self._elementBoxList(page, item["coordinate"], scaleX, scaleY)
+                        if item["label"] == "paragraph_title":
+                            elementList = self._elementBoxCollect(page, item["coordinate"], scaleX, scaleY)
+
+                            if len(elementList) > 0:
+                                key = self._titleSizeKey(elementList)
+
+                                if key not in resultList:
+                                    resultList.append(key)
+
+            resultList.sort(reverse=True)
+
+            return resultList
+
+        def _headingHash(self, titleSizeRankList, key):
+            level = 2
+
+            if key in titleSizeRankList:
+                level = 2 + titleSizeRankList.index(key)
+
+            return "#" * min(level, 6)
+
+        def _lineGroup(self, elementList):
+            resultList = []
+
+            elementSortList = sorted(elementList, key=lambda element: element["y0"])
+
+            for a in range(len(elementSortList)):
+                element = elementSortList[a]
+
+                isFound = False
+
+                for b in range(len(resultList)):
+                    line = resultList[b]
+
+                    overlap = min(line["y1"], element["y1"]) - max(line["y0"], element["y0"])
+                    height = min(line["y1"] - line["y0"], element["y1"] - element["y0"])
+
+                    if height > 0 and overlap / height >= 0.5:
+                        line["elementList"].append(element)
+
+                        line["y0"] = min(line["y0"], element["y0"])
+                        line["y1"] = max(line["y1"], element["y1"])
+
+                        isFound = True
+
+                        break
+
+                if isFound == False:
+                    resultList.append({"elementList": [element], "x0": 0, "x1": 0, "y0": element["y0"], "y1": element["y1"]})
+
+            for a in range(len(resultList)):
+                line = resultList[a]
+
+                line["elementList"].sort(key=lambda element: element["x0"])
+
+                line["x0"] = line["elementList"][0]["x0"]
+                line["x1"] = line["elementList"][len(line["elementList"]) - 1]["x1"]
+
+            resultList.sort(key=lambda line: line["y0"])
+
+            return resultList
+
+        def _wideCheck(self, character):
+            return character != "" and unicodedata.east_asian_width(character) in ("W", "F")
+
+        def _lineText(self, line, isPlain):
+            result = ""
+
+            for a in range(len(line["elementList"])):
+                text = line["elementList"][a]["text"].strip()
+
+                if len(text) > 0:
+                    if isPlain == False and line["elementList"][a]["isBold"] == True:
+                        text = f"**{text}**"
+
+                    if len(result) == 0:
+                        result = text
+                    elif self._wideCheck(result[-1:]) and self._wideCheck(text[0:1]):
+                        result += text
+                    else:
+                        result += f" {text}"
+
+            return result
+
+        def _elementBoxCollect(self, page, coordinate, scaleX, scaleY):
+            resultList = []
+
+            x1 = coordinate[0] * scaleX
+            y1 = coordinate[1] * scaleY
+            x2 = coordinate[2] * scaleX
+            y2 = coordinate[3] * scaleY
+
+            for a in range(len(page["elementList"])):
+                element = page["elementList"][a]
+
+                if element["type"] == "text":
+                    centerX = (element["x0"] + element["x1"]) / 2
+                    centerY = (element["y0"] + element["y1"]) / 2
+
+                    if centerX >= x1 and centerX <= x2 and centerY >= y1 and centerY <= y2:
+                        resultList.append(element)
+
+            return resultList
+
+        def _itemText(self, elementList, isPlain, boxX0):
+            result = ""
+
+            lineList = self._lineGroup(elementList)
+
+            fontSize = self._medianFontSize(elementList)
+
+            maxX1 = 0
+            minX0 = 0
+
+            for a in range(len(lineList)):
+                maxX1 = max(maxX1, lineList[a]["x1"])
+                minX0 = lineList[a]["x0"] if a == 0 else min(minX0, lineList[a]["x0"])
+
+            isMarker = len(lineList) > 1 and minX0 - boxX0 > fontSize * 0.8
+
+            for a in range(len(lineList)):
+                if abs(lineList[a]["x0"] - minX0) > fontSize * 0.15:
+                    isMarker = False
+
+            openText = None
+
+            for a in range(len(lineList)):
+                lineText = self._lineText(lineList[a], isPlain)
+
+                if a == 0:
+                    result = f"- {lineText}" if isMarker else lineText
+                else:
+                    separator = " "
+
+                    if self._wideCheck(result[-1:]) and self._wideCheck(lineText[0:1]):
+                        separator = ""
+
+                    if openText is not None and "://" in f"{openText}{lineText.split(')')[0]}":
+                        separator = ""
+                    elif isPlain == False:
+                        if isMarker:
+                            separator = "\n- "
+                        elif lineList[a]["x0"] < lineList[a - 1]["x0"] - fontSize * 0.15:
+                            separator = "\n"
+                        elif lineList[a - 1]["x1"] < maxX1 - fontSize * 4:
+                            separator = "\n"
+
+                    result += f"{separator}{lineText}"
+
+                for b in range(len(lineText)):
+                    if lineText[b] == "(":
+                        openText = ""
+                    elif lineText[b] == ")":
+                        openText = None
+                    elif openText is not None:
+                        openText += lineText[b]
+
+            return result
+
+        def execute(self, pageList, astPageList):
+            result = ""
+
+            pageObject = {}
+
+            for a in range(len(pageList)):
+                pageObject[pageList[a]["number"]] = pageList[a]
+
+            titleSizeRankList = self._titleSizeRank(pageObject, astPageList)
+
+            for a in range(len(astPageList)):
+                astPage = astPageList[a]
+
+                if astPage["number"] in pageObject:
+                    page = pageObject[astPage["number"]]
+
+                    scaleX = page["width"] / astPage["imageWidth"]
+                    scaleY = page["height"] / astPage["imageHeight"]
+
+                    for b in range(len(astPage["itemMainList"])):
+                        item = astPage["itemMainList"][b]
+
+                        elementList = self._elementBoxCollect(page, item["coordinate"], scaleX, scaleY)
 
                         if len(elementList) > 0:
-                            key = self._titleSizeKey(elementList)
+                            if item["label"] == "doc_title":
+                                result += f"# {self._itemText(elementList, True, item['coordinate'][0] * scaleX)}\n\n"
+                            elif item["label"] == "paragraph_title":
+                                hashText = self._headingHash(titleSizeRankList, self._titleSizeKey(elementList))
 
-                            if key not in resultList:
-                                resultList.append(key)
+                                result += f"{hashText} {self._itemText(elementList, True, item['coordinate'][0] * scaleX)}\n\n"
+                            else:
+                                result += f"{self._itemText(elementList, False, item['coordinate'][0] * scaleX)}\n\n"
 
-        resultList.sort(reverse=True)
+            secondaryText = ""
 
-        return resultList
+            for a in range(len(astPageList)):
+                astPage = astPageList[a]
 
-    def _headingHash(self, titleSizeRankList, key):
-        level = 2
+                if astPage["number"] in pageObject and len(astPage["itemSecondaryList"]) > 0:
+                    page = pageObject[astPage["number"]]
 
-        if key in titleSizeRankList:
-            level = 2 + titleSizeRankList.index(key)
+                    scaleX = page["width"] / astPage["imageWidth"]
+                    scaleY = page["height"] / astPage["imageHeight"]
 
-        return "#" * min(level, 6)
+                    pageText = ""
 
-    def _lineList(self, elementList):
-        resultList = []
+                    for b in range(len(astPage["itemSecondaryList"])):
+                        item = astPage["itemSecondaryList"][b]
 
-        elementSortList = sorted(elementList, key=lambda element: element["y0"])
+                        itemText = ""
 
-        for a in range(len(elementSortList)):
-            element = elementSortList[a]
+                        if item["label"] != "table":
+                            elementList = self._elementBoxCollect(page, item["coordinate"], scaleX, scaleY)
 
-            isFound = False
+                            if len(elementList) > 0:
+                                itemText = self._itemText(elementList, True, item["coordinate"][0] * scaleX)
 
-            for b in range(len(resultList)):
-                line = resultList[b]
+                        if len(itemText) == 0:
+                            pageText += f"[{item['label']}]\n" if len(pageText) == 0 else f"\n[{item['label']}]\n"
+                        else:
+                            pageText += f"{itemText}\n"
 
-                overlap = min(line["y1"], element["y1"]) - max(line["y0"], element["y0"])
-                height = min(line["y1"] - line["y0"], element["y1"] - element["y0"])
+                    secondaryText += f"- Page {astPage['number']}\n{pageText}\n"
 
-                if height > 0 and overlap / height >= 0.5:
-                    line["elementList"].append(element)
+            if len(secondaryText) > 0:
+                result += f"---\n\nSECONDARY ELEMENT:\n\n{secondaryText}"
 
-                    line["y0"] = min(line["y0"], element["y0"])
-                    line["y1"] = max(line["y1"], element["y1"])
+            return result
 
-                    isFound = True
+    class Docx:
+        def _headingHash(self, level):
+            return "#" * min(level, 6)
 
-                    break
+        def execute(self, astPageList):
+            result = ""
 
-            if isFound == False:
-                resultList.append({"elementList": [element], "x0": 0, "x1": 0, "y0": element["y0"], "y1": element["y1"]})
-
-        for a in range(len(resultList)):
-            line = resultList[a]
-
-            line["elementList"].sort(key=lambda element: element["x0"])
-
-            line["x0"] = line["elementList"][0]["x0"]
-            line["x1"] = line["elementList"][len(line["elementList"]) - 1]["x1"]
-
-        resultList.sort(key=lambda line: line["y0"])
-
-        return resultList
-
-    def _lineText(self, line, isPlain):
-        result = ""
-
-        for a in range(len(line["elementList"])):
-            text = line["elementList"][a]["text"].strip()
-
-            if len(text) > 0:
-                if isPlain == False and line["elementList"][a]["isBold"] == True:
-                    text = f"**{text}**"
-
-                result += text if len(result) == 0 else f" {text}"
-
-        return result
-
-    def _elementBoxList(self, page, coordinate, scaleX, scaleY):
-        resultList = []
-
-        x1 = coordinate[0] * scaleX
-        y1 = coordinate[1] * scaleY
-        x2 = coordinate[2] * scaleX
-        y2 = coordinate[3] * scaleY
-
-        for a in range(len(page["elementList"])):
-            element = page["elementList"][a]
-
-            if element["type"] == "text":
-                centerX = (element["x0"] + element["x1"]) / 2
-                centerY = (element["y0"] + element["y1"]) / 2
-
-                if centerX >= x1 and centerX <= x2 and centerY >= y1 and centerY <= y2:
-                    resultList.append(element)
-
-        return resultList
-
-    def _itemText(self, elementList, isPlain, boxX0):
-        result = ""
-
-        lineList = self._lineList(elementList)
-
-        fontSize = self._medianFontSize(elementList)
-
-        maxX1 = 0
-        minX0 = 0
-
-        for a in range(len(lineList)):
-            maxX1 = max(maxX1, lineList[a]["x1"])
-            minX0 = lineList[a]["x0"] if a == 0 else min(minX0, lineList[a]["x0"])
-
-        isMarker = len(lineList) > 1 and minX0 - boxX0 > fontSize * 0.8
-
-        for a in range(len(lineList)):
-            if abs(lineList[a]["x0"] - minX0) > fontSize * 0.15:
-                isMarker = False
-
-        openText = None
-
-        for a in range(len(lineList)):
-            lineText = self._lineText(lineList[a], isPlain)
-
-            if a == 0:
-                result = f"- {lineText}" if isMarker else lineText
-            else:
-                separator = " "
-
-                if openText is not None and "://" in f"{openText}{lineText.split(')')[0]}":
-                    separator = ""
-                elif isPlain == False:
-                    if isMarker:
-                        separator = "\n- "
-                    elif lineList[a]["x0"] < lineList[a - 1]["x0"] - fontSize * 0.15:
-                        separator = "\n"
-                    elif lineList[a - 1]["x1"] < maxX1 - fontSize * 4:
-                        separator = "\n"
-
-                result += f"{separator}{lineText}"
-
-            for b in range(len(lineText)):
-                if lineText[b] == "(":
-                    openText = ""
-                elif lineText[b] == ")":
-                    openText = None
-                elif openText is not None:
-                    openText += lineText[b]
-
-        return result
-
-    def execute(self, pageList, astPageList):
-        result = ""
-
-        pageObject = {}
-
-        for a in range(len(pageList)):
-            pageObject[pageList[a]["number"]] = pageList[a]
-
-        titleSizeRankList = self._titleSizeRankList(pageObject, astPageList)
-
-        for a in range(len(astPageList)):
-            astPage = astPageList[a]
-
-            if astPage["number"] in pageObject:
-                page = pageObject[astPage["number"]]
-
-                scaleX = page["width"] / astPage["imageWidth"]
-                scaleY = page["height"] / astPage["imageHeight"]
+            for a in range(len(astPageList)):
+                astPage = astPageList[a]
 
                 for b in range(len(astPage["itemMainList"])):
                     item = astPage["itemMainList"][b]
 
-                    elementList = self._elementBoxList(page, item["coordinate"], scaleX, scaleY)
+                    if item["label"] == "doc_title":
+                        result += f"# {item['text']}\n\n"
+                    elif item["label"] == "paragraph_title":
+                        result += f"{self._headingHash(item['level'])} {item['text']}\n\n"
+                    elif item.get("isList") == True:
+                        result += f"- {item['text']}\n\n"
+                    else:
+                        result += f"{item['text']}\n\n"
 
-                    if len(elementList) > 0:
-                        if item["label"] == "doc_title":
-                            result += f"# {self._itemText(elementList, True, item['coordinate'][0] * scaleX)}\n\n"
-                        elif item["label"] == "paragraph_title":
-                            hashText = self._headingHash(titleSizeRankList, self._titleSizeKey(elementList))
+            secondaryText = ""
 
-                            result += f"{hashText} {self._itemText(elementList, True, item['coordinate'][0] * scaleX)}\n\n"
-                        else:
-                            result += f"{self._itemText(elementList, False, item['coordinate'][0] * scaleX)}\n\n"
+            for a in range(len(astPageList)):
+                astPage = astPageList[a]
 
-        return result
+                for b in range(len(astPage["itemSecondaryList"])):
+                    item = astPage["itemSecondaryList"][b]
+
+                    itemText = f"[{item['label']}]" if len(item["text"]) == 0 else item["text"]
+
+                    secondaryText += f"{itemText}\n" if len(secondaryText) == 0 else f"\n{itemText}\n"
+
+            if len(secondaryText) > 0:
+                result += f"---\n\nSECONDARY ELEMENT:\n\n{secondaryText}"
+
+            return result
 
 class Engine:
     def execute(self, pathInput, pathOutput):
         timeStart = time.perf_counter()
-
-        pdf = Pdf()
-        pageList = pdf.execute(pathInput)
 
         astPageList = []
 
@@ -1746,17 +1835,33 @@ class Engine:
 
                 astPageList = astObject["pageList"]
 
-        markdown = Markdown()
-        markdownText = markdown.execute(pageList, astPageList)
+        extension = os.path.splitext(pathInput)[1].lower()
+
+        markdownText = ""
+        pageCount = 0
+
+        if extension == ".pdf":
+            pdf = Pdf()
+            pageList = pdf.execute(pathInput)
+
+            markdownPdf = Markdown.Pdf()
+            markdownText = markdownPdf.execute(pageList, astPageList)
+
+            pageCount = len(pageList)
+        elif extension == ".docx":
+            markdownDocx = Markdown.Docx()
+            markdownText = markdownDocx.execute(astPageList)
+
+            pageCount = len(astPageList)
 
         with open(pathOutput, "w", encoding="utf-8", errors="replace") as file:
             file.write(markdownText)
 
         timeEnd = time.perf_counter() - timeStart
 
-        print(f"\nEngine.py - Time: {round(timeEnd, 3)} - Page: {len(pageList)}")
+        print(f"\nEngine.py - Time: {round(timeEnd, 3)} - Page: {pageCount}")
 
-        resultObject = {"pageCount": len(pageList)}
+        resultObject = {"pageCount": pageCount}
 
         return resultObject
     

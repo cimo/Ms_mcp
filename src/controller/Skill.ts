@@ -86,7 +86,7 @@ export default class Skill {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId === "string") {
-                const fileList = await helperSrc.uploadedSkillList(mcpSessionId, ".*");
+                const fileList = await helperSrc.uploadedSkillRead(mcpSessionId, ".*");
 
                 helperSrc.responseBody(JSON.stringify(fileList), "", response, 200);
             } else {

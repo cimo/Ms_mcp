@@ -30,7 +30,7 @@ export default class Rag {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId === "string") {
-                const fileList = await helperSrc.uploadedDocumentList(mcpSessionId, ".*");
+                const fileList = await helperSrc.uploadedDocumentRead(mcpSessionId, ".*");
 
                 const fileNameList = [];
 

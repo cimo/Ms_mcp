@@ -127,7 +127,7 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
                         await helperSrc.fileWriteStream(`${pathDocument}image/${a + 1}.jpg`, Buffer.from(base64List[a], "base64"));
                     }
 
-                    await apiDocumentParser("/layout", `${pathDocument}image/`, pathDocument);
+                    await apiDocumentParser("/layout", `${pathDocument}result.pdf`, pathDocument);
                 }
             } else {
                 helperSrc.writeLog(`Parser.ts - execute() - pdf - fileReadStream()`, fileReadStream.toString());
@@ -146,13 +146,21 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
 
                 if (stdout !== "ko") {
                     await helperSrc.fileWriteStream(`${pathDocument}result.pdf`, Buffer.from(stdout, "base64"));
+
+                    await apiDocumentParser("/layout", `${pathDocument}${fileDetail.fileName}`, pathDocument);
                 }
             } else {
                 helperSrc.writeLog(`Parser.ts - execute() - no pdf - fileReadStream()`, fileReadStream.toString());
             }
         }
 
-        const engineData = await apiDocumentParser("/engine", `${pathDocument}result.pdf`, `${pathDocument}result.md`);
+        let pathInput = `${pathDocument}result.pdf`;
+
+        if (fileDetail.extension !== "pdf") {
+            pathInput = `${pathDocument}${fileDetail.fileName}`;
+        }
+
+        const engineData = await apiDocumentParser("/engine", pathInput, `${pathDocument}result.md`);
 
         if (engineData !== "ko") {
             resultObject = {

@@ -2,17 +2,21 @@ import sys
 sys.dont_write_bytecode = True
 
 import os
+import re
 import glob
 import shutil
 import time
 import json
+import unicodedata
+import zipfile
+import xml.etree.ElementTree
 import cv2
 import numpy
 
 sys.path.append(f"{os.path.dirname(__file__)}/..")
 from helper import onnxSessionBuild
 
-class Layout:
+class Pdf:
     def _itemFlow(self, label):
         result = "main"
 
@@ -166,7 +170,7 @@ class Layout:
 
         return [lowList, highList]
 
-    def _orderList(self, itemList, imageWidth, imageHeight, depth):
+    def _orderArrange(self, itemList, imageWidth, imageHeight, depth):
         resultList = []
 
         if len(itemList) <= 1 or depth >= 24:
@@ -180,7 +184,7 @@ class Layout:
                 columnSplit = self._orderSplit(itemList, columnGapObject["position"], True)
 
                 if len(columnSplit[0]) > 0 and len(columnSplit[1]) > 0:
-                    resultList = self._orderList(columnSplit[0], imageWidth, imageHeight, depth + 1) + self._orderList(columnSplit[1], imageWidth, imageHeight, depth + 1)
+                    resultList = self._orderArrange(columnSplit[0], imageWidth, imageHeight, depth + 1) + self._orderArrange(columnSplit[1], imageWidth, imageHeight, depth + 1)
 
                     isSplit = True
 
@@ -191,7 +195,7 @@ class Layout:
                     rowSplit = self._orderSplit(itemList, rowGapObject["position"], False)
 
                     if len(rowSplit[0]) > 0 and len(rowSplit[1]) > 0:
-                        resultList = self._orderList(rowSplit[0], imageWidth, imageHeight, depth + 1) + self._orderList(rowSplit[1], imageWidth, imageHeight, depth + 1)
+                        resultList = self._orderArrange(rowSplit[0], imageWidth, imageHeight, depth + 1) + self._orderArrange(rowSplit[1], imageWidth, imageHeight, depth + 1)
 
                         isSplit = True
 
@@ -299,7 +303,7 @@ class Layout:
                 else:
                     itemSecondaryList.append(itemList[b])
 
-            itemMainList = self._orderList(itemMainList, imageWidth, imageHeight, 0)
+            itemMainList = self._orderArrange(itemMainList, imageWidth, imageHeight, 0)
             itemSecondaryList = self._orderSort(itemSecondaryList)
 
             for b in range(len(itemMainList)):
@@ -328,7 +332,7 @@ class Layout:
 
         timeEnd = time.perf_counter() - timeStart
 
-        print(f"\nLayout.py - Time: {round(timeEnd, 3)} - Page: {len(pageList)}")
+        print(f"\nLayout.py - Pdf - Time: {round(timeEnd, 3)} - Page: {len(pageList)}")
 
         return resultObject
 
@@ -413,3 +417,389 @@ class Layout:
         cv2.setNumThreads(1)
 
         self.onnxSession = onnxSessionBuild(self.pathModel)
+
+class Docx:
+    def _nodeTag(self, node):
+        return node.tag.split("}")[1] if "}" in node.tag else node.tag
+
+    def _nodeValue(self, node):
+        return node.attrib.get(f"{{{self.namespaceW}}}val", "")
+
+    def _fallbackRemove(self, node):
+        for child in list(node):
+            if self._nodeTag(child) == "Fallback":
+                node.remove(child)
+            else:
+                self._fallbackRemove(child)
+
+    def _paragraphText(self, paragraphNode):
+        result = ""
+
+        for node in paragraphNode.iter():
+            tag = self._nodeTag(node)
+
+            if tag == "t":
+                result += node.text if node.text is not None else ""
+            elif tag == "tab" or tag == "br":
+                result += " "
+
+        return result.strip()
+
+    def _paragraphSize(self, paragraphNode):
+        sizeDefault = self.sizeDocument
+
+        sizeDefaultNode = paragraphNode.find(f"{{{self.namespaceW}}}pPr/{{{self.namespaceW}}}rPr/{{{self.namespaceW}}}sz")
+
+        if sizeDefaultNode is not None and self._nodeValue(sizeDefaultNode) != "":
+            sizeDefault = float(self._nodeValue(sizeDefaultNode))
+
+        countObject = {}
+
+        for runNode in paragraphNode.iter(f"{{{self.namespaceW}}}r"):
+            size = sizeDefault
+            length = 0
+
+            sizeNode = runNode.find(f"{{{self.namespaceW}}}rPr/{{{self.namespaceW}}}sz")
+
+            if sizeNode is not None and self._nodeValue(sizeNode) != "":
+                size = float(self._nodeValue(sizeNode))
+
+            for node in runNode.iter(f"{{{self.namespaceW}}}t"):
+                if node.text is not None:
+                    length += len(node.text)
+
+            if length > 0:
+                countObject[size] = countObject.get(size, 0) + length
+
+        result = 0.0
+        countMax = 0
+
+        for size in countObject:
+            if countObject[size] > countMax:
+                countMax = countObject[size]
+                result = size
+
+        return result
+
+    def _paragraphStyle(self, paragraphNode):
+        result = ""
+
+        for node in paragraphNode.iter(f"{{{self.namespaceW}}}pStyle"):
+            result = self._nodeValue(node)
+
+        return result
+
+    def _paragraphOutlineLevel(self, paragraphNode):
+        result = -1
+
+        for node in paragraphNode.iter(f"{{{self.namespaceW}}}outlineLvl"):
+            if self._nodeValue(node) != "":
+                result = int(self._nodeValue(node))
+
+        return result
+
+    def _paragraphNumberingCheck(self, paragraphNode):
+        result = False
+
+        for node in paragraphNode.iter(f"{{{self.namespaceW}}}numPr"):
+            result = True
+
+        return result
+
+    def _styleBuild(self, styleRootNode):
+        resultObject = {}
+
+        for styleNode in styleRootNode.iter(f"{{{self.namespaceW}}}style"):
+            styleId = styleNode.attrib.get(f"{{{self.namespaceW}}}styleId", "")
+
+            if styleId != "":
+                outlineLevel = -1
+
+                outlineNode = styleNode.find(f"{{{self.namespaceW}}}pPr/{{{self.namespaceW}}}outlineLvl")
+
+                if outlineNode is not None and self._nodeValue(outlineNode) != "":
+                    outlineLevel = int(self._nodeValue(outlineNode))
+
+                name = ""
+
+                nameNode = styleNode.find(f"{{{self.namespaceW}}}name")
+
+                if nameNode is not None:
+                    name = self._nodeValue(nameNode).lower()
+
+                resultObject[styleId] = {"outlineLevel": outlineLevel, "name": name}
+
+        return resultObject
+
+    def _paragraphImageCount(self, paragraphNode):
+        result = 0
+
+        for node in paragraphNode.iter():
+            tag = self._nodeTag(node)
+
+            if tag == "drawing" or tag == "pict":
+                result += 1
+
+        return result
+
+    def _blockBuild(self, bodyNode):
+        resultList = []
+
+        for node in bodyNode:
+            tag = self._nodeTag(node)
+
+            if tag == "p":
+                text = self._paragraphText(node)
+
+                if len(text) > 0:
+                    style = self._paragraphStyle(node)
+                    styleObject = self.styleObject.get(style, {"outlineLevel": -1, "name": ""})
+
+                    outlineLevel = self._paragraphOutlineLevel(node)
+
+                    if outlineLevel == -1:
+                        outlineLevel = styleObject["outlineLevel"]
+
+                    resultList.append({
+                        "kind": "paragraph",
+                        "text": text,
+                        "size": self._paragraphSize(node),
+                        "style": style,
+                        "styleName": styleObject["name"],
+                        "outlineLevel": outlineLevel,
+                        "isList": self._paragraphNumberingCheck(node),
+                        "isAside": False,
+                        "isContinuation": False
+                    })
+
+                for a in range(self._paragraphImageCount(node)):
+                    resultList.append({"kind": "image"})
+            elif tag == "tbl":
+                resultList.append({"kind": "table"})
+
+        return resultList
+
+    def _asideRunFlush(self, blockList, runIndexList):
+        if len(runIndexList) >= self.levelAsideCount:
+            for a in range(len(runIndexList)):
+                blockList[runIndexList[a]]["isAside"] = True
+
+    def _wideCheck(self, character):
+        return character != "" and unicodedata.east_asian_width(character) in ("W", "F")
+
+    def _bodyTextCheck(self, block):
+        result = False
+
+        if block["kind"] == "paragraph" and block["outlineLevel"] == -1 and block["isList"] == False:
+            if block["style"] != "Title" and block["styleName"] != "title" and re.match(r"Heading(\d)", block["style"]) is None:
+                if "caption" not in block["styleName"] and "Caption" not in block["style"] and "didascalia" not in block["styleName"]:
+                    result = True
+
+        return result
+
+    def _continuationCheck(self, blockList, index):
+        result = False
+
+        if index > 0:
+            previous = blockList[index - 1]
+
+            if previous["kind"] == "paragraph" and len(previous["text"]) > self.levelAsideLength and previous["size"] == blockList[index]["size"]:
+                if unicodedata.category(previous["text"][-1:])[0:1] != "P":
+                    result = True
+
+        return result
+
+    def _asideMark(self, blockList):
+        runIndexList = []
+
+        for a in range(len(blockList)):
+            block = blockList[a]
+
+            isBreak = True
+
+            if block["kind"] == "image":
+                isBreak = False
+            elif block["kind"] == "paragraph":
+                if self._bodyTextCheck(block) and len(block["text"]) <= self.levelAsideLength:
+                    if len(runIndexList) == 0 and self._continuationCheck(blockList, a):
+                        block["isContinuation"] = True
+                    else:
+                        runIndexList.append(a)
+
+                        isBreak = False
+
+            if isBreak:
+                self._asideRunFlush(blockList, runIndexList)
+
+                runIndexList = []
+
+        self._asideRunFlush(blockList, runIndexList)
+
+        return blockList
+
+    def _bodySize(self, blockList):
+        countObject = {}
+
+        for a in range(len(blockList)):
+            if blockList[a]["kind"] == "paragraph" and blockList[a]["isAside"] == False:
+                size = blockList[a]["size"]
+
+                countObject[size] = countObject.get(size, 0) + len(blockList[a]["text"])
+
+        result = 0.0
+        countMax = 0
+
+        for size in countObject:
+            if countObject[size] > countMax:
+                countMax = countObject[size]
+                result = size
+
+        return result
+
+    def _titleSizeRank(self, blockList, bodySize):
+        resultList = []
+
+        for a in range(len(blockList)):
+            block = blockList[a]
+
+            if self._bodyTextCheck(block) and block["isAside"] == False:
+                if bodySize > 0 and block["size"] >= bodySize * self.levelTitleSize and len(block["text"]) <= self.levelTitleLength:
+                    if block["size"] not in resultList:
+                        resultList.append(block["size"])
+
+        resultList.sort(reverse=True)
+
+        return resultList
+
+    def _itemLabel(self, block, titleSizeList, isDocTitleFound):
+        resultObject = {"label": "text", "level": 0}
+
+        styleMatch = re.match(r"Heading(\d)", block["style"])
+
+        if block["style"] == "Title" or block["styleName"] == "title":
+            resultObject["label"] = "doc_title"
+        elif "Caption" in block["style"] or "caption" in block["styleName"] or "didascalia" in block["styleName"]:
+            resultObject["label"] = "figure_title"
+        elif styleMatch is not None:
+            resultObject["label"] = "paragraph_title"
+            resultObject["level"] = int(styleMatch.group(1)) + 1
+        elif block["outlineLevel"] >= 0:
+            resultObject["label"] = "paragraph_title"
+            resultObject["level"] = block["outlineLevel"] + 2
+        elif block["size"] in titleSizeList and len(block["text"]) <= self.levelTitleLength:
+            index = titleSizeList.index(block["size"])
+
+            if index == 0 and isDocTitleFound == False:
+                resultObject["label"] = "doc_title"
+            else:
+                resultObject["label"] = "paragraph_title"
+                resultObject["level"] = max(2, 1 + index) if isDocTitleFound else 2 + index
+
+        return resultObject
+
+    def execute(self, pathInput, pathOutput):
+        timeStart = time.perf_counter()
+
+        zipFile = zipfile.ZipFile(pathInput)
+        rootNode = xml.etree.ElementTree.fromstring(zipFile.read("word/document.xml"))
+
+        self.sizeDocument = 22.0
+        self.styleObject = {}
+
+        if "word/styles.xml" in zipFile.namelist():
+            styleRootNode = xml.etree.ElementTree.fromstring(zipFile.read("word/styles.xml"))
+
+            self.styleObject = self._styleBuild(styleRootNode)
+
+            sizeNode = styleRootNode.find(
+                f"{{{self.namespaceW}}}docDefaults/{{{self.namespaceW}}}rPrDefault/{{{self.namespaceW}}}rPr/{{{self.namespaceW}}}sz"
+            )
+
+            if sizeNode is not None and self._nodeValue(sizeNode) != "":
+                self.sizeDocument = float(self._nodeValue(sizeNode))
+
+        zipFile.close()
+
+        self._fallbackRemove(rootNode)
+
+        bodyNode = rootNode.find(f"{{{self.namespaceW}}}body")
+
+        blockList = self._blockBuild(bodyNode) if bodyNode is not None else []
+        blockList = self._asideMark(blockList)
+
+        bodySize = self._bodySize(blockList)
+        titleSizeList = self._titleSizeRank(blockList, bodySize)
+
+        itemMainList = []
+        itemSecondaryList = []
+
+        isDocTitleFound = False
+
+        for a in range(len(blockList)):
+            block = blockList[a]
+
+            if block["kind"] == "table":
+                itemSecondaryList.append({"label": "table", "text": ""})
+            elif block["kind"] == "image":
+                itemSecondaryList.append({"label": "image", "text": ""})
+            elif block["isAside"]:
+                itemSecondaryList.append({"label": "aside_text", "text": block["text"]})
+            elif block["isContinuation"] and len(itemMainList) > 0:
+                itemPrevious = itemMainList[len(itemMainList) - 1]
+
+                if self._wideCheck(itemPrevious["text"][-1:]) and self._wideCheck(block["text"][0:1]):
+                    itemPrevious["text"] += block["text"]
+                else:
+                    itemPrevious["text"] += f" {block['text']}"
+            else:
+                labelObject = self._itemLabel(block, titleSizeList, isDocTitleFound)
+
+                if labelObject["label"] == "doc_title":
+                    isDocTitleFound = True
+
+                item = {"label": labelObject["label"], "text": block["text"]}
+
+                if labelObject["label"] == "paragraph_title":
+                    item["level"] = labelObject["level"]
+
+                if labelObject["label"] == "text" and block["isList"]:
+                    item["isList"] = True
+
+                if labelObject["label"] == "figure_title":
+                    itemSecondaryList.append(item)
+                else:
+                    itemMainList.append(item)
+
+        for a in range(len(itemMainList)):
+            itemMainList[a]["flow"] = "main"
+            itemMainList[a]["order"] = a + 1
+
+        for a in range(len(itemSecondaryList)):
+            itemSecondaryList[a]["flow"] = "secondary"
+            itemSecondaryList[a]["order"] = a + 1
+
+        resultObject = {
+            "pageList": [
+                {"number": 1, "itemMainList": itemMainList, "itemSecondaryList": itemSecondaryList}
+            ]
+        }
+
+        with open(f"{pathOutput}ast.json", "w", encoding="utf-8") as file:
+            json.dump(resultObject, file, ensure_ascii=False, indent=4)
+
+        timeEnd = time.perf_counter() - timeStart
+
+        print(f"\nLayout.py - Docx - Time: {round(timeEnd, 3)} - Block: {len(blockList)}")
+
+        return resultObject
+
+    def __init__(self):
+        self.namespaceW = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+        self.sizeDocument = 22.0
+        self.styleObject = {}
+
+        self.levelTitleSize = 1.15
+        self.levelTitleLength = 120
+        self.levelAsideLength = 60
+        self.levelAsideCount = 4
