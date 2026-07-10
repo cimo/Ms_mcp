@@ -229,20 +229,12 @@ export default class Tool {
             if (typeof mcpSessionId === "string") {
                 const resultList: modelTool.Itool[] = [
                     {
-                        name: this.toolDocument.execute().name,
-                        argumentObject: this.toolDocument.inputSchema.parse({}),
-                        icon: "document.svg",
-                        description: this.toolDocument.execute().config.description,
-                        example: this.toolDocument.execute().config.example,
-                        inputInstruction: this.toolDocument.execute().config.inputInstruction
-                    },
-                    {
-                        name: this.toolMath.execute().name,
-                        argumentObject: this.toolMath.inputSchema.parse({}),
-                        icon: "math.svg",
-                        description: this.toolMath.execute().config.description,
-                        example: this.toolMath.execute().config.example,
-                        inputInstruction: this.toolMath.execute().config.inputInstruction
+                        name: this.toolRag.search().name,
+                        argumentObject: this.toolRag.inputSchemaSearch.parse({}),
+                        icon: "rag.svg",
+                        description: this.toolRag.search().config.description,
+                        example: this.toolRag.search().config.example,
+                        inputInstruction: this.toolRag.search().config.inputInstruction
                     },
                     {
                         name: this.toolOcr.execute().name,
@@ -253,6 +245,14 @@ export default class Tool {
                         inputInstruction: this.toolOcr.execute().config.inputInstruction
                     },
                     {
+                        name: this.toolDocument.execute().name,
+                        argumentObject: this.toolDocument.inputSchema.parse({}),
+                        icon: "document.svg",
+                        description: this.toolDocument.execute().config.description,
+                        example: this.toolDocument.execute().config.example,
+                        inputInstruction: this.toolDocument.execute().config.inputInstruction
+                    },
+                    {
                         name: this.toolSecurity.execute().name,
                         argumentObject: this.toolSecurity.inputSchema.parse({}),
                         icon: "security.svg",
@@ -261,20 +261,20 @@ export default class Tool {
                         inputInstruction: this.toolSecurity.execute().config.inputInstruction
                     },
                     {
-                        name: this.toolRag.search().name,
-                        argumentObject: this.toolRag.inputSchemaSearch.parse({}),
-                        icon: "rag.svg",
-                        description: this.toolRag.search().config.description,
-                        example: this.toolRag.search().config.example,
-                        inputInstruction: this.toolRag.search().config.inputInstruction
-                    },
-                    {
                         name: this.toolPlaywright.execute().name,
                         argumentObject: this.toolPlaywright.inputSchema.parse({}),
                         icon: "playwright.svg",
                         description: this.toolPlaywright.execute().config.description,
                         example: this.toolPlaywright.execute().config.example,
                         inputInstruction: this.toolPlaywright.execute().config.inputInstruction
+                    },
+                    {
+                        name: this.toolMath.execute().name,
+                        argumentObject: this.toolMath.inputSchema.parse({}),
+                        icon: "math.svg",
+                        description: this.toolMath.execute().config.description,
+                        example: this.toolMath.execute().config.example,
+                        inputInstruction: this.toolMath.execute().config.inputInstruction
                     }
                 ];
 
