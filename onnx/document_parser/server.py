@@ -10,7 +10,7 @@ import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # Source
-from layout import Pdf, Docx
+from layout import Pdf, Office
 from engine import Engine
 
 class HandlerHttpRequest(BaseHTTPRequestHandler):
@@ -39,9 +39,13 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
         if extension == ".pdf":
             result = self.layoutPdf.execute(f"{os.path.dirname(pathInput)}/image/", pathOutput)
         elif extension == ".docx":
-            layoutDocx = Docx()
+            layoutDocx = Office.Docx()
 
             result = layoutDocx.execute(pathInput, pathOutput)
+        elif extension == ".xlsx":
+            layoutXlsx = Office.Xlsx()
+
+            result = layoutXlsx.execute(pathInput, pathOutput)
 
         return result
 

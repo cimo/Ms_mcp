@@ -72,6 +72,22 @@ class Engine:
     def _utilNodeNormalize(self, text):
         return re.sub(r"\s+", " ", text.strip().lower())
 
+    def _utilRowParse(self, prompt):
+        resultList = []
+
+        referenceList = re.findall(r"\b(?:row|riga)\s+([1-9][0-9]*)\b", prompt, re.IGNORECASE)
+        cellList = re.findall(r"\b[A-Z]{1,3}([1-9][0-9]*)\b", prompt)
+
+        for a in range(len(referenceList)):
+            if int(referenceList[a]) not in resultList:
+                resultList.append(int(referenceList[a]))
+
+        for a in range(len(cellList)):
+            if int(cellList[a]) not in resultList:
+                resultList.append(int(cellList[a]))
+
+        return resultList
+
     def _logicFileSelect(self, database, mcpSessionId, fileName):
         result = 0
 
@@ -129,6 +145,37 @@ class Engine:
 
             if chunk and fileNameObject.get(fileIdRow) is not None:
                 resultList.append({"fileName": fileNameObject[fileIdRow], "chunk": chunk, "distance": float(queryRowList[a][2])})
+
+        return resultList
+
+    def _logicCitationRowMatch(self, database, mcpSessionId, fileList, fileId, rowList):
+        resultList = []
+
+        fileNameObject = {}
+
+        for a in range(len(fileList)):
+            fileNameObject[fileList[a]["id"]] = fileList[a]["name"]
+
+        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag")
+
+        clauseList = []
+        parameterList = [fileId]
+
+        for a in range(len(rowList)):
+            clauseList.append("chunk LIKE %s")
+            parameterList.append(f"%\nrow {rowList[a]}:%")
+
+        queryRowList = database.execute(
+            f'SELECT chunk, file_id FROM "{tableName}" WHERE file_id = %s AND ({" OR ".join(clauseList)})',
+            tuple(parameterList)
+        ).fetchall()
+
+        for a in range(len(queryRowList)):
+            chunk = queryRowList[a][0]
+            fileIdRow = queryRowList[a][1]
+
+            if chunk and fileNameObject.get(fileIdRow) is not None:
+                resultList.append({"fileName": fileNameObject[fileIdRow], "chunk": chunk, "distance": 0.0})
 
         return resultList
 
@@ -813,6 +860,75 @@ class Engine:
 
         return cleanList
 
+    def _chunkTableCellSplit(self, line):
+        resultList = []
+
+        partSplit = re.split(r"(?<!\\)\|", line)
+
+        for a in range(1, len(partSplit) - 1):
+            resultList.append(partSplit[a].strip().replace("\\|", "|"))
+
+        return resultList
+
+    def _chunkTable(self, fileName, text):
+        resultList = []
+
+        sheetName = ""
+        letterList = []
+        chunkText = ""
+        rowCount = 0
+
+        lineSplit = text.split("\n")
+
+        for a in range(len(lineSplit)):
+            line = lineSplit[a].strip()
+
+            if line == "":
+                continue
+
+            if line.startswith("# "):
+                if rowCount > 0:
+                    resultList.append(chunkText)
+
+                sheetName = line[2:].strip()
+                letterList = []
+                chunkText = ""
+                rowCount = 0
+            elif line.startswith("|"):
+                if line.replace("|", "").replace("-", "").replace(" ", "") == "":
+                    continue
+
+                cellSplit = self._chunkTableCellSplit(line)
+
+                if len(letterList) == 0:
+                    letterList = cellSplit
+
+                    chunkText = f"{fileName} - {sheetName}"
+                else:
+                    partList = []
+
+                    for b in range(1, len(cellSplit)):
+                        if cellSplit[b] != "" and b < len(letterList):
+                            partList.append(f"{letterList[b]}={cellSplit[b]}")
+
+                    rowText = f"row {cellSplit[0]}: {', '.join(partList)}"
+
+                    if self._utilTokenEstimate(chunkText) + self._utilTokenEstimate(rowText) + 1 > self.chunkTokenLength:
+                        resultList.append(chunkText)
+
+                        chunkText = f"{fileName} - {sheetName}"
+
+                    chunkText = f"{chunkText}\n{rowText}"
+
+                    rowCount += 1
+            elif rowCount > 0:
+                chunkText = f"{chunkText}\n{line}"
+
+        if rowCount > 0:
+            resultList.append(chunkText)
+
+        return resultList
+
     def _storeCitation(self, database, cookie, mcpSessionId, uniqueId, fileId, chunkList):
         isFailed = False
 
@@ -1399,12 +1515,22 @@ class Engine:
                 with open(pathMarkdown, "r", encoding="utf-8") as file:
                     fileContent = file.read()
 
-                chunkList = self._chunk(fileContent)
+                extension = os.path.splitext(fileNameOnly)[1].lower()
+
+                if extension == ".xlsx":
+                    chunkList = self._chunkTable(fileNameOnly, fileContent)
+                else:
+                    chunkList = self._chunk(fileContent)
 
                 isFailed = len(chunkList) == 0
 
                 if not isFailed:
                     isFailed = self._storeCitation(database, cookie, mcpSessionId, uniqueId, fileId, chunkList)
+
+                if not isFailed and extension == ".xlsx":
+                    self._tableNodeInsert(database, mcpSessionId, fileId, fileNameOnly, "file", "")
+
+                    database.commit()
 
                 if not isFailed:
                     self._storeRelation(database, mcpSessionId, fileId, chunkList)
@@ -1475,6 +1601,28 @@ class Engine:
             nodeList, seedObject, seedList, entityFileIdList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingData, isEntityEmbedding)
 
             citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptVector, entityFileIdList)
+
+            rowList = self._utilRowParse(prompt)
+
+            if len(rowList) > 0:
+                fileNameObject = {}
+
+                for a in range(len(fileList)):
+                    fileNameObject[fileList[a]["id"]] = fileList[a]["name"]
+
+                rowCitationList = []
+
+                for a in range(len(entityFileIdList)):
+                    fileName = fileNameObject.get(entityFileIdList[a], "")
+
+                    if fileName.lower().endswith(".xlsx"):
+                        rowMatchList = self._logicCitationRowMatch(database, mcpSessionId, fileList, entityFileIdList[a], rowList)
+
+                        for b in range(len(rowMatchList)):
+                            rowCitationList.append(rowMatchList[b])
+
+                if len(rowCitationList) > 0:
+                    citationList = rowCitationList
 
             isInDomain = isCitationSemantic or len(seedList) > 0
 

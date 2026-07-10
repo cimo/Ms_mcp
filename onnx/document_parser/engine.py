@@ -1786,14 +1786,47 @@ class Markdown:
         def _headingHash(self, level):
             return "#" * min(level, 6)
 
+        def _rowText(self, cellList):
+            result = "|"
+
+            for a in range(len(cellList)):
+                cellText = cellList[a].replace("|", "\\|").replace("\n", " ")
+
+                result += f" {cellText} |"
+
+            return result
+
         def execute(self, astPageList):
             result = ""
 
             for a in range(len(astPageList)):
                 astPage = astPageList[a]
 
+                isTableOpen = False
+
                 for b in range(len(astPage["itemMainList"])):
                     item = astPage["itemMainList"][b]
+
+                    if item["label"] == "tableRow":
+                        cellList = item.get("cellList", [])
+
+                        rowText = self._rowText(cellList)
+
+                        if isTableOpen == False:
+                            separatorText = "| --- " * len(cellList) + "|"
+
+                            result += f"{rowText}\n{separatorText}\n"
+
+                            isTableOpen = True
+                        else:
+                            result += f"{rowText}\n"
+
+                        continue
+
+                    if isTableOpen:
+                        result += "\n"
+
+                        isTableOpen = False
 
                     if item["label"] == "doc_title":
                         result += f"# {item['text']}\n\n"
@@ -1803,6 +1836,9 @@ class Markdown:
                         result += f"- {item['text']}\n\n"
                     else:
                         result += f"{item['text']}\n\n"
+
+                if isTableOpen:
+                    result += "\n"
 
             secondaryText = ""
 
@@ -1818,6 +1854,72 @@ class Markdown:
 
             if len(secondaryText) > 0:
                 result += f"---\n\nSECONDARY ELEMENT:\n\n{secondaryText}"
+
+            return result
+
+    class Xlsx:
+        def _columnLetter(self, index):
+            result = ""
+
+            value = index + 1
+
+            while value > 0:
+                remainder = (value - 1) % 26
+
+                result = chr(65 + remainder) + result
+
+                value = (value - 1) // 26
+
+            return result
+
+        def _cellEscape(self, text):
+            return text.replace("|", "\\|").replace("\n", " ")
+
+        def execute(self, astPageList):
+            result = ""
+
+            for a in range(len(astPageList)):
+                astPage = astPageList[a]
+
+                sheetName = ""
+                rowItemList = []
+
+                for b in range(len(astPage["itemMainList"])):
+                    item = astPage["itemMainList"][b]
+
+                    if item["label"] == "sheetName":
+                        sheetName = item["text"]
+                    elif item["label"] == "tableRow":
+                        rowItemList.append(item)
+
+                result += f"# {sheetName}\n\n"
+
+                if len(rowItemList) > 0:
+                    columnCount = len(rowItemList[0]["cellList"])
+
+                    headerText = "| row |"
+                    separatorText = "| --- |"
+
+                    for b in range(columnCount):
+                        headerText += f" {self._columnLetter(b)} |"
+                        separatorText += " --- |"
+
+                    result += f"{headerText}\n{separatorText}\n"
+
+                    for b in range(len(rowItemList)):
+                        rowText = f"| {rowItemList[b]['number']} |"
+
+                        for c in range(len(rowItemList[b]["cellList"])):
+                            rowText += f" {self._cellEscape(rowItemList[b]['cellList'][c])} |"
+
+                        result += f"{rowText}\n"
+
+                    result += "\n"
+
+                mergeList = astPage.get("mergeList", [])
+
+                if len(mergeList) > 0:
+                    result += f"Merge: {', '.join(mergeList)}\n\n"
 
             return result
 
@@ -1851,6 +1953,11 @@ class Engine:
         elif extension == ".docx":
             markdownDocx = Markdown.Docx()
             markdownText = markdownDocx.execute(astPageList)
+
+            pageCount = len(astPageList)
+        elif extension == ".xlsx":
+            markdownXlsx = Markdown.Xlsx()
+            markdownText = markdownXlsx.execute(astPageList)
 
             pageCount = len(astPageList)
 

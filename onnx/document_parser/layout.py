@@ -7,6 +7,7 @@ import glob
 import shutil
 import time
 import json
+import datetime
 import unicodedata
 import zipfile
 import xml.etree.ElementTree
@@ -50,7 +51,7 @@ class Pdf:
                     itemList[a]["label"] = "text"
 
         return itemList
-    
+
     def _itemClean(self, itemList):
         resultList = itemList
 
@@ -268,7 +269,7 @@ class Pdf:
         itemList = self._itemRelabel(itemList, imageWidth)
 
         return itemList
-    
+
     def execute(self, pathInput, pathOutput):
         timeStart = time.perf_counter()
 
@@ -348,7 +349,7 @@ class Pdf:
         self.levelGapColumn = 0.01
         self.levelGapRow = 0.005
         self.levelCaptionWidth = 0.5
-        
+
         self.scoreThreshold = 0.3
         self.scoreFigureTitle = 0.6
 
@@ -418,388 +419,897 @@ class Pdf:
 
         self.onnxSession = onnxSessionBuild(self.pathModel)
 
-class Docx:
+class Office:
     def _nodeTag(self, node):
         return node.tag.split("}")[1] if "}" in node.tag else node.tag
 
     def _nodeValue(self, node):
-        return node.attrib.get(f"{{{self.namespaceW}}}val", "")
+        return node.attrib.get(f"{{{self.namespace}}}val", "")
 
-    def _fallbackRemove(self, node):
-        for child in list(node):
-            if self._nodeTag(child) == "Fallback":
-                node.remove(child)
+    def _rootBuild(self, zipFile, pathFile):
+        result = None
+
+        if pathFile in zipFile.namelist():
+            result = xml.etree.ElementTree.fromstring(zipFile.read(pathFile))
+
+        return result
+
+    def __init__(self, namespace):
+        self.namespace = namespace
+
+    class Docx:
+        def _fallbackRemove(self, node):
+            for child in list(node):
+                if self.office._nodeTag(child) == "Fallback":
+                    node.remove(child)
+                else:
+                    self._fallbackRemove(child)
+
+        def _textCollect(self, node):
+            result = ""
+
+            tag = self.office._nodeTag(node)
+
+            if tag != "txbxContent":
+                if tag == "t":
+                    result += node.text if node.text is not None else ""
+                elif tag == "tab" or tag == "br":
+                    result += " "
+
+                for childNode in node:
+                    result += self._textCollect(childNode)
+
+            return result
+
+        def _paragraphText(self, paragraphNode):
+            return self._textCollect(paragraphNode).strip()
+
+        def _paragraphSize(self, paragraphNode):
+            sizeDefault = self.sizeDocument
+
+            sizeDefaultNode = paragraphNode.find(f"{{{self.namespaceW}}}pPr/{{{self.namespaceW}}}rPr/{{{self.namespaceW}}}sz")
+
+            if sizeDefaultNode is not None and self.office._nodeValue(sizeDefaultNode) != "":
+                sizeDefault = float(self.office._nodeValue(sizeDefaultNode))
+
+            countObject = {}
+
+            for runNode in paragraphNode.iter(f"{{{self.namespaceW}}}r"):
+                size = sizeDefault
+                length = 0
+
+                sizeNode = runNode.find(f"{{{self.namespaceW}}}rPr/{{{self.namespaceW}}}sz")
+
+                if sizeNode is not None and self.office._nodeValue(sizeNode) != "":
+                    size = float(self.office._nodeValue(sizeNode))
+
+                for node in runNode.iter(f"{{{self.namespaceW}}}t"):
+                    if node.text is not None:
+                        length += len(node.text)
+
+                if length > 0:
+                    countObject[size] = countObject.get(size, 0) + length
+
+            result = 0.0
+            countMax = 0
+
+            for size in countObject:
+                if countObject[size] > countMax:
+                    countMax = countObject[size]
+                    result = size
+
+            return result
+
+        def _paragraphStyle(self, paragraphNode):
+            result = ""
+
+            for node in paragraphNode.iter(f"{{{self.namespaceW}}}pStyle"):
+                result = self.office._nodeValue(node)
+
+            return result
+
+        def _paragraphOutlineLevel(self, paragraphNode):
+            result = -1
+
+            for node in paragraphNode.iter(f"{{{self.namespaceW}}}outlineLvl"):
+                if self.office._nodeValue(node) != "":
+                    result = int(self.office._nodeValue(node))
+
+            return result
+
+        def _paragraphNumberingCheck(self, paragraphNode):
+            result = False
+
+            for node in paragraphNode.iter(f"{{{self.namespaceW}}}numPr"):
+                result = True
+
+            return result
+
+        def _styleBuild(self, styleRootNode):
+            resultObject = {}
+
+            for styleNode in styleRootNode.iter(f"{{{self.namespaceW}}}style"):
+                styleId = styleNode.attrib.get(f"{{{self.namespaceW}}}styleId", "")
+
+                if styleId != "":
+                    outlineLevel = -1
+
+                    outlineNode = styleNode.find(f"{{{self.namespaceW}}}pPr/{{{self.namespaceW}}}outlineLvl")
+
+                    if outlineNode is not None and self.office._nodeValue(outlineNode) != "":
+                        outlineLevel = int(self.office._nodeValue(outlineNode))
+
+                    name = ""
+
+                    nameNode = styleNode.find(f"{{{self.namespaceW}}}name")
+
+                    if nameNode is not None:
+                        name = self.office._nodeValue(nameNode).lower()
+
+                    resultObject[styleId] = {"outlineLevel": outlineLevel, "name": name}
+
+            return resultObject
+
+        def _paragraphImageCount(self, paragraphNode):
+            result = 0
+
+            for node in paragraphNode.iter():
+                tag = self.office._nodeTag(node)
+
+                if tag == "drawing" or tag == "pict":
+                    result += 1
+
+            return result
+
+        def _blockParagraph(self, paragraphNode, isWrapped):
+            resultList = []
+
+            text = self._paragraphText(paragraphNode)
+
+            if len(text) > 0:
+                style = self._paragraphStyle(paragraphNode)
+                styleObject = self.styleObject.get(style, {"outlineLevel": -1, "name": ""})
+
+                outlineLevel = self._paragraphOutlineLevel(paragraphNode)
+
+                if outlineLevel == -1:
+                    outlineLevel = styleObject["outlineLevel"]
+
+                resultList.append({
+                    "kind": "paragraph",
+                    "text": text,
+                    "size": self._paragraphSize(paragraphNode),
+                    "style": style,
+                    "styleName": styleObject["name"],
+                    "outlineLevel": outlineLevel,
+                    "isList": self._paragraphNumberingCheck(paragraphNode),
+                    "isAside": isWrapped and len(text) <= self.levelAsideLength,
+                    "isContinuation": False,
+                    "isWrapped": isWrapped
+                })
+
+            for a in range(self._paragraphImageCount(paragraphNode)):
+                resultList.append({"kind": "image"})
+
+            for node in paragraphNode.iter():
+                if self.office._nodeTag(node) == "txbxContent":
+                    textboxList = self._blockWrapped(node)
+
+                    for a in range(len(textboxList)):
+                        resultList.append(textboxList[a])
+
+            return resultList
+
+        def _blockWrapped(self, containerNode):
+            blockList = []
+
+            for node in containerNode:
+                tag = self.office._nodeTag(node)
+
+                childList = []
+
+                if tag == "p":
+                    childList = self._blockParagraph(node, True)
+                elif tag == "tbl":
+                    childList = self._blockTable(node)
+
+                for a in range(len(childList)):
+                    blockList.append(childList[a])
+
+            resultList = []
+
+            for a in range(len(blockList)):
+                block = blockList[a]
+
+                isMerge = False
+
+                if block["kind"] == "paragraph" and block["isWrapped"] and len(resultList) > 0:
+                    previous = resultList[len(resultList) - 1]
+
+                    if previous["kind"] == "paragraph" and previous["isWrapped"]:
+                        isMerge = True
+
+                        separator = "" if self._wideCheck(previous["text"][-1:]) and self._wideCheck(block["text"][0:1]) else " "
+
+                        previous["text"] = f"{previous['text']}{separator}{block['text']}"
+
+                if isMerge == False:
+                    resultList.append(block)
+
+            for a in range(len(resultList)):
+                if resultList[a]["kind"] == "paragraph" and resultList[a]["isWrapped"]:
+                    resultList[a]["isAside"] = len(resultList[a]["text"]) <= self.levelAsideLength
+
+            return resultList
+
+        def _blockTable(self, tableNode):
+            resultList = []
+
+            rowNodeList = []
+
+            for node in tableNode:
+                if self.office._nodeTag(node) == "tr":
+                    rowNodeList.append(node)
+
+            columnMax = 0
+            isData = len(rowNodeList) >= 2
+
+            rowTextList = []
+
+            for a in range(len(rowNodeList)):
+                cellNodeList = []
+
+                for node in rowNodeList[a]:
+                    if self.office._nodeTag(node) == "tc":
+                        cellNodeList.append(node)
+
+                columnMax = max(columnMax, len(cellNodeList))
+
+                cellTextList = []
+
+                for b in range(len(cellNodeList)):
+                    textList = []
+
+                    for node in cellNodeList[b]:
+                        tag = self.office._nodeTag(node)
+
+                        if tag == "p":
+                            text = self._paragraphText(node)
+
+                            if len(text) > 0:
+                                textList.append(text)
+
+                                if len(text) > self.levelAsideLength:
+                                    isData = False
+                        elif tag == "tbl":
+                            isData = False
+
+                    if self._paragraphImageCount(cellNodeList[b]) > 0:
+                        isData = False
+
+                    cellTextList.append(" ".join(textList))
+
+                rowTextList.append(cellTextList)
+
+            if columnMax < 2:
+                isData = False
+
+            if isData:
+                for a in range(len(rowTextList)):
+                    resultList.append({"kind": "tableRow", "cellList": rowTextList[a]})
             else:
-                self._fallbackRemove(child)
+                for a in range(len(rowNodeList)):
+                    for node in rowNodeList[a]:
+                        if self.office._nodeTag(node) == "tc":
+                            blockList = self._blockWrapped(node)
 
-    def _paragraphText(self, paragraphNode):
-        result = ""
+                            for b in range(len(blockList)):
+                                resultList.append(blockList[b])
 
-        for node in paragraphNode.iter():
-            tag = self._nodeTag(node)
+            return resultList
 
-            if tag == "t":
-                result += node.text if node.text is not None else ""
-            elif tag == "tab" or tag == "br":
-                result += " "
+        def _blockBuild(self, containerNode):
+            resultList = []
 
-        return result.strip()
+            for node in containerNode:
+                tag = self.office._nodeTag(node)
 
-    def _paragraphSize(self, paragraphNode):
-        sizeDefault = self.sizeDocument
+                blockList = []
 
-        sizeDefaultNode = paragraphNode.find(f"{{{self.namespaceW}}}pPr/{{{self.namespaceW}}}rPr/{{{self.namespaceW}}}sz")
+                if tag == "p":
+                    blockList = self._blockParagraph(node, False)
+                elif tag == "tbl":
+                    blockList = self._blockTable(node)
+                elif tag != "sectPr":
+                    blockList = self._blockBuild(node)
 
-        if sizeDefaultNode is not None and self._nodeValue(sizeDefaultNode) != "":
-            sizeDefault = float(self._nodeValue(sizeDefaultNode))
+                for a in range(len(blockList)):
+                    resultList.append(blockList[a])
 
-        countObject = {}
+            return resultList
 
-        for runNode in paragraphNode.iter(f"{{{self.namespaceW}}}r"):
-            size = sizeDefault
-            length = 0
+        def _asideRunFlush(self, blockList, runIndexList):
+            if len(runIndexList) >= self.levelAsideCount:
+                for a in range(len(runIndexList)):
+                    blockList[runIndexList[a]]["isAside"] = True
 
-            sizeNode = runNode.find(f"{{{self.namespaceW}}}rPr/{{{self.namespaceW}}}sz")
+        def _wideCheck(self, character):
+            return character != "" and unicodedata.east_asian_width(character) in ("W", "F")
 
-            if sizeNode is not None and self._nodeValue(sizeNode) != "":
-                size = float(self._nodeValue(sizeNode))
+        def _bodyTextCheck(self, block):
+            result = False
 
-            for node in runNode.iter(f"{{{self.namespaceW}}}t"):
-                if node.text is not None:
-                    length += len(node.text)
+            if block["kind"] == "paragraph" and block["outlineLevel"] == -1 and block["isList"] == False:
+                if block["style"] != "Title" and block["styleName"] != "title" and re.match(r"Heading(\d)", block["style"]) is None:
+                    if "caption" not in block["styleName"] and "Caption" not in block["style"] and "didascalia" not in block["styleName"]:
+                        result = True
 
-            if length > 0:
-                countObject[size] = countObject.get(size, 0) + length
+            return result
 
-        result = 0.0
-        countMax = 0
+        def _sentenceEndCheck(self, text):
+            textClean = re.sub(r"(\s*\[[^\[\]]{1,20}\]|[)\]}\"'”’»›])+$", "", text.strip())
 
-        for size in countObject:
-            if countObject[size] > countMax:
-                countMax = countObject[size]
-                result = size
+            return len(textClean) > 0 and textClean[-1:] in self.sentenceEndList
 
-        return result
+        def _continuationCheck(self, previous, block):
+            result = False
 
-    def _paragraphStyle(self, paragraphNode):
-        result = ""
+            if previous is not None and previous["kind"] == "paragraph" and previous["isAside"] == False:
+                if len(previous["text"]) > self.levelAsideLength and previous["size"] == block["size"]:
+                    if self._sentenceEndCheck(previous["text"]) == False:
+                        result = True
 
-        for node in paragraphNode.iter(f"{{{self.namespaceW}}}pStyle"):
-            result = self._nodeValue(node)
+            return result
 
-        return result
+        def _previousParagraph(self, blockList, index):
+            result = None
 
-    def _paragraphOutlineLevel(self, paragraphNode):
-        result = -1
+            for a in range(index - 1, -1, -1):
+                block = blockList[a]
 
-        for node in paragraphNode.iter(f"{{{self.namespaceW}}}outlineLvl"):
-            if self._nodeValue(node) != "":
-                result = int(self._nodeValue(node))
+                if block["kind"] == "paragraph":
+                    if block["isAside"] == False:
+                        result = block
 
-        return result
+                        break
+                elif block["kind"] != "image":
+                    break
 
-    def _paragraphNumberingCheck(self, paragraphNode):
-        result = False
+            return result
 
-        for node in paragraphNode.iter(f"{{{self.namespaceW}}}numPr"):
-            result = True
+        def _previousBlock(self, blockList, index):
+            result = None
 
-        return result
+            for a in range(index - 1, -1, -1):
+                block = blockList[a]
 
-    def _styleBuild(self, styleRootNode):
-        resultObject = {}
+                if block["kind"] == "image":
+                    continue
 
-        for styleNode in styleRootNode.iter(f"{{{self.namespaceW}}}style"):
-            styleId = styleNode.attrib.get(f"{{{self.namespaceW}}}styleId", "")
+                if block["kind"] == "paragraph":
+                    result = block
 
-            if styleId != "":
-                outlineLevel = -1
+                break
 
-                outlineNode = styleNode.find(f"{{{self.namespaceW}}}pPr/{{{self.namespaceW}}}outlineLvl")
+            return result
 
-                if outlineNode is not None and self._nodeValue(outlineNode) != "":
-                    outlineLevel = int(self._nodeValue(outlineNode))
+        def _continuationMark(self, blockList):
+            for a in range(len(blockList)):
+                block = blockList[a]
 
-                name = ""
+                if block["kind"] == "paragraph" and block["isAside"] == False and block["isContinuation"] == False and self._bodyTextCheck(block):
+                    isChained = False
 
-                nameNode = styleNode.find(f"{{{self.namespaceW}}}name")
+                    if block["isWrapped"]:
+                        previousBlock = self._previousBlock(blockList, a)
 
-                if nameNode is not None:
-                    name = self._nodeValue(nameNode).lower()
+                        if previousBlock is not None and previousBlock["isAside"] and previousBlock["size"] == block["size"]:
+                            if self._sentenceEndCheck(previousBlock["text"]) == False:
+                                block["isAside"] = True
 
-                resultObject[styleId] = {"outlineLevel": outlineLevel, "name": name}
+                                isChained = True
 
-        return resultObject
+                    if isChained == False and (len(block["text"]) <= self.levelAsideLength or block["text"][0:1].islower()):
+                        previous = self._previousParagraph(blockList, a)
 
-    def _paragraphImageCount(self, paragraphNode):
-        result = 0
+                        if self._continuationCheck(previous, block):
+                            block["isContinuation"] = True
 
-        for node in paragraphNode.iter():
-            tag = self._nodeTag(node)
+            return blockList
 
-            if tag == "drawing" or tag == "pict":
-                result += 1
+        def _asideMark(self, blockList):
+            runIndexList = []
 
-        return result
+            for a in range(len(blockList)):
+                block = blockList[a]
 
-    def _blockBuild(self, bodyNode):
-        resultList = []
+                isBreak = True
 
-        for node in bodyNode:
-            tag = self._nodeTag(node)
-
-            if tag == "p":
-                text = self._paragraphText(node)
-
-                if len(text) > 0:
-                    style = self._paragraphStyle(node)
-                    styleObject = self.styleObject.get(style, {"outlineLevel": -1, "name": ""})
-
-                    outlineLevel = self._paragraphOutlineLevel(node)
-
-                    if outlineLevel == -1:
-                        outlineLevel = styleObject["outlineLevel"]
-
-                    resultList.append({
-                        "kind": "paragraph",
-                        "text": text,
-                        "size": self._paragraphSize(node),
-                        "style": style,
-                        "styleName": styleObject["name"],
-                        "outlineLevel": outlineLevel,
-                        "isList": self._paragraphNumberingCheck(node),
-                        "isAside": False,
-                        "isContinuation": False
-                    })
-
-                for a in range(self._paragraphImageCount(node)):
-                    resultList.append({"kind": "image"})
-            elif tag == "tbl":
-                resultList.append({"kind": "table"})
-
-        return resultList
-
-    def _asideRunFlush(self, blockList, runIndexList):
-        if len(runIndexList) >= self.levelAsideCount:
-            for a in range(len(runIndexList)):
-                blockList[runIndexList[a]]["isAside"] = True
-
-    def _wideCheck(self, character):
-        return character != "" and unicodedata.east_asian_width(character) in ("W", "F")
-
-    def _bodyTextCheck(self, block):
-        result = False
-
-        if block["kind"] == "paragraph" and block["outlineLevel"] == -1 and block["isList"] == False:
-            if block["style"] != "Title" and block["styleName"] != "title" and re.match(r"Heading(\d)", block["style"]) is None:
-                if "caption" not in block["styleName"] and "Caption" not in block["style"] and "didascalia" not in block["styleName"]:
-                    result = True
-
-        return result
-
-    def _continuationCheck(self, blockList, index):
-        result = False
-
-        if index > 0:
-            previous = blockList[index - 1]
-
-            if previous["kind"] == "paragraph" and len(previous["text"]) > self.levelAsideLength and previous["size"] == blockList[index]["size"]:
-                if unicodedata.category(previous["text"][-1:])[0:1] != "P":
-                    result = True
-
-        return result
-
-    def _asideMark(self, blockList):
-        runIndexList = []
-
-        for a in range(len(blockList)):
-            block = blockList[a]
-
-            isBreak = True
-
-            if block["kind"] == "image":
-                isBreak = False
-            elif block["kind"] == "paragraph":
-                if self._bodyTextCheck(block) and len(block["text"]) <= self.levelAsideLength:
-                    if len(runIndexList) == 0 and self._continuationCheck(blockList, a):
-                        block["isContinuation"] = True
-                    else:
-                        runIndexList.append(a)
-
+                if block["kind"] == "image":
+                    isBreak = False
+                elif block["kind"] == "paragraph":
+                    if block["isAside"]:
                         isBreak = False
+                    elif self._bodyTextCheck(block) and len(block["text"]) <= self.levelAsideLength:
+                        if len(runIndexList) == 0 and self._continuationCheck(blockList[a - 1] if a > 0 else None, block):
+                            block["isContinuation"] = True
+                        else:
+                            runIndexList.append(a)
 
-            if isBreak:
-                self._asideRunFlush(blockList, runIndexList)
+                            isBreak = False
 
-                runIndexList = []
+                if isBreak:
+                    self._asideRunFlush(blockList, runIndexList)
 
-        self._asideRunFlush(blockList, runIndexList)
+                    runIndexList = []
 
-        return blockList
+            self._asideRunFlush(blockList, runIndexList)
 
-    def _bodySize(self, blockList):
-        countObject = {}
+            return blockList
 
-        for a in range(len(blockList)):
-            if blockList[a]["kind"] == "paragraph" and blockList[a]["isAside"] == False:
-                size = blockList[a]["size"]
+        def _bodySize(self, blockList):
+            countObject = {}
 
-                countObject[size] = countObject.get(size, 0) + len(blockList[a]["text"])
+            for a in range(len(blockList)):
+                if blockList[a]["kind"] == "paragraph" and blockList[a]["isAside"] == False:
+                    size = blockList[a]["size"]
 
-        result = 0.0
-        countMax = 0
+                    countObject[size] = countObject.get(size, 0) + len(blockList[a]["text"])
 
-        for size in countObject:
-            if countObject[size] > countMax:
-                countMax = countObject[size]
-                result = size
+            result = 0.0
+            countMax = 0
 
-        return result
+            for size in countObject:
+                if countObject[size] > countMax:
+                    countMax = countObject[size]
+                    result = size
 
-    def _titleSizeRank(self, blockList, bodySize):
-        resultList = []
+            return result
 
-        for a in range(len(blockList)):
-            block = blockList[a]
+        def _titleSizeRank(self, blockList, bodySize):
+            resultList = []
 
-            if self._bodyTextCheck(block) and block["isAside"] == False:
-                if bodySize > 0 and block["size"] >= bodySize * self.levelTitleSize and len(block["text"]) <= self.levelTitleLength:
-                    if block["size"] not in resultList:
-                        resultList.append(block["size"])
+            for a in range(len(blockList)):
+                block = blockList[a]
 
-        resultList.sort(reverse=True)
+                if self._bodyTextCheck(block) and block["isAside"] == False:
+                    if bodySize > 0 and block["size"] >= bodySize * self.levelTitleSize and len(block["text"]) <= self.levelTitleLength:
+                        if block["size"] not in resultList:
+                            resultList.append(block["size"])
 
-        return resultList
+            resultList.sort(reverse=True)
 
-    def _itemLabel(self, block, titleSizeList, isDocTitleFound):
-        resultObject = {"label": "text", "level": 0}
+            return resultList
 
-        styleMatch = re.match(r"Heading(\d)", block["style"])
+        def _itemLabel(self, block, titleSizeList, isDocTitleFound):
+            resultObject = {"label": "text", "level": 0}
 
-        if block["style"] == "Title" or block["styleName"] == "title":
-            resultObject["label"] = "doc_title"
-        elif "Caption" in block["style"] or "caption" in block["styleName"] or "didascalia" in block["styleName"]:
-            resultObject["label"] = "figure_title"
-        elif styleMatch is not None:
-            resultObject["label"] = "paragraph_title"
-            resultObject["level"] = int(styleMatch.group(1)) + 1
-        elif block["outlineLevel"] >= 0:
-            resultObject["label"] = "paragraph_title"
-            resultObject["level"] = block["outlineLevel"] + 2
-        elif block["size"] in titleSizeList and len(block["text"]) <= self.levelTitleLength:
-            index = titleSizeList.index(block["size"])
+            styleMatch = re.match(r"Heading(\d)", block["style"])
 
-            if index == 0 and isDocTitleFound == False:
+            if block["style"] == "Title" or block["styleName"] == "title":
                 resultObject["label"] = "doc_title"
-            else:
+            elif "Caption" in block["style"] or "caption" in block["styleName"] or "didascalia" in block["styleName"]:
+                resultObject["label"] = "figure_title"
+            elif styleMatch is not None:
                 resultObject["label"] = "paragraph_title"
-                resultObject["level"] = max(2, 1 + index) if isDocTitleFound else 2 + index
+                resultObject["level"] = int(styleMatch.group(1)) + 1
+            elif block["outlineLevel"] >= 0:
+                resultObject["label"] = "paragraph_title"
+                resultObject["level"] = block["outlineLevel"] + 2
+            elif block["size"] in titleSizeList and len(block["text"]) <= self.levelTitleLength:
+                index = titleSizeList.index(block["size"])
 
-        return resultObject
-
-    def execute(self, pathInput, pathOutput):
-        timeStart = time.perf_counter()
-
-        zipFile = zipfile.ZipFile(pathInput)
-        rootNode = xml.etree.ElementTree.fromstring(zipFile.read("word/document.xml"))
-
-        self.sizeDocument = 22.0
-        self.styleObject = {}
-
-        if "word/styles.xml" in zipFile.namelist():
-            styleRootNode = xml.etree.ElementTree.fromstring(zipFile.read("word/styles.xml"))
-
-            self.styleObject = self._styleBuild(styleRootNode)
-
-            sizeNode = styleRootNode.find(
-                f"{{{self.namespaceW}}}docDefaults/{{{self.namespaceW}}}rPrDefault/{{{self.namespaceW}}}rPr/{{{self.namespaceW}}}sz"
-            )
-
-            if sizeNode is not None and self._nodeValue(sizeNode) != "":
-                self.sizeDocument = float(self._nodeValue(sizeNode))
-
-        zipFile.close()
-
-        self._fallbackRemove(rootNode)
-
-        bodyNode = rootNode.find(f"{{{self.namespaceW}}}body")
-
-        blockList = self._blockBuild(bodyNode) if bodyNode is not None else []
-        blockList = self._asideMark(blockList)
-
-        bodySize = self._bodySize(blockList)
-        titleSizeList = self._titleSizeRank(blockList, bodySize)
-
-        itemMainList = []
-        itemSecondaryList = []
-
-        isDocTitleFound = False
-
-        for a in range(len(blockList)):
-            block = blockList[a]
-
-            if block["kind"] == "table":
-                itemSecondaryList.append({"label": "table", "text": ""})
-            elif block["kind"] == "image":
-                itemSecondaryList.append({"label": "image", "text": ""})
-            elif block["isAside"]:
-                itemSecondaryList.append({"label": "aside_text", "text": block["text"]})
-            elif block["isContinuation"] and len(itemMainList) > 0:
-                itemPrevious = itemMainList[len(itemMainList) - 1]
-
-                if self._wideCheck(itemPrevious["text"][-1:]) and self._wideCheck(block["text"][0:1]):
-                    itemPrevious["text"] += block["text"]
+                if index == 0 and isDocTitleFound == False:
+                    resultObject["label"] = "doc_title"
                 else:
-                    itemPrevious["text"] += f" {block['text']}"
+                    resultObject["label"] = "paragraph_title"
+                    resultObject["level"] = max(2, 1 + index) if isDocTitleFound else 2 + index
+
+            return resultObject
+
+        def execute(self, pathInput, pathOutput):
+            timeStart = time.perf_counter()
+
+            zipFile = zipfile.ZipFile(pathInput)
+
+            rootNode = self.office._rootBuild(zipFile, "word/document.xml")
+
+            self.sizeDocument = 22.0
+            self.styleObject = {}
+
+            styleRootNode = self.office._rootBuild(zipFile, "word/styles.xml")
+
+            if styleRootNode is not None:
+                self.styleObject = self._styleBuild(styleRootNode)
+
+                sizeNode = styleRootNode.find(
+                    f"{{{self.namespaceW}}}docDefaults/{{{self.namespaceW}}}rPrDefault/{{{self.namespaceW}}}rPr/{{{self.namespaceW}}}sz"
+                )
+
+                if sizeNode is not None and self.office._nodeValue(sizeNode) != "":
+                    self.sizeDocument = float(self.office._nodeValue(sizeNode))
+
+            zipFile.close()
+
+            blockList = []
+
+            if rootNode is not None:
+                self._fallbackRemove(rootNode)
+
+                bodyNode = rootNode.find(f"{{{self.namespaceW}}}body")
+
+                if bodyNode is not None:
+                    blockList = self._blockBuild(bodyNode)
+
+            blockList = self._asideMark(blockList)
+            blockList = self._continuationMark(blockList)
+
+            bodySize = self._bodySize(blockList)
+            titleSizeList = self._titleSizeRank(blockList, bodySize)
+
+            itemMainList = []
+            itemSecondaryList = []
+
+            isDocTitleFound = False
+
+            for a in range(len(blockList)):
+                block = blockList[a]
+
+                if block["kind"] == "tableRow":
+                    itemMainList.append({"label": "tableRow", "text": " | ".join(block["cellList"]), "cellList": block["cellList"]})
+                elif block["kind"] == "image":
+                    itemSecondaryList.append({"label": "image", "text": ""})
+                elif block["isAside"]:
+                    itemSecondaryList.append({"label": "aside_text", "text": block["text"]})
+                elif block["isContinuation"] and len(itemMainList) > 0:
+                    itemPrevious = itemMainList[len(itemMainList) - 1]
+
+                    if self._wideCheck(itemPrevious["text"][-1:]) and self._wideCheck(block["text"][0:1]):
+                        itemPrevious["text"] += block["text"]
+                    else:
+                        itemPrevious["text"] += f" {block['text']}"
+                else:
+                    labelObject = self._itemLabel(block, titleSizeList, isDocTitleFound)
+
+                    if labelObject["label"] == "doc_title":
+                        isDocTitleFound = True
+
+                    item = {"label": labelObject["label"], "text": block["text"]}
+
+                    if labelObject["label"] == "paragraph_title":
+                        item["level"] = labelObject["level"]
+
+                    if labelObject["label"] == "text" and block["isList"]:
+                        item["isList"] = True
+
+                    if labelObject["label"] == "figure_title":
+                        itemSecondaryList.append(item)
+                    else:
+                        itemMainList.append(item)
+
+            for a in range(len(itemMainList)):
+                itemMainList[a]["flow"] = "main"
+                itemMainList[a]["order"] = a + 1
+
+            for a in range(len(itemSecondaryList)):
+                itemSecondaryList[a]["flow"] = "secondary"
+                itemSecondaryList[a]["order"] = a + 1
+
+            resultObject = {
+                "pageList": [
+                    {"number": 1, "itemMainList": itemMainList, "itemSecondaryList": itemSecondaryList}
+                ]
+            }
+
+            with open(f"{pathOutput}ast.json", "w", encoding="utf-8") as file:
+                json.dump(resultObject, file, ensure_ascii=False, indent=4)
+
+            timeEnd = time.perf_counter() - timeStart
+
+            print(f"\nLayout.py - Docx - Time: {round(timeEnd, 3)} - Block: {len(blockList)}")
+
+            return resultObject
+
+        def __init__(self):
+            self.namespaceW = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+            self.office = Office(self.namespaceW)
+
+            self.sizeDocument = 22.0
+            self.styleObject = {}
+
+            self.levelTitleSize = 1.15
+            self.levelTitleLength = 120
+            self.levelAsideLength = 60
+            self.levelAsideCount = 4
+
+            self.sentenceEndList = [".", "!", "?", "…", ";", ":", "。", "！", "？", "；", "："]
+
+    class Xlsx:
+        def _cellColumn(self, reference):
+            result = 0
+
+            for a in range(len(reference)):
+                if reference[a].isalpha():
+                    result = result * 26 + (ord(reference[a].upper()) - 64)
+                else:
+                    break
+
+            return max(0, result - 1)
+
+        def _stringText(self, node):
+            result = ""
+
+            tag = self.office._nodeTag(node)
+
+            if tag != "rPh":
+                if tag == "t":
+                    result += node.text if node.text is not None else ""
+
+                for childNode in node:
+                    result += self._stringText(childNode)
+
+            return result
+
+        def _sharedStringBuild(self, sharedStringRootNode):
+            resultList = []
+
+            for node in sharedStringRootNode.iter(f"{{{self.namespaceMain}}}si"):
+                resultList.append(self._stringText(node))
+
+            return resultList
+
+        def _dateFormatCheck(self, formatCode):
+            formatClean = re.sub(r"\"[^\"]*\"|\[[^\]]*\]|\\.", "", formatCode)
+
+            return re.search(r"[dmyhs]", formatClean, re.IGNORECASE) is not None
+
+        def _dateStyleBuild(self, styleRootNode):
+            resultList = []
+
+            numberFormatObject = {}
+
+            for node in styleRootNode.iter(f"{{{self.namespaceMain}}}numFmt"):
+                numberFormatObject[int(node.attrib.get("numFmtId", "-1"))] = node.attrib.get("formatCode", "")
+
+            cellFormatNode = styleRootNode.find(f"{{{self.namespaceMain}}}cellXfs")
+
+            if cellFormatNode is not None:
+                indexFormat = 0
+
+                for node in cellFormatNode:
+                    if self.office._nodeTag(node) == "xf":
+                        numberFormatId = int(node.attrib.get("numFmtId", "0"))
+
+                        isDate = numberFormatId in self.numberFormatDateList
+
+                        if isDate == False and numberFormatId in numberFormatObject:
+                            isDate = self._dateFormatCheck(numberFormatObject[numberFormatId])
+
+                        if isDate:
+                            resultList.append(indexFormat)
+
+                        indexFormat += 1
+
+            return resultList
+
+        def _numberCheck(self, text):
+            return re.match(r"^-?\d+(\.\d+)?([eE][+-]?\d+)?$", text) is not None
+
+        def _numberText(self, text):
+            result = text
+
+            value = float(text)
+
+            if value == int(value):
+                result = str(int(value))
+
+            return result
+
+        def _dateText(self, value):
+            dateValue = datetime.datetime(1899, 12, 30) + datetime.timedelta(days=value)
+
+            result = dateValue.strftime("%Y-%m-%d %H:%M:%S")
+
+            if value < 1.0:
+                result = dateValue.strftime("%H:%M:%S")
+            elif value == int(value):
+                result = dateValue.strftime("%Y-%m-%d")
+
+            return result
+
+        def _cellText(self, cellNode):
+            result = ""
+
+            cellType = cellNode.attrib.get("t", "n")
+
+            valueNode = cellNode.find(f"{{{self.namespaceMain}}}v")
+            valueText = valueNode.text if valueNode is not None and valueNode.text is not None else ""
+
+            if cellType == "s":
+                if valueText != "" and int(valueText) < len(self.sharedStringList):
+                    result = self.sharedStringList[int(valueText)]
+            elif cellType == "inlineStr":
+                inlineNode = cellNode.find(f"{{{self.namespaceMain}}}is")
+
+                if inlineNode is not None:
+                    result = self._stringText(inlineNode)
+            elif cellType == "b":
+                result = "TRUE" if valueText == "1" else "FALSE"
+            elif cellType == "str" or cellType == "e":
+                result = valueText
             else:
-                labelObject = self._itemLabel(block, titleSizeList, isDocTitleFound)
+                result = valueText
 
-                if labelObject["label"] == "doc_title":
-                    isDocTitleFound = True
+                if valueText != "" and self._numberCheck(valueText):
+                    styleText = cellNode.attrib.get("s", "")
+                    styleIndex = int(styleText) if styleText.isdigit() else -1
 
-                item = {"label": labelObject["label"], "text": block["text"]}
+                    if styleIndex in self.dateStyleList:
+                        result = self._dateText(float(valueText))
+                    else:
+                        result = self._numberText(valueText)
 
-                if labelObject["label"] == "paragraph_title":
-                    item["level"] = labelObject["level"]
+            return result.strip()
 
-                if labelObject["label"] == "text" and block["isList"]:
-                    item["isList"] = True
+        def _rowCollect(self, sheetRootNode):
+            rowObjectList = []
 
-                if labelObject["label"] == "figure_title":
-                    itemSecondaryList.append(item)
-                else:
-                    itemMainList.append(item)
+            rowNumberNext = 1
 
-        for a in range(len(itemMainList)):
-            itemMainList[a]["flow"] = "main"
-            itemMainList[a]["order"] = a + 1
+            for rowNode in sheetRootNode.iter(f"{{{self.namespaceMain}}}row"):
+                rowNumberText = rowNode.attrib.get("r", "")
+                rowNumber = int(rowNumberText) if rowNumberText.isdigit() else rowNumberNext
 
-        for a in range(len(itemSecondaryList)):
-            itemSecondaryList[a]["flow"] = "secondary"
-            itemSecondaryList[a]["order"] = a + 1
+                cellList = []
+                columnNext = 0
 
-        resultObject = {
-            "pageList": [
-                {"number": 1, "itemMainList": itemMainList, "itemSecondaryList": itemSecondaryList}
-            ]
-        }
+                for cellNode in rowNode:
+                    if self.office._nodeTag(cellNode) == "c":
+                        reference = cellNode.attrib.get("r", "")
+                        column = self._cellColumn(reference) if reference != "" else columnNext
 
-        with open(f"{pathOutput}ast.json", "w", encoding="utf-8") as file:
-            json.dump(resultObject, file, ensure_ascii=False, indent=4)
+                        while len(cellList) < column:
+                            cellList.append("")
 
-        timeEnd = time.perf_counter() - timeStart
+                        cellList.append(self._cellText(cellNode))
 
-        print(f"\nLayout.py - Docx - Time: {round(timeEnd, 3)} - Block: {len(blockList)}")
+                        columnNext = column + 1
 
-        return resultObject
+                while len(cellList) > 0 and cellList[len(cellList) - 1] == "":
+                    cellList.pop()
 
-    def __init__(self):
-        self.namespaceW = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                rowObjectList.append({"number": rowNumber, "cellList": cellList})
 
-        self.sizeDocument = 22.0
-        self.styleObject = {}
+                rowNumberNext = rowNumber + 1
 
-        self.levelTitleSize = 1.15
-        self.levelTitleLength = 120
-        self.levelAsideLength = 60
-        self.levelAsideCount = 4
+            numberFirst = 0
+            numberLast = 0
+            columnCount = 0
+
+            for a in range(len(rowObjectList)):
+                if len(rowObjectList[a]["cellList"]) > 0:
+                    if numberFirst == 0:
+                        numberFirst = rowObjectList[a]["number"]
+
+                    numberLast = rowObjectList[a]["number"]
+                    columnCount = max(columnCount, len(rowObjectList[a]["cellList"]))
+
+            cellListObject = {}
+
+            for a in range(len(rowObjectList)):
+                cellListObject[rowObjectList[a]["number"]] = rowObjectList[a]["cellList"]
+
+            resultList = []
+
+            if numberFirst > 0:
+                for a in range(numberFirst, numberLast + 1):
+                    cellList = cellListObject[a] if a in cellListObject else []
+
+                    while len(cellList) < columnCount:
+                        cellList.append("")
+
+                    resultList.append({"number": a, "cellList": cellList})
+
+            return resultList
+
+        def _mergeCollect(self, sheetRootNode):
+            resultList = []
+
+            for node in sheetRootNode.iter(f"{{{self.namespaceMain}}}mergeCell"):
+                reference = node.attrib.get("ref", "")
+
+                if reference != "":
+                    resultList.append(reference)
+
+            return resultList
+
+        def _sheetBuild(self, zipFile):
+            resultList = []
+
+            workbookRootNode = self.office._rootBuild(zipFile, "xl/workbook.xml")
+            relationshipRootNode = self.office._rootBuild(zipFile, "xl/_rels/workbook.xml.rels")
+
+            pathObject = {}
+
+            if relationshipRootNode is not None:
+                for node in relationshipRootNode.iter(f"{{{self.namespacePackage}}}Relationship"):
+                    target = node.attrib.get("Target", "")
+
+                    pathObject[node.attrib.get("Id", "")] = target[1:] if target.startswith("/") else f"xl/{target}"
+
+            if workbookRootNode is not None:
+                for node in workbookRootNode.iter(f"{{{self.namespaceMain}}}sheet"):
+                    relationshipId = node.attrib.get(f"{{{self.namespaceRelationship}}}id", "")
+
+                    if relationshipId in pathObject and "worksheets/" in pathObject[relationshipId]:
+                        resultList.append({"name": node.attrib.get("name", ""), "path": pathObject[relationshipId]})
+
+            return resultList
+
+        def execute(self, pathInput, pathOutput):
+            timeStart = time.perf_counter()
+
+            zipFile = zipfile.ZipFile(pathInput)
+
+            self.sharedStringList = []
+            self.dateStyleList = []
+
+            sharedStringRootNode = self.office._rootBuild(zipFile, "xl/sharedStrings.xml")
+
+            if sharedStringRootNode is not None:
+                self.sharedStringList = self._sharedStringBuild(sharedStringRootNode)
+
+            styleRootNode = self.office._rootBuild(zipFile, "xl/styles.xml")
+
+            if styleRootNode is not None:
+                self.dateStyleList = self._dateStyleBuild(styleRootNode)
+
+            sheetList = self._sheetBuild(zipFile)
+
+            pageList = []
+            rowCount = 0
+
+            for a in range(len(sheetList)):
+                sheetRootNode = self.office._rootBuild(zipFile, sheetList[a]["path"])
+
+                rowList = self._rowCollect(sheetRootNode) if sheetRootNode is not None else []
+                mergeList = self._mergeCollect(sheetRootNode) if sheetRootNode is not None else []
+
+                itemMainList = [{"label": "sheetName", "text": sheetList[a]["name"]}]
+
+                for b in range(len(rowList)):
+                    itemMainList.append({"label": "tableRow", "number": rowList[b]["number"], "text": " | ".join(rowList[b]["cellList"]), "cellList": rowList[b]["cellList"]})
+
+                for b in range(len(itemMainList)):
+                    itemMainList[b]["flow"] = "main"
+                    itemMainList[b]["order"] = b + 1
+
+                pageList.append({"number": a + 1, "mergeList": mergeList, "itemMainList": itemMainList, "itemSecondaryList": []})
+
+                rowCount += len(rowList)
+
+            zipFile.close()
+
+            resultObject = {"pageList": pageList}
+
+            with open(f"{pathOutput}ast.json", "w", encoding="utf-8") as file:
+                json.dump(resultObject, file, ensure_ascii=False, indent=4)
+
+            timeEnd = time.perf_counter() - timeStart
+
+            print(f"\nLayout.py - Xlsx - Time: {round(timeEnd, 3)} - Sheet: {len(pageList)} - Row: {rowCount}")
+
+            return resultObject
+
+        def __init__(self):
+            self.namespaceMain = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+            self.namespaceRelationship = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            self.namespacePackage = "http://schemas.openxmlformats.org/package/2006/relationships"
+
+            self.office = Office(self.namespaceMain)
+
+            self.sharedStringList = []
+            self.dateStyleList = []
+
+            self.numberFormatDateList = [14, 15, 16, 17, 18, 19, 20, 21, 22, 45, 46, 47]
