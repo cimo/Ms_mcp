@@ -12,6 +12,7 @@ import { Cc } from "@cimo/cronjob/dist/src/Main.js";
 import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import ControllerUser from "./User.js";
+import ControllerLlm from "./Llm.js";
 import ControllerSetting from "./Setting.js";
 import ControllerAgent from "./Agent.js";
 import ControllerTool from "./Tool.js";
@@ -102,6 +103,10 @@ export default class Server {
             const controllerUser = new ControllerUser(this.app, this.limiter);
             controllerUser.api();
             controllerUser.tableCreate();
+
+            const controllerLlm = new ControllerLlm(this.app, this.limiter);
+            controllerLlm.api();
+            controllerLlm.tableCreate();
 
             const controllerSetting = new ControllerSetting(this.app, this.limiter);
             controllerSetting.api();
