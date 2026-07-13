@@ -124,7 +124,7 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
                     const base64List = JSON.parse(stdout) as string[];
 
                     for (let a = 0; a < base64List.length; a++) {
-                        await helperSrc.fileWriteStream(`${pathDocument}image/${a + 1}.jpg`, Buffer.from(base64List[a], "base64"));
+                        await helperSrc.fileWriteStream(`${pathDocument}page/${a + 1}.jpg`, Buffer.from(base64List[a], "base64"));
                     }
 
                     await apiDocumentParser("/layout", `${pathDocument}result.pdf`, pathDocument);

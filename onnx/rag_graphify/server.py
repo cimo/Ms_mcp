@@ -71,8 +71,9 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
     def log_message(self, format, *argumentList):
         return
 
-host = "127.0.0.1"
-port = 1112
+urlSplit = os.environ["MS_M_URL_API_ONNX_RG"].replace("http://", "").split(":")
+host = urlSplit[0]
+port = int(urlSplit[1])
 
 checkSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 isRunning = checkSocket.connect_ex((host, port)) == 0

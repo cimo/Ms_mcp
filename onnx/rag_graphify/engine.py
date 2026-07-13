@@ -886,6 +886,12 @@ class Engine:
             if line == "":
                 continue
 
+            if line == "SECONDARY ELEMENT:":
+                break
+
+            if line == "---":
+                continue
+
             if line.startswith("# "):
                 if rowCount > 0:
                     resultList.append(chunkText)

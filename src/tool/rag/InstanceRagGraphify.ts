@@ -3,7 +3,7 @@ import { Cr } from "@cimo/request/dist/src/Main.js";
 // Source
 import * as helperSrc from "../../HelperSrc.js";
 
-export const api = new Cr("http://127.0.0.1:1112");
+export const api = new Cr(helperSrc.URL_API_ONNX_RG);
 
 api.setRequestInterceptor((config: RequestInit) => {
     return {

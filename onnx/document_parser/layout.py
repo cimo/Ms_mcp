@@ -434,6 +434,79 @@ class Office:
 
         return result
 
+    def _chartText(self, chartRootNode):
+        namespaceChart = "http://schemas.openxmlformats.org/drawingml/2006/chart"
+        namespaceDrawing = "http://schemas.openxmlformats.org/drawingml/2006/main"
+
+        result = "chart"
+
+        plotAreaNode = chartRootNode.find(f".//{{{namespaceChart}}}plotArea")
+
+        if plotAreaNode is not None:
+            for node in plotAreaNode:
+                if self._nodeTag(node).endswith("Chart"):
+                    result = self._nodeTag(node)
+
+                    break
+
+        titleText = ""
+
+        titleNode = chartRootNode.find(f".//{{{namespaceChart}}}title")
+
+        if titleNode is not None:
+            for node in titleNode.iter(f"{{{namespaceDrawing}}}t"):
+                titleText += node.text if node.text is not None else ""
+
+        if titleText != "":
+            result += f" - {titleText}"
+
+        for serieNode in chartRootNode.iter(f"{{{namespaceChart}}}ser"):
+            nameText = ""
+
+            textNode = serieNode.find(f"{{{namespaceChart}}}tx")
+
+            if textNode is not None:
+                for node in textNode.iter(f"{{{namespaceChart}}}v"):
+                    if node.text is not None:
+                        nameText = node.text
+
+                    break
+
+            categoryObject = {}
+
+            categoryNode = serieNode.find(f"{{{namespaceChart}}}cat")
+
+            if categoryNode is not None:
+                for node in categoryNode.iter(f"{{{namespaceChart}}}pt"):
+                    valueNode = node.find(f"{{{namespaceChart}}}v")
+
+                    if valueNode is not None and valueNode.text is not None:
+                        categoryObject[node.attrib.get("idx", "")] = valueNode.text
+
+            pairList = []
+
+            valueParentNode = serieNode.find(f"{{{namespaceChart}}}val")
+
+            if valueParentNode is not None:
+                for node in valueParentNode.iter(f"{{{namespaceChart}}}pt"):
+                    valueNode = node.find(f"{{{namespaceChart}}}v")
+
+                    if valueNode is not None and valueNode.text is not None:
+                        index = node.attrib.get("idx", "")
+
+                        categoryText = categoryObject[index] if index in categoryObject else index
+
+                        pairList.append(f"{categoryText}={valueNode.text}")
+
+            serieText = ", ".join(pairList)
+
+            if nameText != "":
+                result += f"\n{nameText}: {serieText}"
+            elif serieText != "":
+                result += f"\n{serieText}"
+
+        return result
+
     def __init__(self, namespace):
         self.namespace = namespace
 
@@ -550,16 +623,30 @@ class Office:
 
             return resultObject
 
-        def _paragraphImageCount(self, paragraphNode):
-            result = 0
+        def _paragraphDrawingCollect(self, paragraphNode):
+            resultList = []
 
             for node in paragraphNode.iter():
                 tag = self.office._nodeTag(node)
 
-                if tag == "drawing" or tag == "pict":
-                    result += 1
+                if tag == "drawing":
+                    chartNode = node.find(f".//{{{self.namespaceChart}}}chart")
 
-            return result
+                    if chartNode is not None:
+                        resultList.append({"kind": "image", "relationshipId": chartNode.attrib.get(f"{{{self.namespaceRelationship}}}id", ""), "isChart": True})
+                    else:
+                        relationshipId = ""
+
+                        blipNode = node.find(f".//{{{self.namespaceDrawing}}}blip")
+
+                        if blipNode is not None:
+                            relationshipId = blipNode.attrib.get(f"{{{self.namespaceRelationship}}}embed", "")
+
+                        resultList.append({"kind": "image", "relationshipId": relationshipId, "isChart": False})
+                elif tag == "pict":
+                    resultList.append({"kind": "image", "relationshipId": "", "isChart": False})
+
+            return resultList
 
         def _blockParagraph(self, paragraphNode, isWrapped):
             resultList = []
@@ -588,8 +675,10 @@ class Office:
                     "isWrapped": isWrapped
                 })
 
-            for a in range(self._paragraphImageCount(paragraphNode)):
-                resultList.append({"kind": "image"})
+            drawingList = self._paragraphDrawingCollect(paragraphNode)
+
+            for a in range(len(drawingList)):
+                resultList.append(drawingList[a])
 
             for node in paragraphNode.iter():
                 if self.office._nodeTag(node) == "txbxContent":
@@ -684,7 +773,7 @@ class Office:
                         elif tag == "tbl":
                             isData = False
 
-                    if self._paragraphImageCount(cellNodeList[b]) > 0:
+                    if len(self._paragraphDrawingCollect(cellNodeList[b])) > 0:
                         isData = False
 
                     cellTextList.append(" ".join(textList))
@@ -929,7 +1018,15 @@ class Office:
                 if sizeNode is not None and self.office._nodeValue(sizeNode) != "":
                     self.sizeDocument = float(self.office._nodeValue(sizeNode))
 
-            zipFile.close()
+            relationshipRootNode = self.office._rootBuild(zipFile, "word/_rels/document.xml.rels")
+
+            pathObject = {}
+
+            if relationshipRootNode is not None:
+                for node in relationshipRootNode.iter(f"{{{self.namespacePackage}}}Relationship"):
+                    target = node.attrib.get("Target", "")
+
+                    pathObject[node.attrib.get("Id", "")] = target[1:] if target.startswith("/") else f"word/{target}"
 
             blockList = []
 
@@ -958,7 +1055,26 @@ class Office:
                 if block["kind"] == "tableRow":
                     itemMainList.append({"label": "tableRow", "text": " | ".join(block["cellList"]), "cellList": block["cellList"]})
                 elif block["kind"] == "image":
-                    itemSecondaryList.append({"label": "image", "text": ""})
+                    item = {"label": "image", "text": ""}
+
+                    pathTarget = pathObject[block["relationshipId"]] if block["relationshipId"] in pathObject else ""
+
+                    if block["isChart"]:
+                        item["label"] = "chart"
+
+                        chartRootNode = self.office._rootBuild(zipFile, pathTarget)
+
+                        if chartRootNode is not None:
+                            item["text"] = self.office._chartText(chartRootNode)
+                    elif pathTarget in zipFile.namelist():
+                        os.makedirs(f"{pathOutput}media/", exist_ok=True)
+
+                        with open(f"{pathOutput}media/{os.path.basename(pathTarget)}", "wb") as file:
+                            file.write(zipFile.read(pathTarget))
+
+                        item["path"] = f"media/{os.path.basename(pathTarget)}"
+
+                    itemSecondaryList.append(item)
                 elif block["isAside"]:
                     itemSecondaryList.append({"label": "aside_text", "text": block["text"]})
                 elif block["isContinuation"] and len(itemMainList) > 0:
@@ -987,6 +1103,8 @@ class Office:
                     else:
                         itemMainList.append(item)
 
+            zipFile.close()
+
             for a in range(len(itemMainList)):
                 itemMainList[a]["flow"] = "main"
                 itemMainList[a]["order"] = a + 1
@@ -1012,6 +1130,10 @@ class Office:
 
         def __init__(self):
             self.namespaceW = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            self.namespaceDrawing = "http://schemas.openxmlformats.org/drawingml/2006/main"
+            self.namespaceChart = "http://schemas.openxmlformats.org/drawingml/2006/chart"
+            self.namespaceRelationship = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            self.namespacePackage = "http://schemas.openxmlformats.org/package/2006/relationships"
 
             self.office = Office(self.namespaceW)
 
@@ -1152,7 +1274,100 @@ class Office:
 
             return result.strip()
 
-        def _rowCollect(self, sheetRootNode):
+        def _pivotRangeCollect(self, zipFile, sheetPath):
+            resultList = []
+
+            relationshipRootNode = self.office._rootBuild(zipFile, f"{os.path.dirname(sheetPath)}/_rels/{os.path.basename(sheetPath)}.rels")
+
+            if relationshipRootNode is not None:
+                for node in relationshipRootNode.iter(f"{{{self.namespacePackage}}}Relationship"):
+                    if node.attrib.get("Type", "").endswith("/pivotTable"):
+                        target = node.attrib.get("Target", "")
+                        pathPivot = target[1:] if target.startswith("/") else os.path.normpath(f"{os.path.dirname(sheetPath)}/{target}")
+
+                        pivotRootNode = self.office._rootBuild(zipFile, pathPivot)
+
+                        if pivotRootNode is not None:
+                            locationNode = pivotRootNode.find(f"{{{self.namespaceMain}}}location")
+
+                            if locationNode is not None:
+                                referenceSplit = locationNode.attrib.get("ref", "").split(":")
+
+                                if len(referenceSplit) == 2:
+                                    resultList.append({
+                                        "rowFirst": int(re.sub(r"[A-Za-z]", "", referenceSplit[0])),
+                                        "rowLast": int(re.sub(r"[A-Za-z]", "", referenceSplit[1])),
+                                        "columnFirst": self._cellColumn(referenceSplit[0]),
+                                        "columnLast": self._cellColumn(referenceSplit[1])
+                                    })
+
+            return resultList
+
+        def _drawingCollect(self, zipFile, sheetPath, pathOutput):
+            resultList = []
+
+            relationshipRootNode = self.office._rootBuild(zipFile, f"{os.path.dirname(sheetPath)}/_rels/{os.path.basename(sheetPath)}.rels")
+
+            if relationshipRootNode is not None:
+                for node in relationshipRootNode.iter(f"{{{self.namespacePackage}}}Relationship"):
+                    if node.attrib.get("Type", "").endswith("/drawing"):
+                        target = node.attrib.get("Target", "")
+                        pathDrawing = target[1:] if target.startswith("/") else os.path.normpath(f"{os.path.dirname(sheetPath)}/{target}")
+
+                        drawingRootNode = self.office._rootBuild(zipFile, pathDrawing)
+                        drawingRelationshipRootNode = self.office._rootBuild(zipFile, f"{os.path.dirname(pathDrawing)}/_rels/{os.path.basename(pathDrawing)}.rels")
+
+                        pathObject = {}
+
+                        if drawingRelationshipRootNode is not None:
+                            for relationshipNode in drawingRelationshipRootNode.iter(f"{{{self.namespacePackage}}}Relationship"):
+                                targetDrawing = relationshipNode.attrib.get("Target", "")
+
+                                pathObject[relationshipNode.attrib.get("Id", "")] = targetDrawing[1:] if targetDrawing.startswith("/") else os.path.normpath(f"{os.path.dirname(pathDrawing)}/{targetDrawing}")
+
+                        if drawingRootNode is not None:
+                            for drawingNode in drawingRootNode.iter():
+                                tag = self.office._nodeTag(drawingNode)
+
+                                if tag == "graphicFrame":
+                                    item = {"label": "image", "text": ""}
+
+                                    chartNode = drawingNode.find(f".//{{{self.namespaceChart}}}chart")
+
+                                    if chartNode is not None:
+                                        item["label"] = "chart"
+
+                                        relationshipId = chartNode.attrib.get(f"{{{self.namespaceRelationship}}}id", "")
+                                        pathChart = pathObject[relationshipId] if relationshipId in pathObject else ""
+
+                                        chartRootNode = self.office._rootBuild(zipFile, pathChart)
+
+                                        if chartRootNode is not None:
+                                            item["text"] = self.office._chartText(chartRootNode)
+
+                                    resultList.append(item)
+                                elif tag == "pic":
+                                    item = {"label": "image", "text": ""}
+
+                                    blipNode = drawingNode.find(f".//{{{self.namespaceDrawing}}}blip")
+
+                                    if blipNode is not None:
+                                        relationshipId = blipNode.attrib.get(f"{{{self.namespaceRelationship}}}embed", "")
+                                        pathMedia = pathObject[relationshipId] if relationshipId in pathObject else ""
+
+                                        if pathMedia in zipFile.namelist():
+                                            os.makedirs(f"{pathOutput}media/", exist_ok=True)
+
+                                            with open(f"{pathOutput}media/{os.path.basename(pathMedia)}", "wb") as file:
+                                                file.write(zipFile.read(pathMedia))
+
+                                            item["path"] = f"media/{os.path.basename(pathMedia)}"
+
+                                    resultList.append(item)
+
+            return resultList
+
+        def _rowCollect(self, sheetRootNode, pivotRangeList):
             rowObjectList = []
 
             rowNumberNext = 1
@@ -1172,7 +1387,15 @@ class Office:
                         while len(cellList) < column:
                             cellList.append("")
 
-                        cellList.append(self._cellText(cellNode))
+                        cellText = self._cellText(cellNode)
+
+                        for a in range(len(pivotRangeList)):
+                            if pivotRangeList[a]["rowFirst"] <= rowNumber <= pivotRangeList[a]["rowLast"] and pivotRangeList[a]["columnFirst"] <= column <= pivotRangeList[a]["columnLast"]:
+                                cellText = ""
+
+                                break
+
+                        cellList.append(cellText)
 
                         columnNext = column + 1
 
@@ -1273,7 +1496,9 @@ class Office:
             for a in range(len(sheetList)):
                 sheetRootNode = self.office._rootBuild(zipFile, sheetList[a]["path"])
 
-                rowList = self._rowCollect(sheetRootNode) if sheetRootNode is not None else []
+                pivotRangeList = self._pivotRangeCollect(zipFile, sheetList[a]["path"])
+
+                rowList = self._rowCollect(sheetRootNode, pivotRangeList) if sheetRootNode is not None else []
                 mergeList = self._mergeCollect(sheetRootNode) if sheetRootNode is not None else []
 
                 itemMainList = [{"label": "sheetName", "text": sheetList[a]["name"]}]
@@ -1285,7 +1510,13 @@ class Office:
                     itemMainList[b]["flow"] = "main"
                     itemMainList[b]["order"] = b + 1
 
-                pageList.append({"number": a + 1, "mergeList": mergeList, "itemMainList": itemMainList, "itemSecondaryList": []})
+                itemSecondaryList = self._drawingCollect(zipFile, sheetList[a]["path"], pathOutput)
+
+                for b in range(len(itemSecondaryList)):
+                    itemSecondaryList[b]["flow"] = "secondary"
+                    itemSecondaryList[b]["order"] = b + 1
+
+                pageList.append({"number": a + 1, "mergeList": mergeList, "itemMainList": itemMainList, "itemSecondaryList": itemSecondaryList})
 
                 rowCount += len(rowList)
 
@@ -1304,6 +1535,8 @@ class Office:
 
         def __init__(self):
             self.namespaceMain = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+            self.namespaceDrawing = "http://schemas.openxmlformats.org/drawingml/2006/main"
+            self.namespaceChart = "http://schemas.openxmlformats.org/drawingml/2006/chart"
             self.namespaceRelationship = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
             self.namespacePackage = "http://schemas.openxmlformats.org/package/2006/relationships"
 

@@ -1848,7 +1848,10 @@ class Markdown:
                 for b in range(len(astPage["itemSecondaryList"])):
                     item = astPage["itemSecondaryList"][b]
 
-                    itemText = f"[{item['label']}]" if len(item["text"]) == 0 else item["text"]
+                    itemText = item["text"]
+
+                    if item["label"] == "chart" or len(item["text"]) == 0:
+                        itemText = f"[{item['label']}]"
 
                     secondaryText += f"{itemText}\n" if len(secondaryText) == 0 else f"\n{itemText}\n"
 
@@ -1920,6 +1923,24 @@ class Markdown:
 
                 if len(mergeList) > 0:
                     result += f"Merge: {', '.join(mergeList)}\n\n"
+
+            secondaryText = ""
+
+            for a in range(len(astPageList)):
+                astPage = astPageList[a]
+
+                for b in range(len(astPage["itemSecondaryList"])):
+                    item = astPage["itemSecondaryList"][b]
+
+                    itemText = item["text"]
+
+                    if item["label"] == "chart" or len(item["text"]) == 0:
+                        itemText = f"[{item['label']}]"
+
+                    secondaryText += f"{itemText}\n" if len(secondaryText) == 0 else f"\n{itemText}\n"
+
+            if len(secondaryText) > 0:
+                result += f"---\n\nSECONDARY ELEMENT:\n\n{secondaryText}"
 
             return result
 
