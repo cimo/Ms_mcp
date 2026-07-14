@@ -1546,3 +1546,268 @@ class Office:
             self.dateStyleList = []
 
             self.numberFormatDateList = [14, 15, 16, 17, 18, 19, 20, 21, 22, 45, 46, 47]
+
+    class Pptx:
+        def _textCollect(self, node):
+            result = ""
+
+            tag = self.office._nodeTag(node)
+
+            if tag == "t":
+                result += node.text if node.text is not None else ""
+            elif tag == "br" or tag == "tab":
+                result += " "
+
+            for childNode in node:
+                result += self._textCollect(childNode)
+
+            return result
+
+        def _paragraphText(self, paragraphNode):
+            return self._textCollect(paragraphNode).strip()
+
+        def _placeholderType(self, shapeNode):
+            result = ""
+
+            placeholderNode = shapeNode.find(f"{{{self.namespaceP}}}nvSpPr/{{{self.namespaceP}}}nvPr/{{{self.namespaceP}}}ph")
+
+            if placeholderNode is not None:
+                result = placeholderNode.attrib.get("type", "body")
+
+            return result
+
+        def _blockTable(self, tableNode):
+            resultList = []
+
+            for rowNode in tableNode:
+                if self.office._nodeTag(rowNode) == "tr":
+                    cellTextList = []
+
+                    for cellNode in rowNode:
+                        if self.office._nodeTag(cellNode) == "tc":
+                            textList = []
+
+                            for paragraphNode in cellNode.iter(f"{{{self.namespaceDrawing}}}p"):
+                                text = self._paragraphText(paragraphNode)
+
+                                if len(text) > 0:
+                                    textList.append(text)
+
+                            cellTextList.append(" ".join(textList))
+
+                    resultList.append({"kind": "tableRow", "cellList": cellTextList})
+
+            return resultList
+
+        def _blockBuild(self, containerNode):
+            resultList = []
+
+            for node in containerNode:
+                tag = self.office._nodeTag(node)
+
+                if tag == "sp":
+                    placeholderType = self._placeholderType(node)
+
+                    if placeholderType not in self.placeholderSkipList:
+                        textBodyNode = node.find(f"{{{self.namespaceP}}}txBody")
+
+                        if textBodyNode is not None:
+                            for paragraphNode in textBodyNode:
+                                if self.office._nodeTag(paragraphNode) == "p":
+                                    text = self._paragraphText(paragraphNode)
+
+                                    if len(text) > 0:
+                                        resultList.append({"kind": "paragraph", "text": text, "placeholderType": placeholderType})
+                elif tag == "graphicFrame":
+                    chartNode = node.find(f".//{{{self.namespaceChart}}}chart")
+                    tableNode = node.find(f".//{{{self.namespaceDrawing}}}tbl")
+
+                    if chartNode is not None:
+                        resultList.append({"kind": "chart", "relationshipId": chartNode.attrib.get(f"{{{self.namespaceRelationship}}}id", "")})
+                    elif tableNode is not None:
+                        blockList = self._blockTable(tableNode)
+
+                        for a in range(len(blockList)):
+                            resultList.append(blockList[a])
+                    else:
+                        resultList.append({"kind": "image", "relationshipId": ""})
+                elif tag == "pic":
+                    relationshipId = ""
+
+                    blipNode = node.find(f".//{{{self.namespaceDrawing}}}blip")
+
+                    if blipNode is not None:
+                        relationshipId = blipNode.attrib.get(f"{{{self.namespaceRelationship}}}embed", "")
+
+                    resultList.append({"kind": "image", "relationshipId": relationshipId})
+                elif tag == "grpSp":
+                    blockList = self._blockBuild(node)
+
+                    for a in range(len(blockList)):
+                        resultList.append(blockList[a])
+
+            return resultList
+
+        def _relationshipBuild(self, zipFile, pathFile):
+            resultObject = {}
+
+            relationshipRootNode = self.office._rootBuild(zipFile, f"{os.path.dirname(pathFile)}/_rels/{os.path.basename(pathFile)}.rels")
+
+            if relationshipRootNode is not None:
+                for node in relationshipRootNode.iter(f"{{{self.namespacePackage}}}Relationship"):
+                    target = node.attrib.get("Target", "")
+
+                    resultObject[node.attrib.get("Id", "")] = {
+                        "path": target[1:] if target.startswith("/") else os.path.normpath(f"{os.path.dirname(pathFile)}/{target}"),
+                        "type": node.attrib.get("Type", "")
+                    }
+
+            return resultObject
+
+        def _slideBuild(self, zipFile):
+            resultList = []
+
+            presentationRootNode = self.office._rootBuild(zipFile, "ppt/presentation.xml")
+
+            pathObject = self._relationshipBuild(zipFile, "ppt/presentation.xml")
+
+            if presentationRootNode is not None:
+                for node in presentationRootNode.iter(f"{{{self.namespaceP}}}sldId"):
+                    relationshipId = node.attrib.get(f"{{{self.namespaceRelationship}}}id", "")
+
+                    if relationshipId in pathObject:
+                        resultList.append(pathObject[relationshipId]["path"])
+
+            return resultList
+
+        def _notesText(self, zipFile, pathObject):
+            result = ""
+
+            for relationshipId in pathObject:
+                if pathObject[relationshipId]["type"].endswith("/notesSlide"):
+                    notesRootNode = self.office._rootBuild(zipFile, pathObject[relationshipId]["path"])
+
+                    if notesRootNode is not None:
+                        textList = []
+
+                        for shapeNode in notesRootNode.iter(f"{{{self.namespaceP}}}sp"):
+                            if self._placeholderType(shapeNode) == "body":
+                                for paragraphNode in shapeNode.iter(f"{{{self.namespaceDrawing}}}p"):
+                                    text = self._paragraphText(paragraphNode)
+
+                                    if len(text) > 0:
+                                        textList.append(text)
+
+                        result = "\n".join(textList)
+
+            return result
+
+        def execute(self, pathInput, pathOutput):
+            timeStart = time.perf_counter()
+
+            zipFile = zipfile.ZipFile(pathInput)
+
+            slidePathList = self._slideBuild(zipFile)
+
+            pageList = []
+            blockCount = 0
+
+            isDocTitleFound = False
+
+            for a in range(len(slidePathList)):
+                slideRootNode = self.office._rootBuild(zipFile, slidePathList[a])
+
+                pathObject = self._relationshipBuild(zipFile, slidePathList[a])
+
+                blockList = []
+
+                if slideRootNode is not None:
+                    treeNode = slideRootNode.find(f"{{{self.namespaceP}}}cSld/{{{self.namespaceP}}}spTree")
+
+                    if treeNode is not None:
+                        blockList = self._blockBuild(treeNode)
+
+                itemMainList = []
+                itemSecondaryList = []
+
+                for b in range(len(blockList)):
+                    block = blockList[b]
+
+                    if block["kind"] == "paragraph":
+                        if block["placeholderType"] == "title" or block["placeholderType"] == "ctrTitle":
+                            if isDocTitleFound == False:
+                                isDocTitleFound = True
+
+                                itemMainList.append({"label": "doc_title", "text": block["text"]})
+                            else:
+                                itemMainList.append({"label": "paragraph_title", "level": 2, "text": block["text"]})
+                        else:
+                            itemMainList.append({"label": "text", "text": block["text"]})
+                    elif block["kind"] == "tableRow":
+                        itemMainList.append({"label": "tableRow", "text": " | ".join(block["cellList"]), "cellList": block["cellList"]})
+                    elif block["kind"] == "chart":
+                        item = {"label": "chart", "text": ""}
+
+                        pathChart = pathObject[block["relationshipId"]]["path"] if block["relationshipId"] in pathObject else ""
+
+                        chartRootNode = self.office._rootBuild(zipFile, pathChart)
+
+                        if chartRootNode is not None:
+                            item["text"] = self.office._chartText(chartRootNode)
+
+                        itemSecondaryList.append(item)
+                    elif block["kind"] == "image":
+                        item = {"label": "image", "text": ""}
+
+                        pathMedia = pathObject[block["relationshipId"]]["path"] if block["relationshipId"] in pathObject else ""
+
+                        if pathMedia in zipFile.namelist():
+                            os.makedirs(f"{pathOutput}media/", exist_ok=True)
+
+                            with open(f"{pathOutput}media/{os.path.basename(pathMedia)}", "wb") as file:
+                                file.write(zipFile.read(pathMedia))
+
+                            item["path"] = f"media/{os.path.basename(pathMedia)}"
+
+                        itemSecondaryList.append(item)
+
+                notesText = self._notesText(zipFile, pathObject)
+
+                if len(notesText) > 0:
+                    itemSecondaryList.append({"label": "aside_text", "text": notesText})
+
+                for b in range(len(itemMainList)):
+                    itemMainList[b]["flow"] = "main"
+                    itemMainList[b]["order"] = b + 1
+
+                for b in range(len(itemSecondaryList)):
+                    itemSecondaryList[b]["flow"] = "secondary"
+                    itemSecondaryList[b]["order"] = b + 1
+
+                pageList.append({"number": a + 1, "itemMainList": itemMainList, "itemSecondaryList": itemSecondaryList})
+
+                blockCount += len(blockList)
+
+            zipFile.close()
+
+            resultObject = {"pageList": pageList}
+
+            with open(f"{pathOutput}ast.json", "w", encoding="utf-8") as file:
+                json.dump(resultObject, file, ensure_ascii=False, indent=4)
+
+            timeEnd = time.perf_counter() - timeStart
+
+            print(f"\nLayout.py - Pptx - Time: {round(timeEnd, 3)} - Slide: {len(pageList)} - Block: {blockCount}")
+
+            return resultObject
+
+        def __init__(self):
+            self.namespaceP = "http://schemas.openxmlformats.org/presentationml/2006/main"
+            self.namespaceDrawing = "http://schemas.openxmlformats.org/drawingml/2006/main"
+            self.namespaceChart = "http://schemas.openxmlformats.org/drawingml/2006/chart"
+            self.namespaceRelationship = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            self.namespacePackage = "http://schemas.openxmlformats.org/package/2006/relationships"
+
+            self.office = Office(self.namespaceP)
+
+            self.placeholderSkipList = ["sldNum", "dt", "ftr"]

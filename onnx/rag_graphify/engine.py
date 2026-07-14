@@ -88,6 +88,22 @@ class Engine:
 
         return resultList
 
+    def _utilSecondaryRemove(self, text):
+        resultList = []
+
+        lineSplit = text.split("\n")
+
+        for a in range(len(lineSplit)):
+            if lineSplit[a].strip() == "SECONDARY ELEMENT:":
+                break
+
+            resultList.append(lineSplit[a])
+
+        while len(resultList) > 0 and resultList[-1].strip() in ("", "---"):
+            resultList.pop()
+
+        return "\n".join(resultList)
+
     def _logicFileSelect(self, database, mcpSessionId, fileName):
         result = 0
 
@@ -886,12 +902,6 @@ class Engine:
             if line == "":
                 continue
 
-            if line == "SECONDARY ELEMENT:":
-                break
-
-            if line == "---":
-                continue
-
             if line.startswith("# "):
                 if rowCount > 0:
                     resultList.append(chunkText)
@@ -1520,6 +1530,8 @@ class Engine:
             if os.path.exists(pathMarkdown):
                 with open(pathMarkdown, "r", encoding="utf-8") as file:
                     fileContent = file.read()
+
+                fileContent = self._utilSecondaryRemove(fileContent)
 
                 extension = os.path.splitext(fileNameOnly)[1].lower()
 

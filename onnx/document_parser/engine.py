@@ -1944,6 +1944,87 @@ class Markdown:
 
             return result
 
+    class Pptx:
+        def _headingHash(self, level):
+            return "#" * min(level, 6)
+
+        def _rowText(self, cellList):
+            result = "|"
+
+            for a in range(len(cellList)):
+                cellText = cellList[a].replace("|", "\\|").replace("\n", " ")
+
+                result += f" {cellText} |"
+
+            return result
+
+        def execute(self, astPageList):
+            result = ""
+
+            for a in range(len(astPageList)):
+                astPage = astPageList[a]
+
+                isTableOpen = False
+
+                for b in range(len(astPage["itemMainList"])):
+                    item = astPage["itemMainList"][b]
+
+                    if item["label"] == "tableRow":
+                        cellList = item.get("cellList", [])
+
+                        rowText = self._rowText(cellList)
+
+                        if isTableOpen == False:
+                            separatorText = "| --- " * len(cellList) + "|"
+
+                            result += f"{rowText}\n{separatorText}\n"
+
+                            isTableOpen = True
+                        else:
+                            result += f"{rowText}\n"
+
+                        continue
+
+                    if isTableOpen:
+                        result += "\n"
+
+                        isTableOpen = False
+
+                    if item["label"] == "doc_title":
+                        result += f"# {item['text']}\n\n"
+                    elif item["label"] == "paragraph_title":
+                        result += f"{self._headingHash(item['level'])} {item['text']}\n\n"
+                    else:
+                        result += f"{item['text']}\n\n"
+
+                if isTableOpen:
+                    result += "\n"
+
+            secondaryText = ""
+
+            for a in range(len(astPageList)):
+                astPage = astPageList[a]
+
+                if len(astPage["itemSecondaryList"]) > 0:
+                    pageText = ""
+
+                    for b in range(len(astPage["itemSecondaryList"])):
+                        item = astPage["itemSecondaryList"][b]
+
+                        itemText = item["text"]
+
+                        if item["label"] == "chart" or len(item["text"]) == 0:
+                            itemText = f"[{item['label']}]"
+
+                        pageText += f"{itemText}\n" if len(pageText) == 0 else f"\n{itemText}\n"
+
+                    secondaryText += f"- Slide {astPage['number']}\n{pageText}\n"
+
+            if len(secondaryText) > 0:
+                result += f"---\n\nSECONDARY ELEMENT:\n\n{secondaryText}"
+
+            return result
+
 class Engine:
     def execute(self, pathInput, pathOutput):
         timeStart = time.perf_counter()
@@ -1979,6 +2060,11 @@ class Engine:
         elif extension == ".xlsx":
             markdownXlsx = Markdown.Xlsx()
             markdownText = markdownXlsx.execute(astPageList)
+
+            pageCount = len(astPageList)
+        elif extension == ".pptx":
+            markdownPptx = Markdown.Pptx()
+            markdownText = markdownPptx.execute(astPageList)
 
             pageCount = len(astPageList)
 

@@ -46,6 +46,10 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
             layoutXlsx = Office.Xlsx()
 
             result = layoutXlsx.execute(pathInput, pathOutput)
+        elif extension == ".pptx":
+            layoutPptx = Office.Pptx()
+
+            result = layoutPptx.execute(pathInput, pathOutput)
 
         return result
 
