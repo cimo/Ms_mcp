@@ -2026,7 +2026,7 @@ class Markdown:
             return result
 
 class Engine:
-    def execute(self, pathInput, pathOutput):
+    def execute(self, pathInput, pathOutput, fileName):
         timeStart = time.perf_counter()
 
         astPageList = []
@@ -2073,7 +2073,7 @@ class Engine:
 
         timeEnd = time.perf_counter() - timeStart
 
-        print(f"\nEngine.py - Time: {round(timeEnd, 3)} - Page: {pageCount}")
+        print(f"\nEngine.py - Time: {round(timeEnd, 3)} - {fileName} - Page: {pageCount}")
 
         resultObject = {"pageCount": pageCount}
 

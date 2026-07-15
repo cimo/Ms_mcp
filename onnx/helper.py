@@ -29,7 +29,7 @@ def onnxSessionBuild(pathModel):
 
     inference = onnxruntime.InferenceSession(pathModel, sess_options=option, providers=providerList)
 
-    print("Provider available:", providerAvailableList)
-    print("Provider active:", inference.get_providers())
+    print(f"Provider available: {providerAvailableList}")
+    print(f"Provider active: {inference.get_providers()}\n")
 
     return inference

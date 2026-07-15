@@ -16,6 +16,14 @@ from engine import Engine
 class HandlerHttpRequest(BaseHTTPRequestHandler):
     layoutPdf = Pdf()
 
+    def _fileName(self, pathInput):
+        result = os.path.basename(pathInput)
+
+        if os.path.splitext(pathInput)[1].lower() == ".pdf":
+            result = f"{os.path.basename(os.path.dirname(pathInput))}.pdf"
+
+        return result
+
     def _routeEngine(self, text):
         engine = Engine()
 
@@ -24,7 +32,9 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
         pathInput = payload.get("pathInput")
         pathOutput = payload.get("pathOutput")
 
-        return engine.execute(pathInput, pathOutput)
+        fileName = self._fileName(pathInput)
+
+        return engine.execute(pathInput, pathOutput, fileName)
 
     def _routeLayout(self, text):
         payload = json.loads(text)
@@ -34,22 +44,24 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
 
         extension = os.path.splitext(pathInput)[1].lower()
 
+        fileName = self._fileName(pathInput)
+
         result = {}
 
         if extension == ".pdf":
-            result = self.layoutPdf.execute(f"{os.path.dirname(pathInput)}/page/", pathOutput)
+            result = self.layoutPdf.execute(f"{os.path.dirname(pathInput)}/page/", pathOutput, fileName)
         elif extension == ".docx":
             layoutDocx = Office.Docx()
 
-            result = layoutDocx.execute(pathInput, pathOutput)
+            result = layoutDocx.execute(pathInput, pathOutput, fileName)
         elif extension == ".xlsx":
             layoutXlsx = Office.Xlsx()
 
-            result = layoutXlsx.execute(pathInput, pathOutput)
+            result = layoutXlsx.execute(pathInput, pathOutput, fileName)
         elif extension == ".pptx":
             layoutPptx = Office.Pptx()
 
-            result = layoutPptx.execute(pathInput, pathOutput)
+            result = layoutPptx.execute(pathInput, pathOutput, fileName)
 
         return result
 

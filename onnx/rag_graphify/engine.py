@@ -1239,6 +1239,12 @@ class Engine:
             #index button:hover { background: #4a4a4a; }
             #index input { flex: 1 1 auto; min-width: 0; padding: 4px 6px; background: #3a3a3a; color: #ffffff; border: 1px solid #555555; border-radius: 3px; font-size: 12px; }
             #index .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+            #index .group { margin: 0 0 4px 0; }
+            #index .group_header { display: flex; align-items: center; gap: 6px; padding: 4px 2px; cursor: pointer; font-weight: bold; }
+            #index .group_toggle { width: 14px; flex: 0 0 auto; text-align: center; }
+            #index .group_header input { flex: 0 0 auto; margin: 0; padding: 0; }
+            #index .group_name { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+            #index .group_body label { padding-left: 20px; }
             #filter_wrapper { display: flex; gap: 4px; margin: 0 10px 5px 0; }
             #graph_wrapper { position: fixed; top: 0; left: 240px; right: 0; bottom: 0; background: #1e1e1e; opacity: 0; }
             #loadingBar_wrapper { position: fixed; top: 0; left: 240px; right: 0; z-index: 10; }
@@ -1302,30 +1308,101 @@ class Engine:
             const nodeAllList = nodeList.get();
             nodeAllList.sort((nodeA, nodeB) => nodeA.label.localeCompare(nodeB.label));
 
+            const groupObject = {};
+
             for (let a = 0; a < nodeAllList.length; a++) {
-                const node = nodeAllList[a];
+                const fileName = nodeAllList[a].file;
 
-                const label = document.createElement("label");
+                if (groupObject[fileName] === undefined) {
+                    groupObject[fileName] = [];
+                }
 
-                const checkbox = document.createElement("input");
-                checkbox.type = "checkbox";
-                checkbox.checked = true;
-                checkbox.setAttribute("data-id", node.id);
-                checkbox.addEventListener("change", function() {
-                    nodeList.update({ id: this.getAttribute("data-id"), hidden: !this.checked });
+                groupObject[fileName].push(nodeAllList[a]);
+            }
+
+            const fileNameList = Object.keys(groupObject).sort((fileNameA, fileNameB) => fileNameA.localeCompare(fileNameB));
+
+            for (let a = 0; a < fileNameList.length; a++) {
+                const nodeGroupList = groupObject[fileNameList[a]];
+
+                const elementGroup = document.createElement("div");
+                elementGroup.className = "group";
+
+                const elementGroupHeader = document.createElement("div");
+                elementGroupHeader.className = "group_header";
+
+                const elementGroupToggle = document.createElement("span");
+                elementGroupToggle.className = "group_toggle";
+                elementGroupToggle.textContent = "+";
+
+                const elementGroupName = document.createElement("span");
+                elementGroupName.className = "group_name";
+                elementGroupName.textContent = `${fileNameList[a]} (${nodeGroupList.length})`;
+                elementGroupName.title = fileNameList[a];
+
+                const elementGroupBody = document.createElement("div");
+                elementGroupBody.className = "group_body";
+                elementGroupBody.style.display = "none";
+
+                const elementGroupCheckbox = document.createElement("input");
+                elementGroupCheckbox.type = "checkbox";
+                elementGroupCheckbox.checked = true;
+                elementGroupCheckbox.addEventListener("click", function(event) {
+                    event.stopPropagation();
+                });
+                elementGroupCheckbox.addEventListener("change", function() {
+                    const elementCheckboxList = elementGroupBody.querySelectorAll("input[type=checkbox]");
+                    const updateList = [];
+
+                    for (let a = 0; a < elementCheckboxList.length; a++) {
+                        elementCheckboxList[a].checked = this.checked;
+
+                        updateList.push({ id: elementCheckboxList[a].getAttribute("data-id"), hidden: !this.checked });
+                    }
+
+                    nodeList.update(updateList);
                 });
 
-                const dot = document.createElement("span");
-                dot.className = "dot";
-                dot.style.background = node.color;
+                elementGroupHeader.appendChild(elementGroupCheckbox);
+                elementGroupHeader.appendChild(elementGroupToggle);
+                elementGroupHeader.appendChild(elementGroupName);
 
-                const text = document.createElement("span");
-                text.textContent = node.label;
+                elementGroupHeader.addEventListener("click", function() {
+                    const isOpen = elementGroupBody.style.display !== "none";
 
-                label.appendChild(checkbox);
-                label.appendChild(dot);
-                label.appendChild(text);
-                elementIndex.appendChild(label);
+                    elementGroupBody.style.display = isOpen ? "none" : "block";
+                    elementGroupToggle.textContent = isOpen ? "+" : "-";
+                });
+
+                for (let b = 0; b < nodeGroupList.length; b++) {
+                    const node = nodeGroupList[b];
+
+                    const elementLabel = document.createElement("label");
+
+                    const elementCheckbox = document.createElement("input");
+                    elementCheckbox.type = "checkbox";
+                    elementCheckbox.checked = true;
+                    elementCheckbox.setAttribute("data-id", node.id);
+                    elementCheckbox.addEventListener("change", function() {
+                        nodeList.update({ id: this.getAttribute("data-id"), hidden: !this.checked });
+                    });
+
+                    const elementDot = document.createElement("span");
+                    elementDot.className = "dot";
+                    elementDot.style.background = node.color;
+
+                    const elementText = document.createElement("span");
+                    elementText.textContent = node.label;
+
+                    elementLabel.appendChild(elementCheckbox);
+                    elementLabel.appendChild(elementDot);
+                    elementLabel.appendChild(elementText);
+                    elementGroupBody.appendChild(elementLabel);
+                }
+
+                elementGroup.appendChild(elementGroupHeader);
+                elementGroup.appendChild(elementGroupBody);
+                elementIndex.appendChild(elementGroup);
             }
 
             let isAllSelected = true;
@@ -1333,13 +1410,15 @@ class Engine:
             document.getElementById("toggleAll").addEventListener("click", function() {
                 isAllSelected = !isAllSelected;
 
-                const checkboxList = elementIndex.querySelectorAll("input[type=checkbox]");
+                const elementCheckboxList = elementIndex.querySelectorAll("input[type=checkbox]");
                 const updateList = [];
 
-                for (let a = 0; a < checkboxList.length; a++) {
-                    checkboxList[a].checked = isAllSelected;
+                for (let a = 0; a < elementCheckboxList.length; a++) {
+                    elementCheckboxList[a].checked = isAllSelected;
 
-                    updateList.push({ id: checkboxList[a].getAttribute("data-id"), hidden: !isAllSelected });
+                    if (elementCheckboxList[a].getAttribute("data-id") !== null) {
+                        updateList.push({ id: elementCheckboxList[a].getAttribute("data-id"), hidden: !isAllSelected });
+                    }
                 }
 
                 nodeList.update(updateList);
@@ -1349,10 +1428,29 @@ class Engine:
 
             document.getElementById("filter").addEventListener("input", function() {
                 const term = this.value.toLowerCase();
-                const labelList = elementIndex.querySelectorAll("label");
+                const elementGroupList = elementIndex.querySelectorAll(".group");
 
-                for (let a = 0; a < labelList.length; a++) {
-                    labelList[a].style.display = labelList[a].textContent.toLowerCase().indexOf(term) === -1 ? "none" : "flex";
+                for (let a = 0; a < elementGroupList.length; a++) {
+                    const elementLabelList = elementGroupList[a].querySelectorAll("label");
+
+                    let matchCount = 0;
+
+                    for (let b = 0; b < elementLabelList.length; b++) {
+                        const isMatch = elementLabelList[b].textContent.toLowerCase().indexOf(term) !== -1;
+
+                        elementLabelList[b].style.display = isMatch ? "flex" : "none";
+
+                        if (isMatch) {
+                            matchCount++;
+                        }
+                    }
+
+                    elementGroupList[a].style.display = matchCount === 0 ? "none" : "block";
+
+                    if (term !== "" && matchCount > 0) {
+                        elementGroupList[a].querySelector(".group_body").style.display = "block";
+                        elementGroupList[a].querySelector(".group_toggle").textContent = "-";
+                    }
                 }
             });
         </script>
@@ -1382,9 +1480,17 @@ class Engine:
         if existsRow[0]:
             nodeTableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
             edgeTableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
+            fileTableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_file")
+
+            fileNameObject = {}
+
+            fileRowList = database.execute(f'SELECT id, name FROM "{fileTableName}"').fetchall()
+
+            for a in range(len(fileRowList)):
+                fileNameObject[fileRowList[a][0]] = fileRowList[a][1]
 
             nodeRowList = database.execute(
-                f'SELECT DISTINCT ON (name_normalized) name_normalized, name, type, description FROM "{nodeTableName}" ORDER BY name_normalized, length(description) DESC'
+                f'SELECT DISTINCT ON (name_normalized) name_normalized, name, type, description, file_id FROM "{nodeTableName}" ORDER BY name_normalized, length(description) DESC'
             ).fetchall()
 
             nodeSeenObject = {}
@@ -1394,7 +1500,7 @@ class Engine:
 
                 nodeSeenObject[nameNormalized] = True
 
-                nodeList.append({"id": nameNormalized, "label": nodeRowList[a][1], "color": colorObject.get(nodeRowList[a][2], "#888888"), "title": nodeRowList[a][3]})
+                nodeList.append({"id": nameNormalized, "label": nodeRowList[a][1], "color": colorObject.get(nodeRowList[a][2], "#888888"), "title": nodeRowList[a][3], "file": fileNameObject.get(nodeRowList[a][4], "-")})
 
             edgeRowList = database.execute(f'SELECT source_normalized, target_normalized, source, target, description FROM "{edgeTableName}"').fetchall()
 
@@ -1405,12 +1511,12 @@ class Engine:
                 if nodeSeenObject.get(sourceNormalized) is None:
                     nodeSeenObject[sourceNormalized] = True
 
-                    nodeList.append({"id": sourceNormalized, "label": edgeRowList[a][2], "color": "#888888", "title": ""})
+                    nodeList.append({"id": sourceNormalized, "label": edgeRowList[a][2], "color": "#888888", "title": "", "file": "-"})
 
                 if nodeSeenObject.get(targetNormalized) is None:
                     nodeSeenObject[targetNormalized] = True
 
-                    nodeList.append({"id": targetNormalized, "label": edgeRowList[a][3], "color": "#888888", "title": ""})
+                    nodeList.append({"id": targetNormalized, "label": edgeRowList[a][3], "color": "#888888", "title": "", "file": "-"})
 
                 edgeList.append({"from": sourceNormalized, "to": targetNormalized, "title": edgeRowList[a][4]})
 

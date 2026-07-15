@@ -270,7 +270,7 @@ class Pdf:
 
         return itemList
 
-    def execute(self, pathInput, pathOutput):
+    def execute(self, pathInput, pathOutput, fileName):
         timeStart = time.perf_counter()
 
         self.pathDebug = f"{pathOutput}debug/"
@@ -333,7 +333,7 @@ class Pdf:
 
         timeEnd = time.perf_counter() - timeStart
 
-        print(f"\nLayout.py - Pdf - Time: {round(timeEnd, 3)} - Page: {len(pageList)}")
+        print(f"\nLayout.py - Time: {round(timeEnd, 3)} - {fileName} - Page: {len(pageList)}")
 
         return resultObject
 
@@ -996,7 +996,7 @@ class Office:
 
             return resultObject
 
-        def execute(self, pathInput, pathOutput):
+        def execute(self, pathInput, pathOutput, fileName):
             timeStart = time.perf_counter()
 
             zipFile = zipfile.ZipFile(pathInput)
@@ -1124,7 +1124,7 @@ class Office:
 
             timeEnd = time.perf_counter() - timeStart
 
-            print(f"\nLayout.py - Docx - Time: {round(timeEnd, 3)} - Block: {len(blockList)}")
+            print(f"\nLayout.py - Time: {round(timeEnd, 3)} - {fileName} - Block: {len(blockList)}")
 
             return resultObject
 
@@ -1470,7 +1470,7 @@ class Office:
 
             return resultList
 
-        def execute(self, pathInput, pathOutput):
+        def execute(self, pathInput, pathOutput, fileName):
             timeStart = time.perf_counter()
 
             zipFile = zipfile.ZipFile(pathInput)
@@ -1529,7 +1529,7 @@ class Office:
 
             timeEnd = time.perf_counter() - timeStart
 
-            print(f"\nLayout.py - Xlsx - Time: {round(timeEnd, 3)} - Sheet: {len(pageList)} - Row: {rowCount}")
+            print(f"\nLayout.py - Time: {round(timeEnd, 3)} - {fileName} - Sheet: {len(pageList)} - Row: {rowCount}")
 
             return resultObject
 
@@ -1702,7 +1702,7 @@ class Office:
 
             return result
 
-        def execute(self, pathInput, pathOutput):
+        def execute(self, pathInput, pathOutput, fileName):
             timeStart = time.perf_counter()
 
             zipFile = zipfile.ZipFile(pathInput)
@@ -1797,7 +1797,7 @@ class Office:
 
             timeEnd = time.perf_counter() - timeStart
 
-            print(f"\nLayout.py - Pptx - Time: {round(timeEnd, 3)} - Slide: {len(pageList)} - Block: {blockCount}")
+            print(f"\nLayout.py - Time: {round(timeEnd, 3)} - {fileName} - Slide: {len(pageList)} - Block: {blockCount}")
 
             return resultObject
 
