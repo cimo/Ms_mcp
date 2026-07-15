@@ -1,3 +1,3 @@
-export interface IapiDataEmbeddingCheckBody {
+export interface IapiDataCheckBody {
     fileName: string;
 }

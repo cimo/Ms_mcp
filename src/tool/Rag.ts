@@ -62,9 +62,7 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const uniqueId = helperSrc.generateUniqueId();
-
-                const resultStore = await ragProcess.databaseStore(extra.sessionId, uniqueId, argument.fileName);
+                const resultStore = await ragProcess.databaseStore(extra.sessionId, argument.fileName);
                 result = JSON.stringify({ name, result: resultStore });
             }
 
@@ -103,9 +101,7 @@ export default class Rag {
                 const documentList = await helperSrc.uploadedDocumentRead(extra.sessionId, ".*");
 
                 if (documentList.length > 0) {
-                    const uniqueId = helperSrc.generateUniqueId();
-
-                    const resultSearch = await ragProcess.databaseSearch(extra.sessionId, uniqueId, argument.prompt, argument.entity, argument.theme);
+                    const resultSearch = await ragProcess.databaseSearch(extra.sessionId, argument.prompt, argument.entity, argument.theme);
                     result = JSON.stringify({ name, result: JSON.parse(resultSearch) });
                 }
             }

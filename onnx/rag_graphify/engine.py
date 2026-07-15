@@ -5,9 +5,7 @@ import os
 import re
 import time
 import json
-import ssl
 import unicodedata
-import urllib.request
 import numpy
 import sentencepiece
 from sentencepiece import sentencepiece_model_pb2 as sentencepieceModel
@@ -19,16 +17,6 @@ sys.path.append(f"{os.path.dirname(__file__)}/..")
 from helper import onnxSessionBuild
 
 class Engine:
-    def _utilEnvironment(self):
-        locale = self.ENV_NAME.split("_")[-1]
-
-        if locale == "" or locale == "local":
-            locale = "jp"
-
-        protocol = "https" if locale == "jp" else "http"
-
-        return f"{protocol}://{self.DOMAIN}:1046"
-
     def _utilWideCheck(self, character):
         return character != "" and unicodedata.east_asian_width(character) in ("W", "F")
 
@@ -945,25 +933,16 @@ class Engine:
 
         return resultList
 
-    def _storeCitation(self, database, cookie, mcpSessionId, uniqueId, fileId, chunkList):
-        isFailed = False
-
+    def _storeCitation(self, database, mcpSessionId, fileId, chunkList):
         for a in range(0, len(chunkList), self.batchLength):
             chunkBatchList = chunkList[a:a + self.batchLength]
 
-            embeddingData = self._embedding(cookie, uniqueId, "document", chunkBatchList)
+            embeddingList = self._embedding("document", chunkBatchList)
 
-            if isinstance(embeddingData.get("data"), list) and len(embeddingData["data"]) == len(chunkBatchList):
-                for b in range(len(chunkBatchList)):
-                    self._tableCitationInsert(database, mcpSessionId, fileId, chunkBatchList[b], embeddingData["data"][b]["embedding"])
+            for b in range(len(chunkBatchList)):
+                self._tableCitationInsert(database, mcpSessionId, fileId, chunkBatchList[b], embeddingList[b])
 
-                database.commit()
-            else:
-                isFailed = True
-
-                break
-
-        return isFailed
+            database.commit()
 
     def _storeRelation(self, database, mcpSessionId, fileId, chunkList):
         for a in range(len(chunkList)):
@@ -988,15 +967,10 @@ class Engine:
 
             database.commit()
 
-    def _storeNodeVector(self, database, cookie, mcpSessionId, uniqueId, fileId):
-        isFailed = False
-
+    def _storeNodeVector(self, database, mcpSessionId, fileId):
         nodeBuildList = self._logicNodeSelectByFile(database, mcpSessionId, fileId)
 
         for a in range(0, len(nodeBuildList), self.batchLength):
-            if isFailed:
-                break
-
             nodeBatchList = nodeBuildList[a:a + self.batchLength]
 
             nodeTextList = []
@@ -1007,27 +981,17 @@ class Engine:
                 else:
                     nodeTextList.append(f"{nodeBatchList[b]['name']}: {nodeBatchList[b]['description']}")
 
-            nodeEmbeddingData = self._embedding(cookie, uniqueId, "document", nodeTextList)
+            nodeEmbeddingList = self._embedding("document", nodeTextList)
 
-            if isinstance(nodeEmbeddingData.get("data"), list) and len(nodeEmbeddingData["data"]) == len(nodeBatchList):
-                for b in range(len(nodeBatchList)):
-                    self._tableNodeVecInsert(database, mcpSessionId, fileId, nodeBatchList[b]["name"], nodeBatchList[b]["nameNormalized"], nodeBatchList[b]["description"], nodeEmbeddingData["data"][b]["embedding"])
+            for b in range(len(nodeBatchList)):
+                self._tableNodeVecInsert(database, mcpSessionId, fileId, nodeBatchList[b]["name"], nodeBatchList[b]["nameNormalized"], nodeBatchList[b]["description"], nodeEmbeddingList[b])
 
-                database.commit()
-            else:
-                isFailed = True
+            database.commit()
 
-        return isFailed
-
-    def _storeEdgeVector(self, database, cookie, mcpSessionId, uniqueId, fileId):
-        isFailed = False
-
+    def _storeEdgeVector(self, database, mcpSessionId, fileId):
         edgeBuildList = self._logicEdgeSelectByFile(database, mcpSessionId, fileId)
 
         for a in range(0, len(edgeBuildList), self.batchLength):
-            if isFailed:
-                break
-
             edgeBatchList = edgeBuildList[a:a + self.batchLength]
 
             edgeTextList = []
@@ -1035,17 +999,12 @@ class Engine:
             for b in range(len(edgeBatchList)):
                 edgeTextList.append(f"{edgeBatchList[b]['description']}".strip())
 
-            edgeEmbeddingData = self._embedding(cookie, uniqueId, "document", edgeTextList)
+            edgeEmbeddingList = self._embedding("document", edgeTextList)
 
-            if isinstance(edgeEmbeddingData.get("data"), list) and len(edgeEmbeddingData["data"]) == len(edgeBatchList):
-                for b in range(len(edgeBatchList)):
-                    self._tableEdgeVecInsert(database, mcpSessionId, fileId, edgeBatchList[b]["id"], edgeEmbeddingData["data"][b]["embedding"])
+            for b in range(len(edgeBatchList)):
+                self._tableEdgeVecInsert(database, mcpSessionId, fileId, edgeBatchList[b]["id"], edgeEmbeddingList[b])
 
-                database.commit()
-            else:
-                isFailed = True
-
-        return isFailed
+            database.commit()
 
     def _searchCitation(self, database, mcpSessionId, fileList, promptVector, entityFileIdList):
         citationList = []
@@ -1107,20 +1066,19 @@ class Engine:
 
         return citationList, isCitationSemantic
 
-    def _searchSeed(self, database, mcpSessionId, entityList, entityEmbeddingData, isEntityEmbedding):
+    def _searchSeed(self, database, mcpSessionId, entityList, entityEmbeddingList):
         seedObject = {}
         seedList = []
 
         if len(entityList) > 0:
             for a in range(len(entityList)):
-                if isEntityEmbedding and len(entityEmbeddingData["data"][a]["embedding"]) > 0:
-                    nodeVector = numpy.array(entityEmbeddingData["data"][a]["embedding"], dtype=numpy.float32)
-                    nodeMatchList = self._logicNodeVecMatch(database, mcpSessionId, nodeVector)
+                nodeVector = numpy.array(entityEmbeddingList[a], dtype=numpy.float32)
+                nodeMatchList = self._logicNodeVecMatch(database, mcpSessionId, nodeVector)
 
-                    for b in range(len(nodeMatchList)):
-                        if seedObject.get(nodeMatchList[b]["nameNormalized"]) is None:
-                            seedObject[nodeMatchList[b]["nameNormalized"]] = True
-                            seedList.append(nodeMatchList[b]["nameNormalized"])
+                for b in range(len(nodeMatchList)):
+                    if seedObject.get(nodeMatchList[b]["nameNormalized"]) is None:
+                        seedObject[nodeMatchList[b]["nameNormalized"]] = True
+                        seedList.append(nodeMatchList[b]["nameNormalized"])
 
         seedLikeList = self._logicNodeMatch(database, mcpSessionId, entityList)
 
@@ -1135,25 +1093,23 @@ class Engine:
 
         return nodeList, seedObject, seedList, entityFileIdList
 
-    def _searchTheme(self, database, cookie, mcpSessionId, uniqueId, themeList, seedObject, seedList):
+    def _searchTheme(self, database, mcpSessionId, themeList, seedObject, seedList):
         graphCandidateList = []
 
         if len(themeList) > 0:
-            themeEmbeddingData = self._embedding(cookie, uniqueId, "query", themeList)
-            isThemeEmbedding = isinstance(themeEmbeddingData.get("data"), list) and len(themeEmbeddingData["data"]) == len(themeList)
+            themeEmbeddingList = self._embedding("query", themeList)
 
             edgeIdObject = {}
             edgeIdList = []
 
             for a in range(len(themeList)):
-                if isThemeEmbedding and len(themeEmbeddingData["data"][a]["embedding"]) > 0:
-                    edgeVector = numpy.array(themeEmbeddingData["data"][a]["embedding"], dtype=numpy.float32)
-                    edgeMatchList = self._logicEdgeVecMatch(database, mcpSessionId, edgeVector)
+                edgeVector = numpy.array(themeEmbeddingList[a], dtype=numpy.float32)
+                edgeMatchList = self._logicEdgeVecMatch(database, mcpSessionId, edgeVector)
 
-                    for b in range(len(edgeMatchList)):
-                        if edgeIdObject.get(edgeMatchList[b]) is None:
-                            edgeIdObject[edgeMatchList[b]] = True
-                            edgeIdList.append(edgeMatchList[b])
+                for b in range(len(edgeMatchList)):
+                    if edgeIdObject.get(edgeMatchList[b]) is None:
+                        edgeIdObject[edgeMatchList[b]] = True
+                        edgeIdList.append(edgeMatchList[b])
 
             edgeFullList = self._logicEdgeSelectById(database, mcpSessionId, edgeIdList)
 
@@ -1471,7 +1427,7 @@ class Engine:
         with open(f"{pathDocument}rag_graph.html", "w", encoding="utf-8") as file:
             file.write(html)
 
-    def _embedding(self, cookie, uniqueId, mode, text):
+    def _embedding(self, mode, text):
         inputList = text if isinstance(text, list) else [text]
 
         inputPrefixList = []
@@ -1482,25 +1438,36 @@ class Engine:
             else:
                 inputPrefixList.append(f"task: search result | query: {inputList[a]}")
 
-        body = json.dumps({"input": inputPrefixList}).encode("utf-8")
+        tokenList = []
+        lengthMax = 0
 
-        request = urllib.request.Request(f"{self.urlApi}/api/embedding", data=body, method="POST")
+        for a in range(len(inputPrefixList)):
+            idList = self.sentencepieceEmbedding.EncodeAsIds(inputPrefixList[a])
 
-        request.add_header("Content-Type", "application/json")
-        request.add_header("Authorization", f"Bearer {uniqueId}")
+            if len(idList) > self.embeddingTokenMax - 2:
+                idList = idList[0:self.embeddingTokenMax - 2]
 
-        if cookie != "":
-            request.add_header("Cookie", cookie)
+            idList = [self.sentencepieceEmbedding.bos_id()] + idList + [self.sentencepieceEmbedding.eos_id()]
 
-        response = urllib.request.urlopen(request, context=self.sslContext)
+            if len(idList) > lengthMax:
+                lengthMax = len(idList)
 
-        data = json.loads(response.read().decode("utf-8"))
+            tokenList.append(idList)
 
-        stdout = json.loads(data["response"]["stdout"])
+        inputIds = numpy.full((len(tokenList), lengthMax), self.sentencepieceEmbedding.pad_id(), dtype=numpy.int64)
+        attentionMask = numpy.zeros((len(tokenList), lengthMax), dtype=numpy.int64)
 
-        return stdout
+        for a in range(len(tokenList)):
+            inputIds[a, 0:len(tokenList[a])] = tokenList[a]
+            attentionMask[a, 0:len(tokenList[a])] = 1
 
-    def store(self, cookie, mcpSessionId, uniqueId, fileName):
+        feedObject = {"input_ids": inputIds, "attention_mask": attentionMask}
+
+        embedding = self.onnxSessionEmbedding.run(["sentence_embedding"], feedObject)[0]
+
+        return embedding.tolist()
+
+    def store(self, mcpSessionId, fileName):
         result = "ko"
 
         database = Database()
@@ -1540,28 +1507,18 @@ class Engine:
                 else:
                     chunkList = self._chunk(fileContent)
 
-                isFailed = len(chunkList) == 0
+                if len(chunkList) > 0:
+                    self._storeCitation(database, mcpSessionId, fileId, chunkList)
 
-                if not isFailed:
-                    isFailed = self._storeCitation(database, cookie, mcpSessionId, uniqueId, fileId, chunkList)
+                    if extension == ".xlsx":
+                        self._tableNodeInsert(database, mcpSessionId, fileId, fileNameOnly, "file", "")
 
-                if not isFailed and extension == ".xlsx":
-                    self._tableNodeInsert(database, mcpSessionId, fileId, fileNameOnly, "file", "")
+                        database.commit()
 
-                    database.commit()
-
-                if not isFailed:
                     self._storeRelation(database, mcpSessionId, fileId, chunkList)
+                    self._storeNodeVector(database, mcpSessionId, fileId)
+                    self._storeEdgeVector(database, mcpSessionId, fileId)
 
-                if not isFailed:
-                    isFailed = self._storeNodeVector(database, cookie, mcpSessionId, uniqueId, fileId)
-
-                if not isFailed:
-                    isFailed = self._storeEdgeVector(database, cookie, mcpSessionId, uniqueId, fileId)
-
-                if isFailed:
-                    result = "ko"
-                else:
                     result = "ok"
 
             if result == "ok":
@@ -1585,7 +1542,7 @@ class Engine:
 
         return result
 
-    def search(self, cookie, mcpSessionId, uniqueId, prompt, entityList, themeList):
+    def search(self, mcpSessionId, prompt, entityList, themeList):
         result = {"citationList": [], "nodeList": [], "graphList": []}
 
         database = Database()
@@ -1602,21 +1559,16 @@ class Engine:
             for a in range(len(fileQueryList)):
                 fileList.append({"id": fileQueryList[a][0], "name": fileQueryList[a][1]})
 
-            promptEmbeddingData = self._embedding(cookie, uniqueId, "query", prompt)
+            promptEmbeddingList = self._embedding("query", prompt)
 
-            promptVector = None
+            promptVector = numpy.array(promptEmbeddingList[0], dtype=numpy.float32)
 
-            if isinstance(promptEmbeddingData.get("data"), list) and len(promptEmbeddingData["data"]) > 0 and len(promptEmbeddingData["data"][0]["embedding"]) > 0:
-                promptVector = numpy.array(promptEmbeddingData["data"][0]["embedding"], dtype=numpy.float32)
-
-            entityEmbeddingData = {}
-            isEntityEmbedding = False
+            entityEmbeddingList = []
 
             if len(entityList) > 0:
-                entityEmbeddingData = self._embedding(cookie, uniqueId, "query", entityList)
-                isEntityEmbedding = isinstance(entityEmbeddingData.get("data"), list) and len(entityEmbeddingData["data"]) == len(entityList)
+                entityEmbeddingList = self._embedding("query", entityList)
 
-            nodeList, seedObject, seedList, entityFileIdList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingData, isEntityEmbedding)
+            nodeList, seedObject, seedList, entityFileIdList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingList)
 
             citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptVector, entityFileIdList)
 
@@ -1645,7 +1597,7 @@ class Engine:
             isInDomain = isCitationSemantic or len(seedList) > 0
 
             if isInDomain:
-                graphCandidateList = self._searchTheme(database, cookie, mcpSessionId, uniqueId, themeList, seedObject, seedList)
+                graphCandidateList = self._searchTheme(database, mcpSessionId, themeList, seedObject, seedList)
 
                 if len(seedList) > 0:
                     seedSlice = seedList[0:self.seedLimit]
@@ -1685,17 +1637,13 @@ class Engine:
         return result
 
     def __init__(self):
-        self.ENV_NAME = os.environ.get("ENV_NAME")
-        self.DOMAIN = os.environ.get("DOMAIN")
         PATH_ROOT = os.environ.get("PATH_ROOT")
-        self.PATH_CERTIFICATE_PEM = os.environ.get("MS_M_PATH_CERTIFICATE_PEM")
         PATH_FILE = os.environ.get("MS_M_PATH_FILE")
 
         self.osPathDirName = f"{os.path.dirname(__file__)}/"
-        self.pathModel = f"{self.osPathDirName}model/"
+        self.pathModelGliner = f"{self.osPathDirName}model/gliner_multi-v2.1/"
+        self.pathModelEmbedding = f"{self.osPathDirName}model/embeddinggemma-300m/"
         self.pathFileInput = f"{PATH_ROOT}{PATH_FILE}input/"
-        self.urlApi = self._utilEnvironment()
-        self.sslContext = ssl.create_default_context(cafile=self.PATH_CERTIFICATE_PEM)
 
         self.typeAllowList = ["person", "organization", "place", "category", "event"]
         self.chunkTokenLength = 250
@@ -1725,9 +1673,11 @@ class Engine:
         self.maxWidth = 12
         self.maxLength = 384
 
+        self.embeddingTokenMax = 2048
+
         proto = sentencepieceModel.ModelProto()
 
-        with open(f"{self.pathModel}spm.model", "rb") as file:
+        with open(f"{self.pathModelGliner}spm.model", "rb") as file:
             proto.ParseFromString(file.read())
 
         proto.normalizer_spec.add_dummy_prefix = False
@@ -1735,7 +1685,12 @@ class Engine:
         self.sentencepiece = sentencepiece.SentencePieceProcessor()
         self.sentencepiece.LoadFromSerializedProto(proto.SerializeToString())
 
-        self.onnxSession = onnxSessionBuild(f"{self.pathModel}model.onnx")
+        self.onnxSession = onnxSessionBuild(f"{self.pathModelGliner}model.onnx")
+
+        self.sentencepieceEmbedding = sentencepiece.SentencePieceProcessor()
+        self.sentencepieceEmbedding.Load(f"{self.pathModelEmbedding}tokenizer.model")
+
+        self.onnxSessionEmbedding = onnxSessionBuild(f"{self.pathModelEmbedding}model.onnx")
 
         database = Database(True)
         database.close()

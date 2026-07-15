@@ -26,7 +26,7 @@ export default class Rag {
     }
 
     api = (): void => {
-        this.app.post("/api/rag-embedding-start", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.post("/api/rag-start", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId === "string") {
@@ -46,15 +46,15 @@ export default class Rag {
 
                 helperSrc.responseBody(JSON.stringify(fileNameList), "", response, 200);
             } else {
-                helperSrc.writeLog("Rag.ts - api() - post(/api/rag-embedding-start) - Error", "Missing or invalid header.");
+                helperSrc.writeLog("Rag.ts - api() - post(/api/rag-start) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }
         });
 
-        this.app.post("/api/rag-embedding-check", Ca.authenticationMiddleware, (request: Request, response: Response) => {
+        this.app.post("/api/rag-check", Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelRag.IapiDataEmbeddingCheckBody;
+            const body = request.body as modelRag.IapiDataCheckBody;
 
             const fileName = body.fileName;
             const fileDetail = helperSrc.fileDetail(fileName);
@@ -82,7 +82,7 @@ export default class Rag {
                     helperSrc.responseBody(status, "", response, 200);
                 });
             } else {
-                helperSrc.writeLog("Rag.ts - api() - post(/api/rag-embedding-check) - Error", "Missing or invalid header.");
+                helperSrc.writeLog("Rag.ts - api() - post(/api/rag-check) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }

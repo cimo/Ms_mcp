@@ -26,24 +26,20 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
     def _routeSearch(self, text):
         payload = json.loads(text)
 
-        cookie = payload.get("cookie")
         mcpSessionId = payload.get("mcpSessionId")
-        uniqueId = payload.get("uniqueId")
         prompt = payload.get("prompt")
         entityList = payload.get("entityList")
         themeList = payload.get("themeList")
 
-        return self.engine.search(cookie, mcpSessionId, uniqueId, prompt, entityList, themeList)
+        return self.engine.search(mcpSessionId, prompt, entityList, themeList)
 
     def _routeStore(self, text):
         payload = json.loads(text)
 
-        cookie = payload.get("cookie")
         mcpSessionId = payload.get("mcpSessionId")
-        uniqueId = payload.get("uniqueId")
         fileName = payload.get("fileName")
 
-        return self.engine.store(cookie, mcpSessionId, uniqueId, fileName)
+        return self.engine.store(mcpSessionId, fileName)
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
