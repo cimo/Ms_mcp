@@ -56,11 +56,11 @@ do
 
     if [ ! -f "${pathModel}${fileName}" ]
     then
-        echo "Download rag_graphify embedding: ${fileName}"
+        echo "Download rag_graphify embeddinggemma-300m: ${fileName}"
 
         if ! curl -fsSL "${urlModel}${file}" -o "${pathModel}${fileName}"
         then
-            echo "Skip rag_graphify embedding - ${fileName}: download failed."
+            echo "Skip rag_graphify embeddinggemma-300m - ${fileName}: download failed."
 
             rm -f "${pathModel}${fileName}"
         fi
@@ -81,11 +81,11 @@ do
 
     if [ ! -f "${pathModel}${fileName}" ]
     then
-        echo "Download rag_graphify: ${fileName}"
+        echo "Download rag_graphify gliner_multi-v2.1: ${fileName}"
 
         if ! curl -fsSL "${urlModel}${file}" -o "${pathModel}${fileName}"
         then
-            echo "Skip rag_graphify - ${fileName}: download failed."
+            echo "Skip rag_graphify gliner_multi-v2.1 - ${fileName}: download failed."
 
             rm -f "${pathModel}${fileName}"
         fi

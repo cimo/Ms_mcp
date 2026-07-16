@@ -1584,6 +1584,11 @@ class Engine:
 
         self._tableCreate(database, mcpSessionId)
 
+        fileNameOnly = fileName.split("/")[-1]
+        baseName = re.sub(r"\.[^/.]+$", "", fileNameOnly.strip())
+
+        pathInputBasename = f"{self.pathFileInput}{mcpSessionId}/document/{baseName}/"
+
         fileIdStored = self._logicFileSelect(database, mcpSessionId, fileName)
 
         if fileIdStored > 0:
@@ -1592,11 +1597,6 @@ class Engine:
             fileId = self._tableFileInsert(database, mcpSessionId, fileName)
 
             database.commit()
-
-            fileNameOnly = fileName.split("/")[-1]
-            baseName = re.sub(r"\.[^/.]+$", "", fileNameOnly.strip())
-
-            pathInputBasename = f"{self.pathFileInput}{mcpSessionId}/document/{baseName}/"
 
             pathMarkdown = f"{pathInputBasename}result.md"
 
@@ -1627,18 +1627,18 @@ class Engine:
 
                     result = "ok"
 
-            if result == "ok":
+        if result == "ok":
+            if os.path.isdir(pathInputBasename):
                 with open(f"{pathInputBasename}.rag_done", "w") as file:
                     file.write("")
-            else:
-                self._tableDelete(database, mcpSessionId, fileName)
 
-                if os.path.isdir(pathInputBasename):
-                    with open(f"{pathInputBasename}.fail", "w") as file:
-                        file.write("")
-
-        if result == "ok":
             self._htmlGenerate(database, mcpSessionId)
+        else:
+            self._tableDelete(database, mcpSessionId, fileName)
+
+            if os.path.isdir(pathInputBasename):
+                with open(f"{pathInputBasename}.fail", "w") as file:
+                    file.write("")
 
         database.close()
 
