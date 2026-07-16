@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 // Source
+import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import * as modelTool from "../model/Tool.js";
 import * as playwrightTester from "./playwright/Tester.js";
@@ -17,13 +18,19 @@ export default class Playwright {
 
         this.inputSchema = z.object({
             action: z
-                .string()
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
                 .default("")
                 .describe("Is the word that indicates the action that the tool should perform. Can be ONLY 'listTest' or 'run' or 'listVideo'."),
-            file: z.string().default("").describe("Is the word ending with '.spec.ts' and indicates the test filename that the tool should execute."),
-            video: z.string().default("").describe("Used only when action is listVideo. Extract the video name keyword from the current prompt."),
+            file: z
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
+                .default("")
+                .describe("Is the word ending with '.spec.ts' and indicates the test filename that the tool should execute."),
+            video: z
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
+                .default("")
+                .describe("Used only when action is listVideo. Extract the video name keyword from the current prompt."),
             browser: z
-                .string()
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
                 .default("")
                 .describe(
                     "If the word action is 'run' indicates the browser to use in the test execution. If is not provided the default value is 'desktop_chrome'."
@@ -54,7 +61,12 @@ export default class Playwright {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultExecute = await playwrightTester.execute(argument.action, argument.file, argument.video, argument.browser);
+                const resultExecute = await playwrightTester.execute(
+                    helperSrc.zodText(argument.action),
+                    helperSrc.zodText(argument.file),
+                    helperSrc.zodText(argument.video),
+                    helperSrc.zodText(argument.browser)
+                );
                 result = JSON.stringify({ name, result: resultExecute });
             }
 

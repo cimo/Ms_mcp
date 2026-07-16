@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 // Source
+import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import * as modelTool from "../model/Tool.js";
 
@@ -16,13 +17,13 @@ export default class Automate {
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
 
-        this.inputSchemaScrreenshot = z.object({}).strict();
+        this.inputSchemaScrreenshot = z.object({});
         this.inputSchemaMouseMove = z.object({
-            x: z.number().default(0).describe("X coordinate."),
-            y: z.number().default(0).describe("Y coordinate.")
+            x: z.union([z.number(), z.string(), z.null()]).default(0).describe("X coordinate."),
+            y: z.union([z.number(), z.string(), z.null()]).default(0).describe("Y coordinate.")
         });
         this.inputSchemaMouseClick = z.object({
-            button: z.number().int().min(0).max(2).default(0).describe("Left: 0 - Middle: 1 - Right: 2")
+            button: z.union([z.number(), z.string(), z.null()]).default(0).describe("Left: 0 - Middle: 1 - Right: 2")
         });
     }
 
@@ -78,7 +79,11 @@ export default class Automate {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    const resultRuntime = await runtime.automateMouseMove(extra.sessionId, argument.x, argument.y);
+                    const resultRuntime = await runtime.automateMouseMove(
+                        extra.sessionId,
+                        helperSrc.zodNumber(argument.x, 0),
+                        helperSrc.zodNumber(argument.y, 0)
+                    );
                     result = JSON.stringify({ name, result: resultRuntime });
                 }
             }
@@ -113,7 +118,10 @@ export default class Automate {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    const resultRuntime = await runtime.automateMouseClick(extra.sessionId, argument.button);
+                    const resultRuntime = await runtime.automateMouseClick(
+                        extra.sessionId,
+                        Math.trunc(helperSrc.zodNumber(argument.button, 0, 0, 2))
+                    );
                     result = JSON.stringify({ name, result: resultRuntime });
                 }
             }

@@ -222,7 +222,7 @@ class Engine:
 
         return resultList
 
-    def _logicNodeDetail(self, database, mcpSessionId, nameNormalizedList):
+    def _logicNodeDetail(self, database, mcpSessionId, nameNormalizedList, fileIdList):
         resultList = []
 
         if len(nameNormalizedList) > 0:
@@ -230,9 +230,20 @@ class Engine:
 
             placeholder = ",".join("%s" for a in range(len(nameNormalizedList)))
 
+            parameterList = list(nameNormalizedList)
+
+            fileFilter = ""
+
+            if len(fileIdList) > 0:
+                placeholderFile = ",".join("%s" for a in range(len(fileIdList)))
+                fileFilter = f" AND file_id IN ({placeholderFile})"
+
+                for a in range(len(fileIdList)):
+                    parameterList.append(fileIdList[a])
+
             queryList = database.execute(
-                f'SELECT DISTINCT ON (name_normalized) name, type, description FROM "{tableName}" WHERE name_normalized IN ({placeholder}) ORDER BY name_normalized, length(description) DESC',
-                tuple(nameNormalizedList)
+                f'SELECT DISTINCT ON (name_normalized) name, type, description FROM "{tableName}" WHERE name_normalized IN ({placeholder}){fileFilter} ORDER BY name_normalized, length(description) DESC',
+                tuple(parameterList)
             ).fetchall()
 
             for a in range(len(queryList)):
@@ -318,7 +329,7 @@ class Engine:
 
         return resultList
 
-    def _logicEdgeSelectById(self, database, mcpSessionId, idList):
+    def _logicEdgeSelectById(self, database, mcpSessionId, idList, fileIdList):
         resultList = []
 
         if len(idList) > 0:
@@ -326,9 +337,20 @@ class Engine:
 
             placeholder = ",".join("%s" for a in range(len(idList)))
 
+            parameterList = list(idList)
+
+            fileFilter = ""
+
+            if len(fileIdList) > 0:
+                placeholderFile = ",".join("%s" for a in range(len(fileIdList)))
+                fileFilter = f" AND file_id IN ({placeholderFile})"
+
+                for a in range(len(fileIdList)):
+                    parameterList.append(fileIdList[a])
+
             queryList = database.execute(
-                f'SELECT id, source, target, description, source_normalized, target_normalized FROM "{tableName}" WHERE id IN ({placeholder})',
-                tuple(idList)
+                f'SELECT id, source, target, description, source_normalized, target_normalized FROM "{tableName}" WHERE id IN ({placeholder}){fileFilter}',
+                tuple(parameterList)
             ).fetchall()
 
             for a in range(len(queryList)):
@@ -338,7 +360,7 @@ class Engine:
 
         return resultList
 
-    def _logicEdgeTraverse(self, database, mcpSessionId, seedList):
+    def _logicEdgeTraverse(self, database, mcpSessionId, seedList, fileIdList):
         resultList = []
 
         if len(seedList) > 0:
@@ -348,11 +370,22 @@ class Engine:
 
             placeholder = ",".join("%s" for a in range(len(seedList)))
 
+            parameterList = list(seedList) + list(seedList)
+
+            fileFilter = ""
+
+            if len(fileIdList) > 0:
+                placeholderFile = ",".join("%s" for a in range(len(fileIdList)))
+                fileFilter = f" AND file_id IN ({placeholderFile})"
+
+                for a in range(len(fileIdList)):
+                    parameterList.append(fileIdList[a])
+
             queryList = database.execute(
                 f'SELECT DISTINCT ON (source_normalized, target_normalized) id, source, target, description, source_normalized, target_normalized FROM "{tableName}" '
-                f'WHERE source_normalized IN ({placeholder}) OR target_normalized IN ({placeholder}) '
+                f'WHERE (source_normalized IN ({placeholder}) OR target_normalized IN ({placeholder})){fileFilter} '
                 f'ORDER BY source_normalized, target_normalized, id LIMIT {limit}',
-                tuple(seedList) + tuple(seedList)
+                tuple(parameterList)
             ).fetchall()
 
             for a in range(len(queryList)):
@@ -1006,33 +1039,60 @@ class Engine:
 
             database.commit()
 
-    def _searchCitation(self, database, mcpSessionId, fileList, promptVector, entityFileIdList):
+    def _searchCitation(self, database, mcpSessionId, fileList, promptVector, entityFileIdList, termList):
         citationList = []
 
         isCitationSemantic = False
 
         seenObject = {}
 
+        marginEffective = self.marginGlobal
+
         if promptVector is not None:
             promptCitationList = self._logicCitationMatch(database, mcpSessionId, fileList, self.candidatePool, promptVector)
 
             distanceBest = -1
+            distanceMedian = -1
 
             if len(promptCitationList) > 0:
                 distanceBest = promptCitationList[0]["distance"]
+                distanceMedian = promptCitationList[len(promptCitationList) // 2]["distance"]
 
-            for a in range(len(promptCitationList)):
-                candidate = promptCitationList[a]
+                marginEffective = min(self.marginGlobal, (distanceMedian - distanceBest) / 2)
 
-                if candidate["distance"] <= self.distanceMax and candidate["distance"] <= distanceBest + self.marginGlobal:
-                    key = candidate["fileName"] + "|" + candidate["chunk"]
+            isGapValid = distanceBest >= 0 and distanceBest <= self.distanceCeiling and distanceMedian - distanceBest >= self.distanceGapMin
 
-                    if seenObject.get(key) is None:
-                        seenObject[key] = True
+            isLexicalValid = True
 
-                        citationList.append(candidate)
+            if isGapValid and distanceBest > self.distanceMax and len(termList) > 0:
+                isLexicalValid = False
 
-                        isCitationSemantic = True
+                for a in range(len(promptCitationList)):
+                    if promptCitationList[a]["distance"] <= distanceBest + marginEffective:
+                        chunkLower = promptCitationList[a]["chunk"].lower()
+
+                        for b in range(len(termList)):
+                            if termList[b] in chunkLower:
+                                isLexicalValid = True
+                                break
+
+                    if isLexicalValid:
+                        break
+
+            if distanceBest >= 0 and (distanceBest <= self.distanceMax or (isGapValid and isLexicalValid)):
+                isCitationSemantic = True
+
+            if isCitationSemantic:
+                for a in range(len(promptCitationList)):
+                    candidate = promptCitationList[a]
+
+                    if candidate["distance"] <= distanceBest + marginEffective:
+                        key = candidate["fileName"] + "|" + candidate["chunk"]
+
+                        if seenObject.get(key) is None:
+                            seenObject[key] = True
+
+                            citationList.append(candidate)
 
         if promptVector is not None:
             for a in range(len(entityFileIdList)):
@@ -1057,7 +1117,7 @@ class Engine:
         filteredList = []
 
         for a in range(len(citationList)):
-            if citationList[a]["distance"] <= distanceGlobalBest + self.marginGlobal:
+            if citationList[a]["distance"] <= distanceGlobalBest + marginEffective:
                 filteredList.append(citationList[a])
 
         filteredList.sort(key=lambda citation: citation["distance"])
@@ -1087,13 +1147,11 @@ class Engine:
                 seedObject[seedLikeList[a]] = True
                 seedList.append(seedLikeList[a])
 
-        nodeList = self._logicNodeDetail(database, mcpSessionId, seedList)
-
         entityFileIdList = self._logicNodeFileSelect(database, mcpSessionId, seedList)
 
-        return nodeList, seedObject, seedList, entityFileIdList
+        return seedObject, seedList, entityFileIdList
 
-    def _searchTheme(self, database, mcpSessionId, themeList, seedObject, seedList):
+    def _searchTheme(self, database, mcpSessionId, themeList, seedObject, seedList, fileIdList):
         graphCandidateList = []
 
         if len(themeList) > 0:
@@ -1111,7 +1169,7 @@ class Engine:
                         edgeIdObject[edgeMatchList[b]] = True
                         edgeIdList.append(edgeMatchList[b])
 
-            edgeFullList = self._logicEdgeSelectById(database, mcpSessionId, edgeIdList)
+            edgeFullList = self._logicEdgeSelectById(database, mcpSessionId, edgeIdList, fileIdList)
 
             for a in range(len(edgeFullList)):
                 edgeFull = edgeFullList[a]
@@ -1662,7 +1720,13 @@ class Engine:
             for a in range(len(fileQueryList)):
                 fileList.append({"id": fileQueryList[a][0], "name": fileQueryList[a][1]})
 
-            promptEmbeddingList = self._embedding("query", prompt)
+            promptSearch = prompt
+
+            for a in range(len(entityList)):
+                if entityList[a].lower() not in promptSearch.lower():
+                    promptSearch = f"{promptSearch} {entityList[a]}"
+
+            promptEmbeddingList = self._embedding("query", promptSearch)
 
             promptVector = numpy.array(promptEmbeddingList[0], dtype=numpy.float32)
 
@@ -1671,11 +1735,20 @@ class Engine:
             if len(entityList) > 0:
                 entityEmbeddingList = self._embedding("query", entityList)
 
-            nodeList, seedObject, seedList, entityFileIdList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingList)
+            seedObject, seedList, entityFileIdList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingList)
 
-            citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptVector, entityFileIdList)
+            termList = []
 
-            rowList = self._utilRowParse(prompt)
+            for a in range(len(entityList)):
+                wordList = re.findall(r"\w{3,}", entityList[a].lower())
+
+                for b in range(len(wordList)):
+                    if wordList[b] not in termList:
+                        termList.append(wordList[b])
+
+            citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptVector, entityFileIdList, termList)
+
+            rowList = self._utilRowParse(f"{prompt} {' '.join(entityList)} {' '.join(themeList)}")
 
             if len(rowList) > 0:
                 fileNameObject = {}
@@ -1697,14 +1770,29 @@ class Engine:
                 if len(rowCitationList) > 0:
                     citationList = rowCitationList
 
+            fileIdObject = {}
+
+            for a in range(len(fileList)):
+                fileIdObject[fileList[a]["name"]] = fileList[a]["id"]
+
+            citationFileIdList = []
+
+            for a in range(len(citationList)):
+                fileId = fileIdObject.get(citationList[a]["fileName"], 0)
+
+                if fileId > 0 and fileId not in citationFileIdList:
+                    citationFileIdList.append(fileId)
+
+            nodeList = self._logicNodeDetail(database, mcpSessionId, seedList, citationFileIdList)
+
             isInDomain = isCitationSemantic or len(seedList) > 0
 
             if isInDomain:
-                graphCandidateList = self._searchTheme(database, mcpSessionId, themeList, seedObject, seedList)
+                graphCandidateList = self._searchTheme(database, mcpSessionId, themeList, seedObject, seedList, citationFileIdList)
 
                 if len(seedList) > 0:
                     seedSlice = seedList[0:self.seedLimit]
-                    traverseList = self._logicEdgeTraverse(database, mcpSessionId, seedSlice)
+                    traverseList = self._logicEdgeTraverse(database, mcpSessionId, seedSlice, citationFileIdList)
 
                     for a in range(len(traverseList)):
                         graphCandidateList.append(traverseList[a])
@@ -1757,6 +1845,8 @@ class Engine:
         self.relationGapMax = 60
 
         self.distanceMax = 1.00
+        self.distanceCeiling = 1.24
+        self.distanceGapMin = 0.15
         self.distanceMaxEdge = 1.20
         self.marginRelative = 0.1
         self.marginGlobal = 0.15

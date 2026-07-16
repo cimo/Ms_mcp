@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 // Source
+import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import * as modelTool from "../model/Tool.js";
 import * as mathExpression from "./math/Expression.js";
@@ -16,7 +17,10 @@ export default class Math {
         this.sessionObject = sessionObject;
 
         this.inputSchema = z.object({
-            prompt: z.string().default("").describe("Is the full math expression that needs to be evaluated.")
+            prompt: z
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
+                .default("")
+                .describe("Is the full math expression that needs to be evaluated.")
         });
     }
 
@@ -37,7 +41,7 @@ export default class Math {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultExecute = mathExpression.execute(argument.prompt);
+                const resultExecute = mathExpression.execute(helperSrc.zodText(argument.prompt));
                 result = JSON.stringify({ name, result: resultExecute });
             }
 

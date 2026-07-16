@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 // Source
+import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import * as modelTool from "../model/Tool.js";
 
@@ -15,10 +16,22 @@ export default class Ocr {
         this.sessionObject = sessionObject;
 
         this.inputSchema = z.object({
-            language: z.string().default("").describe("Is the locale format that indicates the language used in the file."),
-            fileName: z.string().default("").describe("Is the word ending with the image file extension."),
-            searchText: z.string().default("").describe("Is the word/phrase that the user is asking to look/find/search."),
-            mode: z.string().default("data").describe("Is the word that indicates what to extract from the file.")
+            language: z
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
+                .default("")
+                .describe("Is the locale format that indicates the language used in the file."),
+            fileName: z
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
+                .default("")
+                .describe("Is the word ending with the image file extension."),
+            searchText: z
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
+                .default("")
+                .describe("Is the word/phrase that the user is asking to look/find/search."),
+            mode: z
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
+                .default("data")
+                .describe("Is the word that indicates what to extract from the file.")
         });
     }
 
@@ -47,10 +60,10 @@ export default class Ocr {
                 if (runtime) {
                     const resultRuntime = await runtime.ocrExecute(
                         extra.sessionId,
-                        argument.language,
-                        argument.fileName,
-                        argument.searchText,
-                        argument.mode
+                        helperSrc.zodText(argument.language),
+                        helperSrc.zodText(argument.fileName),
+                        helperSrc.zodText(argument.searchText),
+                        helperSrc.zodText(argument.mode, "data")
                     );
                     result = JSON.stringify({ name, result: resultRuntime });
                 }

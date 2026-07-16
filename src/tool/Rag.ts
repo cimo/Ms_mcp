@@ -19,32 +19,36 @@ export default class Rag {
         this.sessionObject = sessionObject;
 
         this.inputSchemaStore = z.object({
-            fileName: z.string().default("").describe("File name.")
+            fileName: z
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
+                .default("")
+                .describe("File name.")
         });
 
         this.inputSchemaSearch = z.object({
             prompt: z
-                .string()
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
                 .default("")
-                .describe(
-                    "The complete user question in natural language, kept as asked with its full intent and all its words. It is used to semantically rank the results, so do NOT strip or shorten it."
-                ),
+                .describe("The exact content to search, extracted from the user prompt: only the subject words, WITHOUT question or intent words."),
             entity: z
-                .array(z.string())
+                .union([z.array(z.string()), z.string(), z.number(), z.null()])
                 .default([])
                 .describe(
-                    "The key entities and topics (people, organizations, places, things, concepts) mentioned in the user prompt, WITHOUT question or intent words."
+                    "Array of the key entities and topics (people, organizations, places, things, concepts) mentioned in the user prompt, WITHOUT question or intent words."
                 ),
             theme: z
-                .array(z.string())
+                .union([z.array(z.string()), z.string(), z.number(), z.null()])
                 .default([])
                 .describe(
-                    "The high level concepts or relations the question is about (what links the entities). Use specific concept phrases of two or more words, avoid single generic words like 'life' or 'activities'."
+                    "Array of the high level concepts or relations the question is about (what links the entities). Use specific concept phrases of two or more words, avoid single generic words like 'life' or 'activities'."
                 )
         });
 
         this.inputSchemaDelete = z.object({
-            fileName: z.string().default("").describe("File name.")
+            fileName: z
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
+                .default("")
+                .describe("File name.")
         });
     }
 
@@ -62,7 +66,7 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultStore = await ragProcess.databaseStore(extra.sessionId, argument.fileName);
+                const resultStore = await ragProcess.databaseStore(extra.sessionId, helperSrc.zodText(argument.fileName));
                 result = JSON.stringify({ name, result: resultStore });
             }
 
@@ -101,8 +105,15 @@ export default class Rag {
                 const documentList = await helperSrc.uploadedDocumentRead(extra.sessionId, ".*");
 
                 if (documentList.length > 0) {
-                    const resultSearch = await ragProcess.databaseSearch(extra.sessionId, argument.prompt, argument.entity, argument.theme);
+                    const resultSearch = await ragProcess.databaseSearch(
+                        extra.sessionId,
+                        helperSrc.zodText(argument.prompt),
+                        helperSrc.zodTextList(argument.entity),
+                        helperSrc.zodTextList(argument.theme)
+                    );
                     result = JSON.stringify({ name, result: JSON.parse(resultSearch) });
+                } else {
+                    result = JSON.stringify({ name, result: { citationList: [], nodeList: [], graphList: [] } });
                 }
             }
 
@@ -133,7 +144,7 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultDelete = await ragProcess.databaseDelete(extra.sessionId, argument.fileName);
+                const resultDelete = await ragProcess.databaseDelete(extra.sessionId, helperSrc.zodText(argument.fileName));
                 result = JSON.stringify({ name, result: resultDelete });
             }
 

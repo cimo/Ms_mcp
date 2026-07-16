@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 // Source
+import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import * as modelTool from "../model/Tool.js";
 
@@ -15,7 +16,10 @@ export default class Browser {
         this.sessionObject = sessionObject;
 
         this.inputSchemaChrome = z.object({
-            url: z.string().default("").describe("URL to open in the browser.")
+            url: z
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
+                .default("")
+                .describe("URL to open in the browser.")
         });
     }
 
@@ -36,7 +40,7 @@ export default class Browser {
                 const runtime = this.sessionObject[extra.sessionId].runtime;
 
                 if (runtime) {
-                    const resultRuntime = await runtime.browserChrome(extra.sessionId, argument.url);
+                    const resultRuntime = await runtime.browserChrome(extra.sessionId, helperSrc.zodText(argument.url));
                     result = JSON.stringify({ name, result: resultRuntime });
                 }
             }

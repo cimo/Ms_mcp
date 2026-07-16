@@ -81,16 +81,6 @@ const apiDocumentParser = async (path: string, pathInput: string, pathOutput: st
         });
 };
 
-const form = (fileReadStream: Buffer, fileDetail: modelHelperSrc.IfileDetail): FormData => {
-    const buffer = Buffer.from(fileReadStream);
-    const blob = new Blob([buffer], { type: fileDetail.mimeType });
-
-    const formData = new FormData();
-    formData.append("file", blob, fileDetail.fileName);
-
-    return formData;
-};
-
 export const execute = (mcpSessionId: string, fileName: string, searchInput: string): Promise<string> => {
     return instance.runWithContext(async () => {
         let resultObject = {} as modelDocument.Iparser;
@@ -101,26 +91,27 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
 
         const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
 
-        if (fileDetail.extension === "pdf") {
-            await apiDocumentParser("/layout", `${pathDocument}${fileDetail.fileName}`, pathDocument);
-        } else {
+        if (fileDetail.extension !== "pdf") {
             const fileReadStream = await helperSrc.fileReadStream(`${pathDocument}${fileDetail.fileName}`);
 
             if (Buffer.isBuffer(fileReadStream)) {
-                const formData = form(fileReadStream, fileDetail);
+                const buffer = Buffer.from(fileReadStream);
+                const blob = new Blob([buffer], { type: fileDetail.mimeType });
+
+                const formData = new FormData();
+                formData.append("file", blob, fileDetail.fileName);
 
                 const stdout = await apiToPdf(formData);
 
                 if (stdout !== "ko") {
                     await helperSrc.fileWriteStream(`${pathDocument}converted.pdf`, Buffer.from(stdout, "base64"));
-
-                    await apiDocumentParser("/layout", `${pathDocument}${fileDetail.fileName}`, pathDocument);
                 }
             } else {
                 helperSrc.writeLog(`Parser.ts - execute() - no pdf - fileReadStream()`, fileReadStream.toString());
             }
         }
 
+        await apiDocumentParser("/layout", `${pathDocument}${fileDetail.fileName}`, pathDocument);
         const engineData = await apiDocumentParser("/engine", `${pathDocument}${fileDetail.fileName}`, `${pathDocument}result.md`);
 
         if (engineData !== "ko") {

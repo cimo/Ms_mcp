@@ -712,4 +712,52 @@ export const uploadedSkillRead = (mcpSessionId: string, extension: string): Prom
         });
     });
 };
+
+export const zodText = (value: string | number | string[] | null | undefined, valueDefault = ""): string => {
+    let result = valueDefault;
+
+    if (typeof value === "string") {
+        result = value;
+    } else if (typeof value === "number") {
+        result = value.toString();
+    } else if (Array.isArray(value)) {
+        result = value.join(" ");
+    }
+
+    return result;
+};
+
+export const zodNumber = (value: number | string | null | undefined, valueDefault: number, valueMin?: number, valueMax?: number): number => {
+    let result = valueDefault;
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+        result = value;
+    } else if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) {
+        result = Number(value);
+    }
+
+    if (valueMin !== undefined && result < valueMin) {
+        result = valueMin;
+    }
+
+    if (valueMax !== undefined && result > valueMax) {
+        result = valueMax;
+    }
+
+    return result;
+};
+
+export const zodTextList = (value: string | number | string[] | null | undefined): string[] => {
+    let resultList: string[] = [];
+
+    if (Array.isArray(value)) {
+        resultList = value;
+    } else if (typeof value === "string" && value !== "") {
+        resultList = [value];
+    } else if (typeof value === "number") {
+        resultList = [value.toString()];
+    }
+
+    return resultList;
+};
 // Custom

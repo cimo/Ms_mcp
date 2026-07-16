@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 // Source
+import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import * as modelTool from "../model/Tool.js";
 import * as documentParser from "./document/Parser.js";
@@ -16,8 +17,14 @@ export default class Document {
         this.sessionObject = sessionObject;
 
         this.inputSchema = z.object({
-            fileName: z.string().default("").describe("Is the word ending with the document file extension."),
-            searchInput: z.string().default("").describe("Is the word/phrase that the user is asking to look/find/search.")
+            fileName: z
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
+                .default("")
+                .describe("Is the word ending with the document file extension."),
+            searchInput: z
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
+                .default("")
+                .describe("Is the word/phrase that the user is asking to look/find/search.")
         });
     }
 
@@ -39,7 +46,11 @@ export default class Document {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultExecute = await documentParser.execute(extra.sessionId, argument.fileName, argument.searchInput);
+                const resultExecute = await documentParser.execute(
+                    extra.sessionId,
+                    helperSrc.zodText(argument.fileName),
+                    helperSrc.zodText(argument.searchInput)
+                );
                 result = JSON.stringify({ name, result: JSON.parse(resultExecute) });
             }
 
