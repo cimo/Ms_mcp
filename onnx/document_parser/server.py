@@ -2,6 +2,8 @@ import sys
 sys.dont_write_bytecode = True
 
 import os
+import glob
+import shutil
 import json
 import time
 import signal
@@ -16,14 +18,23 @@ from engine import Engine
 class HandlerHttpRequest(BaseHTTPRequestHandler):
     layoutPdf = Pdf()
 
-    def _fileName(self, pathInput):
-        result = os.path.basename(pathInput)
+    def _pageImageGenerate(self, pathInput):
+        pathPage = f"{os.path.dirname(pathInput)}/page/"
 
-        if os.path.splitext(pathInput)[1].lower() == ".pdf":
-            result = f"{os.path.basename(os.path.dirname(pathInput))}.pdf"
+        if os.path.isdir(pathPage):
+            shutil.rmtree(pathPage)
 
-        return result
+        os.makedirs(pathPage, exist_ok=True)
 
+        subprocess.run(["pdftoppm", "-jpeg", "-r", "150", pathInput, f"{pathPage}page"], capture_output=True, text=True)
+
+        fileNameList = glob.glob(f"{pathPage}page-*.jpg")
+
+        for a in range(len(fileNameList)):
+            pageNumber = int(os.path.splitext(os.path.basename(fileNameList[a]))[0].split("-")[1])
+
+            os.rename(fileNameList[a], f"{pathPage}{pageNumber}.jpg")    
+    
     def _routeEngine(self, text):
         engine = Engine()
 
@@ -32,7 +43,7 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
         pathInput = payload.get("pathInput")
         pathOutput = payload.get("pathOutput")
 
-        fileName = self._fileName(pathInput)
+        fileName = os.path.basename(pathInput)
 
         return engine.execute(pathInput, pathOutput, fileName)
 
@@ -43,12 +54,13 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
         pathOutput = payload.get("pathOutput")
 
         extension = os.path.splitext(pathInput)[1].lower()
-
-        fileName = self._fileName(pathInput)
+        fileName = os.path.basename(pathInput)
 
         result = {}
 
         if extension == ".pdf":
+            self._pageImageGenerate(pathInput)
+
             result = self.layoutPdf.execute(f"{os.path.dirname(pathInput)}/page/", pathOutput, fileName)
         elif extension == ".docx":
             layoutDocx = Office.Docx()

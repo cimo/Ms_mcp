@@ -1240,10 +1240,10 @@ class Engine:
             #index input { flex: 1 1 auto; min-width: 0; padding: 4px 6px; background: #3a3a3a; color: #ffffff; border: 1px solid #555555; border-radius: 3px; font-size: 12px; }
             #index .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
             #index .group { margin: 0 0 4px 0; }
-            #index .group_header { display: flex; align-items: center; gap: 6px; padding: 4px 2px; cursor: pointer; font-weight: bold; }
+            #index .group_header { display: flex; align-items: center; gap: 6px; padding: 4px 2px; font-weight: bold; }
             #index .group_toggle { width: 14px; flex: 0 0 auto; text-align: center; }
             #index .group_header input { flex: 0 0 auto; margin: 0; padding: 0; }
-            #index .group_name { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+            #index .group_name { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
             #index .group_body label { padding-left: 20px; }
             #filter_wrapper { display: flex; gap: 4px; margin: 0 10px 5px 0; }
             #graph_wrapper { position: fixed; top: 0; left: 240px; right: 0; bottom: 0; background: #1e1e1e; opacity: 0; }
@@ -1347,9 +1347,6 @@ class Engine:
                 const elementGroupCheckbox = document.createElement("input");
                 elementGroupCheckbox.type = "checkbox";
                 elementGroupCheckbox.checked = true;
-                elementGroupCheckbox.addEventListener("click", function(event) {
-                    event.stopPropagation();
-                });
                 elementGroupCheckbox.addEventListener("change", function() {
                     const elementCheckboxList = elementGroupBody.querySelectorAll("input[type=checkbox]");
                     const updateList = [];
@@ -1367,7 +1364,7 @@ class Engine:
                 elementGroupHeader.appendChild(elementGroupToggle);
                 elementGroupHeader.appendChild(elementGroupName);
 
-                elementGroupHeader.addEventListener("click", function() {
+                elementGroupName.addEventListener("click", function() {
                     const isOpen = elementGroupBody.style.display !== "none";
 
                     elementGroupBody.style.display = isOpen ? "none" : "block";

@@ -112,6 +112,9 @@ RUN cd ~ \
     libgomp1 \
     libatomic1 \
     xdg-utils \
+    # Pdf
+    && apt-get update && apt-get install -y \
+    poppler-utils \
     # Chrome
     && curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /home/chrome.deb \
     && apt-get update && apt-get install -y /home/chrome.deb \
