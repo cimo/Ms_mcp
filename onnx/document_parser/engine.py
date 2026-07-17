@@ -1521,7 +1521,7 @@ class Pdf:
 class Markdown:
     class Pdf:
         def _medianFontSize(self, elementList):
-            result = 12
+            result = self.sizeDefault
 
             sizeList = []
 
@@ -1567,12 +1567,12 @@ class Markdown:
             return resultList
 
         def _headingHash(self, titleSizeRankList, key):
-            level = 2
+            level = self.levelHeadingBase
 
             if key in titleSizeRankList:
-                level = 2 + titleSizeRankList.index(key)
+                level = self.levelHeadingBase + titleSizeRankList.index(key)
 
-            return "#" * min(level, 6)
+            return "#" * min(level, self.levelHeadingMax)
 
         def _lineGroup(self, elementList):
             resultList = []
@@ -1590,7 +1590,7 @@ class Markdown:
                     overlap = min(line["y1"], element["y1"]) - max(line["y0"], element["y0"])
                     height = min(line["y1"] - line["y0"], element["y1"] - element["y0"])
 
-                    if height > 0 and overlap / height >= 0.5:
+                    if height > 0 and overlap / height >= self.lineOverlapRatio:
                         line["elementList"].append(element)
 
                         line["y0"] = min(line["y0"], element["y0"])
@@ -1616,7 +1616,7 @@ class Markdown:
             return resultList
 
         def _wideCheck(self, character):
-            return character != "" and unicodedata.east_asian_width(character) in ("W", "F")
+            return character != "" and unicodedata.east_asian_width(character) in self.wideList
 
         def _lineText(self, line, isPlain):
             result = ""
@@ -1671,10 +1671,10 @@ class Markdown:
                 maxX1 = max(maxX1, lineList[a]["x1"])
                 minX0 = lineList[a]["x0"] if a == 0 else min(minX0, lineList[a]["x0"])
 
-            isMarker = len(lineList) > 1 and minX0 - boxX0 > fontSize * 0.8
+            isMarker = len(lineList) > 1 and minX0 - boxX0 > fontSize * self.markerIndentRatio
 
             for a in range(len(lineList)):
-                if abs(lineList[a]["x0"] - minX0) > fontSize * 0.15:
+                if abs(lineList[a]["x0"] - minX0) > fontSize * self.markerAlignRatio:
                     isMarker = False
 
             openText = None
@@ -1695,9 +1695,9 @@ class Markdown:
                     elif isPlain == False:
                         if isMarker:
                             separator = "\n- "
-                        elif lineList[a]["x0"] < lineList[a - 1]["x0"] - fontSize * 0.15:
+                        elif lineList[a]["x0"] < lineList[a - 1]["x0"] - fontSize * self.markerAlignRatio:
                             separator = "\n"
-                        elif lineList[a - 1]["x1"] < maxX1 - fontSize * 4:
+                        elif lineList[a - 1]["x1"] < maxX1 - fontSize * self.lineBreakRatio:
                             separator = "\n"
 
                     result += f"{separator}{lineText}"
@@ -1778,13 +1778,28 @@ class Markdown:
                     secondaryText += f"- Page {astPage['number']}\n{pageText}\n"
 
             if len(secondaryText) > 0:
-                result += f"---\n\nSECONDARY ELEMENT:\n\n{secondaryText}"
+                result += f"---\n\n{self.secondaryTitle}:\n\n{secondaryText}"
 
             return result
 
+        def __init__(self):
+            self.sizeDefault = 12
+
+            self.levelHeadingBase = 2
+            self.levelHeadingMax = 6
+
+            self.lineOverlapRatio = 0.5
+            self.markerIndentRatio = 0.8
+            self.markerAlignRatio = 0.15
+            self.lineBreakRatio = 4
+
+            self.wideList = ["W", "F"]
+
+            self.secondaryTitle = "SECONDARY ELEMENT"
+
     class Docx:
         def _headingHash(self, level):
-            return "#" * min(level, 6)
+            return "#" * min(level, self.levelHeadingMax)
 
         def _rowText(self, cellList):
             result = "|"
@@ -1856,9 +1871,14 @@ class Markdown:
                     secondaryText += f"{itemText}\n" if len(secondaryText) == 0 else f"\n{itemText}\n"
 
             if len(secondaryText) > 0:
-                result += f"---\n\nSECONDARY ELEMENT:\n\n{secondaryText}"
+                result += f"---\n\n{self.secondaryTitle}:\n\n{secondaryText}"
 
             return result
+
+        def __init__(self):
+            self.levelHeadingMax = 6
+
+            self.secondaryTitle = "SECONDARY ELEMENT"
 
     class Xlsx:
         def _columnLetter(self, index):
@@ -1940,13 +1960,16 @@ class Markdown:
                     secondaryText += f"{itemText}\n" if len(secondaryText) == 0 else f"\n{itemText}\n"
 
             if len(secondaryText) > 0:
-                result += f"---\n\nSECONDARY ELEMENT:\n\n{secondaryText}"
+                result += f"---\n\n{self.secondaryTitle}:\n\n{secondaryText}"
 
             return result
 
+        def __init__(self):
+            self.secondaryTitle = "SECONDARY ELEMENT"
+
     class Pptx:
         def _headingHash(self, level):
-            return "#" * min(level, 6)
+            return "#" * min(level, self.levelHeadingMax)
 
         def _rowText(self, cellList):
             result = "|"
@@ -2021,9 +2044,14 @@ class Markdown:
                     secondaryText += f"- Slide {astPage['number']}\n{pageText}\n"
 
             if len(secondaryText) > 0:
-                result += f"---\n\nSECONDARY ELEMENT:\n\n{secondaryText}"
+                result += f"---\n\n{self.secondaryTitle}:\n\n{secondaryText}"
 
             return result
+
+        def __init__(self):
+            self.levelHeadingMax = 6
+
+            self.secondaryTitle = "SECONDARY ELEMENT"
 
 class Engine:
     def execute(self, pathInput, pathOutput, fileName):
@@ -2031,7 +2059,7 @@ class Engine:
 
         astPageList = []
 
-        pathAst = f"{os.path.dirname(pathInput)}/ast.json"
+        pathAst = f"{os.path.dirname(pathInput)}/{self.astFileName}"
 
         if os.path.isfile(pathAst):
             with open(pathAst, "r", encoding="utf-8") as file:
@@ -2078,4 +2106,7 @@ class Engine:
         resultObject = {"pageCount": pageCount}
 
         return resultObject
+
+    def __init__(self):
+        self.astFileName = "ast.json"
     

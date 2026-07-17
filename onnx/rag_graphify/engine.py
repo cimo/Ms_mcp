@@ -58,7 +58,7 @@ class Engine:
         return name.replace('"', '""')
 
     def _utilNodeNormalize(self, text):
-        return re.sub(r"\s+", " ", text.strip().lower())
+        return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", text).strip().lower())
 
     def _utilRowParse(self, prompt):
         resultList = []
@@ -91,6 +91,497 @@ class Engine:
             resultList.pop()
 
         return "\n".join(resultList)
+
+    def _embedding(self, mode, text):
+        inputList = text if isinstance(text, list) else [text]
+
+        inputPrefixList = []
+
+        for a in range(len(inputList)):
+            if mode == "document":
+                inputPrefixList.append(f"title: none | text: {inputList[a]}")
+            else:
+                inputPrefixList.append(f"task: search result | query: {inputList[a]}")
+
+        tokenList = []
+        lengthMax = 0
+
+        for a in range(len(inputPrefixList)):
+            idList = self.sentencepieceEmbedding.EncodeAsIds(inputPrefixList[a])
+
+            if len(idList) > self.embeddinggemmaTokenMax - 2:
+                idList = idList[0:self.embeddinggemmaTokenMax - 2]
+
+            idList = [self.sentencepieceEmbedding.bos_id()] + idList + [self.sentencepieceEmbedding.eos_id()]
+
+            if len(idList) > lengthMax:
+                lengthMax = len(idList)
+
+            tokenList.append(idList)
+
+        inputIds = numpy.full((len(tokenList), lengthMax), self.sentencepieceEmbedding.pad_id(), dtype=numpy.int64)
+        attentionMask = numpy.zeros((len(tokenList), lengthMax), dtype=numpy.int64)
+
+        for a in range(len(tokenList)):
+            inputIds[a, 0:len(tokenList[a])] = tokenList[a]
+            attentionMask[a, 0:len(tokenList[a])] = 1
+
+        feedObject = {"input_ids": inputIds, "attention_mask": attentionMask}
+
+        embedding = self.onnxSessionEmbedding.run(["sentence_embedding"], feedObject)[0]
+
+        return embedding.tolist()
+
+    def _relation(self, entityPredictList, sentenceList):
+        resultList = []
+
+        seenObject = {}
+
+        for a in range(len(sentenceList)):
+            sentence = sentenceList[a]
+
+            sentenceEntityList = []
+
+            for b in range(len(entityPredictList)):
+                entity = entityPredictList[b]
+
+                if entity.get("nameNormalized") is None:
+                    continue
+
+                if entity["start"] >= sentence["start"] and entity["start"] < sentence["end"]:
+                    sentenceEntityList.append(entity)
+
+            sentenceEntityList.sort(key=lambda entity: entity["start"])
+
+            for b in range(len(sentenceEntityList) - 1):
+                source = sentenceEntityList[b]
+                target = sentenceEntityList[b + 1]
+
+                if source["nameNormalized"] == target["nameNormalized"]:
+                    continue
+
+                gap = target["start"] - source["end"]
+
+                if gap < 0 or gap > self.glinerRelationGapMax:
+                    continue
+
+                key = source["nameNormalized"] + "|" + target["nameNormalized"]
+
+                if seenObject.get(key) is None:
+                    seenObject[key] = True
+
+                    resultList.append({
+                        "source": source["text"].strip(),
+                        "target": target["text"].strip(),
+                        "description": sentence["text"]
+                    })
+
+        return resultList
+
+    def _entity(self, entityPredictList, sentenceList):
+        resultList = []
+
+        seenObject = {}
+
+        for a in range(len(entityPredictList)):
+            entity = entityPredictList[a]
+
+            name = entity["text"].strip()
+
+            nameMinLength = self.glinerNameMinLengthWide if self._utilWideContainCheck(name) else self.glinerNameMinLength
+
+            if len(name) < nameMinLength or name.lower().find("http") != -1:
+                continue
+
+            nameNormalized = self._utilNodeNormalize(name)
+
+            entity["nameNormalized"] = nameNormalized
+
+            description = ""
+
+            for b in range(len(sentenceList)):
+                if entity["start"] >= sentenceList[b]["start"] and entity["start"] < sentenceList[b]["end"]:
+                    description = sentenceList[b]["text"]
+
+                    break
+
+            if seenObject.get(nameNormalized) is None:
+                seenObject[nameNormalized] = True
+
+                resultList.append({"name": name, "type": entity["label"], "description": description})
+
+        return resultList
+
+    def _sentenceSplit(self, text):
+        resultList = []
+
+        start = 0
+
+        for a in range(len(text)):
+            isEnd = self._utilSentenceEndCheck(text[a])
+
+            if isEnd and text[a] != "\n" and a + 1 < len(text):
+                if text[a + 1].isalnum() and self._utilWideCheck(text[a + 1]) == False:
+                    isEnd = False
+
+            if isEnd:
+                sentence = text[start:a + 1].strip()
+
+                if sentence != "":
+                    resultList.append({"text": sentence, "start": start, "end": a + 1})
+
+                start = a + 1
+
+        if start < len(text):
+            rest = text[start:].strip()
+
+            if rest != "":
+                resultList.append({"text": rest, "start": start, "end": len(text)})
+
+        return resultList
+
+    def _tokenizeWord(self, text):
+        resultList = []
+
+        for segment in re.findall(r"\d|\D+", text):
+            for tokenId in self.sentencepieceGliner.encode(segment, out_type=int):
+                resultList.append(tokenId)
+
+        return resultList
+
+    def _wordSplit(self, text):
+        resultList = []
+
+        for match in re.finditer(r"\w+(?:[-_]\w+)*|[^\w\s]", text):
+            word = match.group(0)
+            start = match.start()
+
+            segment = ""
+            segmentStart = start
+
+            for a in range(len(word)):
+                if self._utilWideCheck(word[a]):
+                    if segment != "":
+                        resultList.append({"text": segment, "start": segmentStart, "end": segmentStart + len(segment)})
+
+                        segment = ""
+
+                    resultList.append({"text": word[a], "start": start + a, "end": start + a + 1})
+
+                    segmentStart = start + a + 1
+                else:
+                    if segment == "":
+                        segmentStart = start + a
+
+                    segment += word[a]
+
+            if segment != "":
+                resultList.append({"text": segment, "start": segmentStart, "end": segmentStart + len(segment)})
+
+        return resultList
+
+    def _predict(self, text):
+        resultList = []
+
+        wordList = self._wordSplit(text)
+
+        if len(wordList) > self.glinerMaxLength:
+            wordList = wordList[0:self.glinerMaxLength]
+
+        numWords = len(wordList)
+
+        if numWords == 0:
+            return resultList
+
+        inputIdList = [self.glinerClsId]
+        wordsMaskList = [0]
+
+        for a in range(len(self.glinerTypeAllowList)):
+            inputIdList.append(self.glinerEntId)
+            wordsMaskList.append(0)
+
+            for tokenId in self._tokenizeWord(self.glinerTypeAllowList[a]):
+                inputIdList.append(tokenId)
+                wordsMaskList.append(0)
+
+        inputIdList.append(self.glinerSepId)
+        wordsMaskList.append(0)
+
+        for a in range(numWords):
+            subwordList = self._tokenizeWord(wordList[a]["text"])
+
+            for b in range(len(subwordList)):
+                inputIdList.append(subwordList[b])
+                wordsMaskList.append(a + 1 if b == 0 else 0)
+
+        inputIdList.append(self.glinerEosId)
+        wordsMaskList.append(0)
+
+        inputIds = numpy.array([inputIdList], dtype=numpy.int64)
+        attentionMask = numpy.ones((1, len(inputIdList)), dtype=numpy.int64)
+        wordsMask = numpy.array([wordsMaskList], dtype=numpy.int64)
+        textLengths = numpy.array([[numWords]], dtype=numpy.int64)
+
+        spanIdxList = []
+        spanMaskList = []
+
+        for a in range(numWords):
+            for b in range(self.glinerMaxWidth):
+                end = a + b
+
+                spanIdxList.append([a, end])
+                spanMaskList.append(end <= numWords - 1)
+
+        spanIdx = numpy.array([spanIdxList], dtype=numpy.int64)
+        spanMask = numpy.array([spanMaskList], dtype=bool)
+
+        feedObject = {
+            "input_ids": inputIds,
+            "attention_mask": attentionMask,
+            "words_mask": wordsMask,
+            "text_lengths": textLengths,
+            "span_idx": spanIdx,
+            "span_mask": spanMask
+        }
+
+        logits = self.onnxSessionGliner.run(["logits"], feedObject)[0]
+
+        probability = 1.0 / (1.0 + numpy.exp(-logits[0]))
+
+        candidateList = []
+
+        for a in range(numWords):
+            for b in range(self.glinerMaxWidth):
+                end = a + b
+
+                if end > numWords - 1:
+                    continue
+
+                for c in range(len(self.glinerTypeAllowList)):
+                    score = float(probability[a][b][c])
+
+                    if score > self.glinerScoreMin:
+                        candidateList.append({
+                            "wordStart": a,
+                            "wordEnd": end,
+                            "label": self.glinerTypeAllowList[c],
+                            "score": score
+                        })
+
+        candidateList.sort(key=lambda candidate: candidate["score"], reverse=True)
+
+        takenList = []
+
+        for a in range(len(candidateList)):
+            candidate = candidateList[a]
+
+            isOverlap = False
+
+            for b in range(len(takenList)):
+                taken = takenList[b]
+
+                if candidate["wordStart"] <= taken["wordEnd"] and taken["wordStart"] <= candidate["wordEnd"]:
+                    isOverlap = True
+
+                    break
+
+            if not isOverlap:
+                takenList.append(candidate)
+
+                charStart = wordList[candidate["wordStart"]]["start"]
+                charEnd = wordList[candidate["wordEnd"]]["end"]
+
+                resultList.append({
+                    "start": charStart,
+                    "end": charEnd,
+                    "text": text[charStart:charEnd],
+                    "label": candidate["label"],
+                    "score": candidate["score"]
+                })
+
+        resultList.sort(key=lambda entity: entity["start"])
+
+        return resultList
+
+    def _chunkPartBuild(self, text):
+        resultList = []
+
+        sentenceList = self._sentenceSplit(text)
+
+        for a in range(len(sentenceList)):
+            sentence = sentenceList[a]["text"]
+
+            if self._utilTokenEstimate(sentence) <= self.glinerChunkTokenLength:
+                resultList.append(sentence)
+            else:
+                for word in sentence.split():
+                    if self._utilTokenEstimate(word) <= self.glinerChunkTokenLength:
+                        resultList.append(word)
+                    else:
+                        for b in range(0, len(word), self.glinerChunkTokenLength):
+                            resultList.append(word[b:b + self.glinerChunkTokenLength])
+
+        return resultList
+
+    def _chunk(self, text):
+        resultList = []
+
+        chunkText = ""
+
+        partList = self._chunkPartBuild(text)
+
+        for a in range(len(partList)):
+            part = partList[a]
+
+            if chunkText == "":
+                chunkText = part
+            elif self._utilTokenEstimate(chunkText) + self._utilTokenEstimate(part) + 1 > self.glinerChunkTokenLength:
+                resultList.append(chunkText)
+
+                chunkText = part
+            else:
+                separator = "" if self._utilWideCheck(chunkText[-1:]) and self._utilWideCheck(part[0:1]) else " "
+
+                chunkText = f"{chunkText}{separator}{part}"
+
+        if chunkText != "":
+            resultList.append(chunkText)
+
+        cleanList = []
+
+        for a in range(len(resultList)):
+            clean = re.sub(r"https?://\S+", "", resultList[a])
+            clean = re.sub(r"\s+", " ", clean).strip()
+
+            if self._utilTokenEstimate(clean) >= self.glinerChunkTokenMin:
+                cleanList.append(clean)
+
+        return cleanList
+
+    def _chunkTableCellSplit(self, line):
+        resultList = []
+
+        partSplit = re.split(r"(?<!\\)\|", line)
+
+        for a in range(1, len(partSplit) - 1):
+            resultList.append(partSplit[a].strip().replace("\\|", "|"))
+
+        return resultList
+
+    def _chunkTable(self, fileName, text):
+        resultList = []
+
+        sheetName = ""
+        letterList = []
+        chunkText = ""
+        rowCount = 0
+
+        lineSplit = text.split("\n")
+
+        for a in range(len(lineSplit)):
+            line = lineSplit[a].strip()
+
+            if line == "":
+                continue
+
+            if line.startswith("# "):
+                if rowCount > 0:
+                    resultList.append(chunkText)
+
+                sheetName = line[2:].strip()
+                letterList = []
+                chunkText = ""
+                rowCount = 0
+            elif line.startswith("|"):
+                if line.replace("|", "").replace("-", "").replace(" ", "") == "":
+                    continue
+
+                cellSplit = self._chunkTableCellSplit(line)
+
+                if len(letterList) == 0:
+                    letterList = cellSplit
+
+                    chunkText = f"{fileName} - {sheetName}"
+                else:
+                    partList = []
+
+                    for b in range(1, len(cellSplit)):
+                        if cellSplit[b] != "" and b < len(letterList):
+                            partList.append(f"{letterList[b]}={cellSplit[b]}")
+
+                    rowText = f"row {cellSplit[0]}: {', '.join(partList)}"
+
+                    if self._utilTokenEstimate(chunkText) + self._utilTokenEstimate(rowText) + 1 > self.glinerChunkTokenLength:
+                        resultList.append(chunkText)
+
+                        chunkText = f"{fileName} - {sheetName}"
+
+                    chunkText = f"{chunkText}\n{rowText}"
+
+                    rowCount += 1
+            elif rowCount > 0:
+                chunkText = f"{chunkText}\n{line}"
+
+        if rowCount > 0:
+            resultList.append(chunkText)
+
+        return resultList
+
+    def _rerankTokenize(self, text):
+        resultList = []
+
+        for spmId in self.sentencepieceReranker.encode(text, out_type=int):
+            if spmId == 0:
+                resultList.append(self.rerankerUnkId)
+            else:
+                resultList.append(spmId + self.rerankerOffset)
+
+        return resultList
+
+    def _rerank(self, prompt, textList):
+        scoreList = []
+
+        promptIdList = self._rerankTokenize(prompt)
+
+        if len(promptIdList) > self.rerankerPromptTokenMax:
+            promptIdList = promptIdList[0:self.rerankerPromptTokenMax]
+
+        for a in range(0, len(textList), self.rerankerBatchLength):
+            batchList = textList[a:a + self.rerankerBatchLength]
+
+            sequenceList = []
+            lengthMax = 0
+
+            for b in range(len(batchList)):
+                textIdList = self._rerankTokenize(batchList[b])
+
+                lengthText = self.rerankerTokenMax - len(promptIdList) - 4
+
+                if len(textIdList) > lengthText:
+                    textIdList = textIdList[0:lengthText]
+
+                idList = [self.rerankerBosId] + promptIdList + [self.rerankerEosId, self.rerankerEosId] + textIdList + [self.rerankerEosId]
+
+                if len(idList) > lengthMax:
+                    lengthMax = len(idList)
+
+                sequenceList.append(idList)
+
+            inputIds = numpy.full((len(sequenceList), lengthMax), self.rerankerPadId, dtype=numpy.int64)
+            attentionMask = numpy.zeros((len(sequenceList), lengthMax), dtype=numpy.int64)
+
+            for b in range(len(sequenceList)):
+                inputIds[b, 0:len(sequenceList[b])] = sequenceList[b]
+                attentionMask[b, 0:len(sequenceList[b])] = 1
+
+            feedObject = {"input_ids": inputIds, "attention_mask": attentionMask}
+
+            logits = self.onnxSessionReranker.run(["logits"], feedObject)[0]
+
+            for b in range(len(logits)):
+                scoreList.append(float(1.0 / (1.0 + numpy.exp(-logits[b][0]))))
+
+        return scoreList
 
     def _logicFileSelect(self, database, mcpSessionId, fileName):
         result = 0
@@ -206,7 +697,7 @@ class Engine:
         for a in range(len(termList)):
             term = self._utilNodeNormalize(termList[a])
 
-            if len(term) >= self.termMin:
+            if len(term) >= self.embeddinggemmaTermMin:
                 likeList.append(f"%{term}%")
 
         if len(likeList) > 0:
@@ -287,14 +778,14 @@ class Engine:
 
         return resultObject
 
-    def _logicNodeVecMatch(self, database, mcpSessionId, queryVector):
+    def _logicNodeVecMatch(self, database, mcpSessionId, queryText, queryVector):
         resultList = []
 
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
 
         queryRowList = database.execute(
             f'SELECT name, name_normalized, description, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
-            (queryVector, self.candidatePool)
+            (queryVector, self.rerankerPool)
         ).fetchall()
 
         candidateList = []
@@ -302,17 +793,28 @@ class Engine:
         for a in range(len(queryRowList)):
             candidateList.append({"name": queryRowList[a][0], "nameNormalized": queryRowList[a][1], "description": queryRowList[a][2], "distance": float(queryRowList[a][3])})
 
-        distanceBest = -1
-
         if len(candidateList) > 0:
-            distanceBest = candidateList[0]["distance"]
+            textList = []
 
-        for a in range(len(candidateList)):
-            if len(resultList) >= self.vectorMatchLimit:
-                break
+            for a in range(len(candidateList)):
+                if candidateList[a]["description"] == "":
+                    textList.append(candidateList[a]["name"])
+                else:
+                    textList.append(f"{candidateList[a]['name']}: {candidateList[a]['description']}")
 
-            if candidateList[a]["distance"] <= self.distanceMax and candidateList[a]["distance"] <= distanceBest + self.marginRelative:
-                resultList.append(candidateList[a])
+            scoreList = self._rerank(queryText, textList)
+
+            for a in range(len(candidateList)):
+                candidateList[a]["score"] = scoreList[a]
+
+            candidateList.sort(key=lambda candidate: candidate["score"], reverse=True)
+
+            for a in range(len(candidateList)):
+                if len(resultList) >= self.embeddinggemmaVectorMatchLimit:
+                    break
+
+                if candidateList[a]["score"] >= self.rerankerScoreMin:
+                    resultList.append(candidateList[a])
 
         return resultList
 
@@ -366,7 +868,7 @@ class Engine:
         if len(seedList) > 0:
             tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
 
-            limit = len(seedList) * self.graphLimitPerSeed
+            limit = len(seedList) * self.embeddinggemmaGraphLimitPerSeed
 
             placeholder = ",".join("%s" for a in range(len(seedList)))
 
@@ -404,32 +906,41 @@ class Engine:
 
         return resultList
 
-    def _logicEdgeVecMatch(self, database, mcpSessionId, queryVector):
+    def _logicEdgeVecMatch(self, database, mcpSessionId, queryText, queryVector):
         resultList = []
 
-        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
+        tableNameVec = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
+        tableNameEdge = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
 
         queryRowList = database.execute(
-            f'SELECT edge_id, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
-            (queryVector, self.candidatePool)
+            f'SELECT vec.edge_id, edge.description, vec.embedding <-> %s AS distance FROM "{tableNameVec}" vec JOIN "{tableNameEdge}" edge ON edge.id = vec.edge_id ORDER BY distance LIMIT %s',
+            (queryVector, self.rerankerPool)
         ).fetchall()
 
         candidateList = []
 
         for a in range(len(queryRowList)):
-            candidateList.append({"edgeId": queryRowList[a][0], "distance": float(queryRowList[a][1])})
-
-        distanceBest = -1
+            candidateList.append({"edgeId": queryRowList[a][0], "description": queryRowList[a][1], "distance": float(queryRowList[a][2])})
 
         if len(candidateList) > 0:
-            distanceBest = candidateList[0]["distance"]
+            textList = []
 
-        for a in range(len(candidateList)):
-            if len(resultList) >= self.vectorMatchLimit:
-                break
+            for a in range(len(candidateList)):
+                textList.append(candidateList[a]["description"])
 
-            if candidateList[a]["distance"] <= self.distanceMaxEdge and candidateList[a]["distance"] <= distanceBest + self.marginRelative:
-                resultList.append(candidateList[a]["edgeId"])
+            scoreList = self._rerank(queryText, textList)
+
+            for a in range(len(candidateList)):
+                candidateList[a]["score"] = scoreList[a]
+
+            candidateList.sort(key=lambda candidate: candidate["score"], reverse=True)
+
+            for a in range(len(candidateList)):
+                if len(resultList) >= self.embeddinggemmaVectorMatchLimit:
+                    break
+
+                if candidateList[a]["score"] >= self.rerankerScoreMin:
+                    resultList.append(candidateList[a]["edgeId"])
 
         return resultList
 
@@ -440,7 +951,7 @@ class Engine:
 
         queryRowList = database.execute(
             f'SELECT edge_id, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
-            (queryVector, self.candidatePool)
+            (queryVector, self.embeddinggemmaCandidatePool)
         ).fetchall()
 
         for a in range(len(queryRowList)):
@@ -468,7 +979,7 @@ class Engine:
     def _tableCitationCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag")
 
-        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, chunk TEXT NOT NULL, embedding vector({self.vectorDimension}))')
+        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, chunk TEXT NOT NULL, embedding vector({self.embeddinggemmaVectorDimension}))')
 
     def _tableCitationInsert(self, database, mcpSessionId, fileId, chunk, embeddingList):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag")
@@ -497,7 +1008,7 @@ class Engine:
     def _tableNodeVecCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
 
-        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, name TEXT NOT NULL, name_normalized TEXT NOT NULL, description TEXT NOT NULL, embedding vector({self.vectorDimension}))')
+        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, name TEXT NOT NULL, name_normalized TEXT NOT NULL, description TEXT NOT NULL, embedding vector({self.embeddinggemmaVectorDimension}))')
 
     def _tableNodeVecInsert(self, database, mcpSessionId, fileId, name, nameNormalized, description, embeddingList):
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
@@ -526,7 +1037,7 @@ class Engine:
     def _tableEdgeVecCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
 
-        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, edge_id INTEGER, embedding vector({self.vectorDimension}))')
+        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, edge_id INTEGER, embedding vector({self.embeddinggemmaVectorDimension}))')
 
     def _tableEdgeVecInsert(self, database, mcpSessionId, fileId, edgeId, embeddingList):
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
@@ -571,404 +1082,9 @@ class Engine:
 
                 database.commit()
 
-    def _wordSplit(self, text):
-        resultList = []
-
-        for match in re.finditer(r"\w+(?:[-_]\w+)*|[^\w\s]", text):
-            word = match.group(0)
-            start = match.start()
-
-            segment = ""
-            segmentStart = start
-
-            for a in range(len(word)):
-                if self._utilWideCheck(word[a]):
-                    if segment != "":
-                        resultList.append({"text": segment, "start": segmentStart, "end": segmentStart + len(segment)})
-
-                        segment = ""
-
-                    resultList.append({"text": word[a], "start": start + a, "end": start + a + 1})
-
-                    segmentStart = start + a + 1
-                else:
-                    if segment == "":
-                        segmentStart = start + a
-
-                    segment += word[a]
-
-            if segment != "":
-                resultList.append({"text": segment, "start": segmentStart, "end": segmentStart + len(segment)})
-
-        return resultList
-
-    def _tokenizeWord(self, text):
-        resultList = []
-
-        for segment in re.findall(r"\d|\D+", text):
-            for tokenId in self.sentencepiece.encode(segment, out_type=int):
-                resultList.append(tokenId)
-
-        return resultList
-
-    def _predict(self, text):
-        resultList = []
-
-        wordList = self._wordSplit(text)
-
-        if len(wordList) > self.maxLength:
-            wordList = wordList[0:self.maxLength]
-
-        numWords = len(wordList)
-
-        if numWords == 0:
-            return resultList
-
-        inputIdList = [self.clsId]
-        wordsMaskList = [0]
-
-        for a in range(len(self.typeAllowList)):
-            inputIdList.append(self.entId)
-            wordsMaskList.append(0)
-
-            for tokenId in self._tokenizeWord(self.typeAllowList[a]):
-                inputIdList.append(tokenId)
-                wordsMaskList.append(0)
-
-        inputIdList.append(self.sepId)
-        wordsMaskList.append(0)
-
-        for a in range(numWords):
-            subwordList = self._tokenizeWord(wordList[a]["text"])
-
-            for b in range(len(subwordList)):
-                inputIdList.append(subwordList[b])
-                wordsMaskList.append(a + 1 if b == 0 else 0)
-
-        inputIdList.append(self.eosId)
-        wordsMaskList.append(0)
-
-        inputIds = numpy.array([inputIdList], dtype=numpy.int64)
-        attentionMask = numpy.ones((1, len(inputIdList)), dtype=numpy.int64)
-        wordsMask = numpy.array([wordsMaskList], dtype=numpy.int64)
-        textLengths = numpy.array([[numWords]], dtype=numpy.int64)
-
-        spanIdxList = []
-        spanMaskList = []
-
-        for a in range(numWords):
-            for b in range(self.maxWidth):
-                end = a + b
-
-                spanIdxList.append([a, end])
-                spanMaskList.append(end <= numWords - 1)
-
-        spanIdx = numpy.array([spanIdxList], dtype=numpy.int64)
-        spanMask = numpy.array([spanMaskList], dtype=bool)
-
-        feedObject = {
-            "input_ids": inputIds,
-            "attention_mask": attentionMask,
-            "words_mask": wordsMask,
-            "text_lengths": textLengths,
-            "span_idx": spanIdx,
-            "span_mask": spanMask
-        }
-
-        logits = self.onnxSession.run(["logits"], feedObject)[0]
-
-        probability = 1.0 / (1.0 + numpy.exp(-logits[0]))
-
-        candidateList = []
-
-        for a in range(numWords):
-            for b in range(self.maxWidth):
-                end = a + b
-
-                if end > numWords - 1:
-                    continue
-
-                for c in range(len(self.typeAllowList)):
-                    score = float(probability[a][b][c])
-
-                    if score > self.scoreMin:
-                        candidateList.append({
-                            "wordStart": a,
-                            "wordEnd": end,
-                            "label": self.typeAllowList[c],
-                            "score": score
-                        })
-
-        candidateList.sort(key=lambda candidate: candidate["score"], reverse=True)
-
-        takenList = []
-
-        for a in range(len(candidateList)):
-            candidate = candidateList[a]
-
-            isOverlap = False
-
-            for b in range(len(takenList)):
-                taken = takenList[b]
-
-                if candidate["wordStart"] <= taken["wordEnd"] and taken["wordStart"] <= candidate["wordEnd"]:
-                    isOverlap = True
-
-                    break
-
-            if not isOverlap:
-                takenList.append(candidate)
-
-                charStart = wordList[candidate["wordStart"]]["start"]
-                charEnd = wordList[candidate["wordEnd"]]["end"]
-
-                resultList.append({
-                    "start": charStart,
-                    "end": charEnd,
-                    "text": text[charStart:charEnd],
-                    "label": candidate["label"],
-                    "score": candidate["score"]
-                })
-
-        resultList.sort(key=lambda entity: entity["start"])
-
-        return resultList
-
-    def _sentenceSplit(self, text):
-        resultList = []
-
-        start = 0
-
-        for a in range(len(text)):
-            isEnd = self._utilSentenceEndCheck(text[a])
-
-            if isEnd and text[a] != "\n" and a + 1 < len(text):
-                if text[a + 1].isalnum() and self._utilWideCheck(text[a + 1]) == False:
-                    isEnd = False
-
-            if isEnd:
-                sentence = text[start:a + 1].strip()
-
-                if sentence != "":
-                    resultList.append({"text": sentence, "start": start, "end": a + 1})
-
-                start = a + 1
-
-        if start < len(text):
-            rest = text[start:].strip()
-
-            if rest != "":
-                resultList.append({"text": rest, "start": start, "end": len(text)})
-
-        return resultList
-
-    def _entity(self, entityPredictList, sentenceList):
-        resultList = []
-
-        seenObject = {}
-
-        for a in range(len(entityPredictList)):
-            entity = entityPredictList[a]
-
-            name = entity["text"].strip()
-
-            nameMinLength = self.nameMinLengthWide if self._utilWideContainCheck(name) else self.nameMinLength
-
-            if len(name) < nameMinLength or name.lower().find("http") != -1:
-                continue
-
-            nameNormalized = self._utilNodeNormalize(name)
-
-            entity["nameNormalized"] = nameNormalized
-
-            description = ""
-
-            for b in range(len(sentenceList)):
-                if entity["start"] >= sentenceList[b]["start"] and entity["start"] < sentenceList[b]["end"]:
-                    description = sentenceList[b]["text"]
-
-                    break
-
-            if seenObject.get(nameNormalized) is None:
-                seenObject[nameNormalized] = True
-
-                resultList.append({"name": name, "type": entity["label"], "description": description})
-
-        return resultList
-
-    def _relation(self, entityPredictList, sentenceList):
-        resultList = []
-
-        seenObject = {}
-
-        for a in range(len(sentenceList)):
-            sentence = sentenceList[a]
-
-            sentenceEntityList = []
-
-            for b in range(len(entityPredictList)):
-                entity = entityPredictList[b]
-
-                if entity.get("nameNormalized") is None:
-                    continue
-
-                if entity["start"] >= sentence["start"] and entity["start"] < sentence["end"]:
-                    sentenceEntityList.append(entity)
-
-            sentenceEntityList.sort(key=lambda entity: entity["start"])
-
-            for b in range(len(sentenceEntityList) - 1):
-                source = sentenceEntityList[b]
-                target = sentenceEntityList[b + 1]
-
-                if source["nameNormalized"] == target["nameNormalized"]:
-                    continue
-
-                gap = target["start"] - source["end"]
-
-                if gap < 0 or gap > self.relationGapMax:
-                    continue
-
-                key = source["nameNormalized"] + "|" + target["nameNormalized"]
-
-                if seenObject.get(key) is None:
-                    seenObject[key] = True
-
-                    resultList.append({
-                        "source": source["text"].strip(),
-                        "target": target["text"].strip(),
-                        "description": sentence["text"]
-                    })
-
-        return resultList
-
-    def _chunkPartBuild(self, text):
-        resultList = []
-
-        sentenceList = self._sentenceSplit(text)
-
-        for a in range(len(sentenceList)):
-            sentence = sentenceList[a]["text"]
-
-            if self._utilTokenEstimate(sentence) <= self.chunkTokenLength:
-                resultList.append(sentence)
-            else:
-                for word in sentence.split():
-                    if self._utilTokenEstimate(word) <= self.chunkTokenLength:
-                        resultList.append(word)
-                    else:
-                        for b in range(0, len(word), self.chunkTokenLength):
-                            resultList.append(word[b:b + self.chunkTokenLength])
-
-        return resultList
-
-    def _chunk(self, text):
-        resultList = []
-
-        chunkText = ""
-
-        partList = self._chunkPartBuild(text)
-
-        for a in range(len(partList)):
-            part = partList[a]
-
-            if chunkText == "":
-                chunkText = part
-            elif self._utilTokenEstimate(chunkText) + self._utilTokenEstimate(part) + 1 > self.chunkTokenLength:
-                resultList.append(chunkText)
-
-                chunkText = part
-            else:
-                separator = "" if self._utilWideCheck(chunkText[-1:]) and self._utilWideCheck(part[0:1]) else " "
-
-                chunkText = f"{chunkText}{separator}{part}"
-
-        if chunkText != "":
-            resultList.append(chunkText)
-
-        cleanList = []
-
-        for a in range(len(resultList)):
-            clean = re.sub(r"https?://\S+", "", resultList[a])
-            clean = re.sub(r"\s+", " ", clean).strip()
-
-            if self._utilTokenEstimate(clean) >= self.chunkTokenMin:
-                cleanList.append(clean)
-
-        return cleanList
-
-    def _chunkTableCellSplit(self, line):
-        resultList = []
-
-        partSplit = re.split(r"(?<!\\)\|", line)
-
-        for a in range(1, len(partSplit) - 1):
-            resultList.append(partSplit[a].strip().replace("\\|", "|"))
-
-        return resultList
-
-    def _chunkTable(self, fileName, text):
-        resultList = []
-
-        sheetName = ""
-        letterList = []
-        chunkText = ""
-        rowCount = 0
-
-        lineSplit = text.split("\n")
-
-        for a in range(len(lineSplit)):
-            line = lineSplit[a].strip()
-
-            if line == "":
-                continue
-
-            if line.startswith("# "):
-                if rowCount > 0:
-                    resultList.append(chunkText)
-
-                sheetName = line[2:].strip()
-                letterList = []
-                chunkText = ""
-                rowCount = 0
-            elif line.startswith("|"):
-                if line.replace("|", "").replace("-", "").replace(" ", "") == "":
-                    continue
-
-                cellSplit = self._chunkTableCellSplit(line)
-
-                if len(letterList) == 0:
-                    letterList = cellSplit
-
-                    chunkText = f"{fileName} - {sheetName}"
-                else:
-                    partList = []
-
-                    for b in range(1, len(cellSplit)):
-                        if cellSplit[b] != "" and b < len(letterList):
-                            partList.append(f"{letterList[b]}={cellSplit[b]}")
-
-                    rowText = f"row {cellSplit[0]}: {', '.join(partList)}"
-
-                    if self._utilTokenEstimate(chunkText) + self._utilTokenEstimate(rowText) + 1 > self.chunkTokenLength:
-                        resultList.append(chunkText)
-
-                        chunkText = f"{fileName} - {sheetName}"
-
-                    chunkText = f"{chunkText}\n{rowText}"
-
-                    rowCount += 1
-            elif rowCount > 0:
-                chunkText = f"{chunkText}\n{line}"
-
-        if rowCount > 0:
-            resultList.append(chunkText)
-
-        return resultList
-
     def _storeCitation(self, database, mcpSessionId, fileId, chunkList):
-        for a in range(0, len(chunkList), self.batchLength):
-            chunkBatchList = chunkList[a:a + self.batchLength]
+        for a in range(0, len(chunkList), self.embeddinggemmaBatchLength):
+            chunkBatchList = chunkList[a:a + self.embeddinggemmaBatchLength]
 
             embeddingList = self._embedding("document", chunkBatchList)
 
@@ -1003,8 +1119,8 @@ class Engine:
     def _storeNodeVector(self, database, mcpSessionId, fileId):
         nodeBuildList = self._logicNodeSelectByFile(database, mcpSessionId, fileId)
 
-        for a in range(0, len(nodeBuildList), self.batchLength):
-            nodeBatchList = nodeBuildList[a:a + self.batchLength]
+        for a in range(0, len(nodeBuildList), self.embeddinggemmaBatchLength):
+            nodeBatchList = nodeBuildList[a:a + self.embeddinggemmaBatchLength]
 
             nodeTextList = []
 
@@ -1024,8 +1140,8 @@ class Engine:
     def _storeEdgeVector(self, database, mcpSessionId, fileId):
         edgeBuildList = self._logicEdgeSelectByFile(database, mcpSessionId, fileId)
 
-        for a in range(0, len(edgeBuildList), self.batchLength):
-            edgeBatchList = edgeBuildList[a:a + self.batchLength]
+        for a in range(0, len(edgeBuildList), self.embeddinggemmaBatchLength):
+            edgeBatchList = edgeBuildList[a:a + self.embeddinggemmaBatchLength]
 
             edgeTextList = []
 
@@ -1039,62 +1155,28 @@ class Engine:
 
             database.commit()
 
-    def _searchCitation(self, database, mcpSessionId, fileList, promptVector, entityFileIdList, termList):
+    def _searchCitation(self, database, mcpSessionId, fileList, promptSearch, promptVector, entityFileIdList):
         citationList = []
 
         isCitationSemantic = False
 
         seenObject = {}
 
-        marginEffective = self.marginGlobal
+        candidateList = []
 
         if promptVector is not None:
-            promptCitationList = self._logicCitationMatch(database, mcpSessionId, fileList, self.candidatePool, promptVector)
+            promptCitationList = self._logicCitationMatch(database, mcpSessionId, fileList, self.rerankerPool, promptVector)
 
-            distanceBest = -1
-            distanceMedian = -1
+            for a in range(len(promptCitationList)):
+                candidate = promptCitationList[a]
 
-            if len(promptCitationList) > 0:
-                distanceBest = promptCitationList[0]["distance"]
-                distanceMedian = promptCitationList[len(promptCitationList) // 2]["distance"]
+                key = candidate["fileName"] + "|" + candidate["chunk"]
 
-                marginEffective = min(self.marginGlobal, (distanceMedian - distanceBest) / 2)
+                if seenObject.get(key) is None:
+                    seenObject[key] = True
 
-            isGapValid = distanceBest >= 0 and distanceBest <= self.distanceCeiling and distanceMedian - distanceBest >= self.distanceGapMin
+                    candidateList.append(candidate)
 
-            isLexicalValid = True
-
-            if isGapValid and distanceBest > self.distanceMax and len(termList) > 0:
-                isLexicalValid = False
-
-                for a in range(len(promptCitationList)):
-                    if promptCitationList[a]["distance"] <= distanceBest + marginEffective:
-                        chunkLower = promptCitationList[a]["chunk"].lower()
-
-                        for b in range(len(termList)):
-                            if termList[b] in chunkLower:
-                                isLexicalValid = True
-                                break
-
-                    if isLexicalValid:
-                        break
-
-            if distanceBest >= 0 and (distanceBest <= self.distanceMax or (isGapValid and isLexicalValid)):
-                isCitationSemantic = True
-
-            if isCitationSemantic:
-                for a in range(len(promptCitationList)):
-                    candidate = promptCitationList[a]
-
-                    if candidate["distance"] <= distanceBest + marginEffective:
-                        key = candidate["fileName"] + "|" + candidate["chunk"]
-
-                        if seenObject.get(key) is None:
-                            seenObject[key] = True
-
-                            citationList.append(candidate)
-
-        if promptVector is not None:
             for a in range(len(entityFileIdList)):
                 fileCitationList = self._logicCitationMatchByFile(database, mcpSessionId, fileList, entityFileIdList[a], promptVector)
 
@@ -1106,23 +1188,29 @@ class Engine:
                     if seenObject.get(key) is None:
                         seenObject[key] = True
 
-                        citationList.append(candidate)
+                        candidateList.append(candidate)
 
-        distanceGlobalBest = -1
+        if len(candidateList) > 0:
+            chunkList = []
 
-        for a in range(len(citationList)):
-            if distanceGlobalBest < 0 or citationList[a]["distance"] < distanceGlobalBest:
-                distanceGlobalBest = citationList[a]["distance"]
+            for a in range(len(candidateList)):
+                chunkList.append(candidateList[a]["chunk"])
 
-        filteredList = []
+            scoreList = self._rerank(promptSearch, chunkList)
 
-        for a in range(len(citationList)):
-            if citationList[a]["distance"] <= distanceGlobalBest + marginEffective:
-                filteredList.append(citationList[a])
+            for a in range(len(candidateList)):
+                candidateList[a]["score"] = scoreList[a]
 
-        filteredList.sort(key=lambda citation: citation["distance"])
+            candidateList.sort(key=lambda candidate: candidate["score"], reverse=True)
 
-        citationList = filteredList
+            for a in range(len(candidateList)):
+                if len(citationList) >= self.rerankerCitationLimit:
+                    break
+
+                if candidateList[a]["score"] >= self.rerankerScoreMin:
+                    citationList.append(candidateList[a])
+
+            isCitationSemantic = len(citationList) > 0
 
         return citationList, isCitationSemantic
 
@@ -1133,7 +1221,7 @@ class Engine:
         if len(entityList) > 0:
             for a in range(len(entityList)):
                 nodeVector = numpy.array(entityEmbeddingList[a], dtype=numpy.float32)
-                nodeMatchList = self._logicNodeVecMatch(database, mcpSessionId, nodeVector)
+                nodeMatchList = self._logicNodeVecMatch(database, mcpSessionId, entityList[a], nodeVector)
 
                 for b in range(len(nodeMatchList)):
                     if seedObject.get(nodeMatchList[b]["nameNormalized"]) is None:
@@ -1162,7 +1250,7 @@ class Engine:
 
             for a in range(len(themeList)):
                 edgeVector = numpy.array(themeEmbeddingList[a], dtype=numpy.float32)
-                edgeMatchList = self._logicEdgeVecMatch(database, mcpSessionId, edgeVector)
+                edgeMatchList = self._logicEdgeVecMatch(database, mcpSessionId, themeList[a], edgeVector)
 
                 for b in range(len(edgeMatchList)):
                     if edgeIdObject.get(edgeMatchList[b]) is None:
@@ -1239,7 +1327,7 @@ class Engine:
 
             graphDedupList[a]["rank"] = degreeSource + degreeTarget
 
-            relevance = self.distanceMaxEdge + 1
+            relevance = self.embeddinggemmaDistanceMaxEdge + 1
 
             if relevanceObject.get(graphDedupList[a]["edgeId"]) is not None:
                 relevance = relevanceObject[graphDedupList[a]["edgeId"]]
@@ -1251,7 +1339,7 @@ class Engine:
         relevanceBest = -1
 
         for a in range(len(graphDedupList)):
-            if graphDedupList[a]["relevance"] <= self.distanceMaxEdge:
+            if graphDedupList[a]["relevance"] <= self.embeddinggemmaDistanceMaxEdge:
                 relevanceBest = graphDedupList[a]["relevance"]
 
                 break
@@ -1264,12 +1352,12 @@ class Engine:
             if relevanceBest < 0:
                 break
 
-            if candidate["relevance"] > self.distanceMaxEdge or candidate["relevance"] > relevanceBest + self.marginGlobal:
+            if candidate["relevance"] > self.embeddinggemmaDistanceMaxEdge or candidate["relevance"] > relevanceBest + self.embeddinggemmaMarginGlobal:
                 continue
 
             tokenCount = self._utilTokenEstimate(f"{candidate['source']} {candidate['target']} {candidate['description']}")
 
-            if graphTokenTotal + tokenCount <= self.graphTokenBudget:
+            if graphTokenTotal + tokenCount <= self.embeddinggemmaGraphTokenBudget:
                 graphTokenTotal += tokenCount
 
                 graphList.append({
@@ -1512,7 +1600,7 @@ class Engine:
     </body>
 </html>
 """
-    
+
     def _htmlGenerate(self, database, mcpSessionId):
         pathDocument = f"{self.pathFileInput}{mcpSessionId}/document/"
 
@@ -1577,7 +1665,7 @@ class Engine:
 
         nodeList.sort(key=lambda node: node["label"].lower())
 
-        with open(f"{self.osPathDirName}asset/vis-network.min.js", "r", encoding="utf-8") as file:
+        with open(f"{self.pathOsDirName}asset/vis-network.min.js", "r", encoding="utf-8") as file:
             visScript = file.read()
 
         visScript = re.sub(r"//[#@]\s*sourceMappingURL=\S*", "", visScript)
@@ -1587,46 +1675,6 @@ class Engine:
 
         with open(f"{pathDocument}rag_graph.html", "w", encoding="utf-8") as file:
             file.write(html)
-
-    def _embedding(self, mode, text):
-        inputList = text if isinstance(text, list) else [text]
-
-        inputPrefixList = []
-
-        for a in range(len(inputList)):
-            if mode == "document":
-                inputPrefixList.append(f"title: none | text: {inputList[a]}")
-            else:
-                inputPrefixList.append(f"task: search result | query: {inputList[a]}")
-
-        tokenList = []
-        lengthMax = 0
-
-        for a in range(len(inputPrefixList)):
-            idList = self.sentencepieceEmbedding.EncodeAsIds(inputPrefixList[a])
-
-            if len(idList) > self.embeddingTokenMax - 2:
-                idList = idList[0:self.embeddingTokenMax - 2]
-
-            idList = [self.sentencepieceEmbedding.bos_id()] + idList + [self.sentencepieceEmbedding.eos_id()]
-
-            if len(idList) > lengthMax:
-                lengthMax = len(idList)
-
-            tokenList.append(idList)
-
-        inputIds = numpy.full((len(tokenList), lengthMax), self.sentencepieceEmbedding.pad_id(), dtype=numpy.int64)
-        attentionMask = numpy.zeros((len(tokenList), lengthMax), dtype=numpy.int64)
-
-        for a in range(len(tokenList)):
-            inputIds[a, 0:len(tokenList[a])] = tokenList[a]
-            attentionMask[a, 0:len(tokenList[a])] = 1
-
-        feedObject = {"input_ids": inputIds, "attention_mask": attentionMask}
-
-        embedding = self.onnxSessionEmbedding.run(["sentence_embedding"], feedObject)[0]
-
-        return embedding.tolist()
 
     def store(self, mcpSessionId, fileName):
         result = "ko"
@@ -1659,6 +1707,7 @@ class Engine:
                 with open(pathMarkdown, "r", encoding="utf-8") as file:
                     fileContent = file.read()
 
+                fileContent = unicodedata.normalize("NFKC", fileContent)
                 fileContent = self._utilSecondaryRemove(fileContent)
 
                 extension = os.path.splitext(fileNameOnly)[1].lower()
@@ -1720,6 +1769,14 @@ class Engine:
             for a in range(len(fileQueryList)):
                 fileList.append({"id": fileQueryList[a][0], "name": fileQueryList[a][1]})
 
+            prompt = unicodedata.normalize("NFKC", prompt)
+
+            for a in range(len(entityList)):
+                entityList[a] = unicodedata.normalize("NFKC", entityList[a])
+
+            for a in range(len(themeList)):
+                themeList[a] = unicodedata.normalize("NFKC", themeList[a])
+
             promptSearch = prompt
 
             for a in range(len(entityList)):
@@ -1737,16 +1794,7 @@ class Engine:
 
             seedObject, seedList, entityFileIdList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingList)
 
-            termList = []
-
-            for a in range(len(entityList)):
-                wordList = re.findall(r"\w{3,}", entityList[a].lower())
-
-                for b in range(len(wordList)):
-                    if wordList[b] not in termList:
-                        termList.append(wordList[b])
-
-            citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptVector, entityFileIdList, termList)
+            citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptSearch, promptVector, entityFileIdList)
 
             rowList = self._utilRowParse(f"{prompt} {' '.join(entityList)} {' '.join(themeList)}")
 
@@ -1791,7 +1839,7 @@ class Engine:
                 graphCandidateList = self._searchTheme(database, mcpSessionId, themeList, seedObject, seedList, citationFileIdList)
 
                 if len(seedList) > 0:
-                    seedSlice = seedList[0:self.seedLimit]
+                    seedSlice = seedList[0:self.embeddinggemmaSeedLimit]
                     traverseList = self._logicEdgeTraverse(database, mcpSessionId, seedSlice, citationFileIdList)
 
                     for a in range(len(traverseList)):
@@ -1831,42 +1879,49 @@ class Engine:
         PATH_ROOT = os.environ.get("PATH_ROOT")
         PATH_FILE = os.environ.get("MS_M_PATH_FILE")
 
-        self.osPathDirName = f"{os.path.dirname(__file__)}/"
-        self.pathModelGliner = f"{self.osPathDirName}model/gliner_multi-v2.1/"
-        self.pathModelEmbedding = f"{self.osPathDirName}model/embeddinggemma-300m/"
+        self.pathOsDirName = f"{os.path.dirname(__file__)}/"
+        self.pathModelEmbedding = f"{self.pathOsDirName}model/embeddinggemma-300m/"
+        self.pathModelGliner = f"{self.pathOsDirName}model/gliner_multi-v2.1/"
+        self.pathModelReranker = f"{self.pathOsDirName}model/bge-reranker-v2-m3/"
         self.pathFileInput = f"{PATH_ROOT}{PATH_FILE}input/"
 
-        self.typeAllowList = ["person", "organization", "place", "category", "event"]
-        self.chunkTokenLength = 250
-        self.chunkTokenMin = 25
-        self.nameMinLength = 3
-        self.nameMinLengthWide = 2
-        self.scoreMin = 0.4
-        self.relationGapMax = 60
+        self.embeddinggemmaTokenMax = 2048
+        self.embeddinggemmaDistanceMaxEdge = 1.20
+        self.embeddinggemmaMarginGlobal = 0.15
+        self.embeddinggemmaVectorDimension = 768
+        self.embeddinggemmaVectorMatchLimit = 8
+        self.embeddinggemmaGraphLimitPerSeed = 32
+        self.embeddinggemmaGraphTokenBudget = 2000
+        self.embeddinggemmaBatchLength = 32
+        self.embeddinggemmaCandidatePool = 256
+        self.embeddinggemmaSeedLimit = 24
+        self.embeddinggemmaTermMin = 3
 
-        self.distanceMax = 1.00
-        self.distanceCeiling = 1.24
-        self.distanceGapMin = 0.15
-        self.distanceMaxEdge = 1.20
-        self.marginRelative = 0.1
-        self.marginGlobal = 0.15
-        self.vectorDimension = 768
-        self.vectorMatchLimit = 8
-        self.graphLimitPerSeed = 32
-        self.graphTokenBudget = 2000
-        self.batchLength = 32
-        self.candidatePool = 256
-        self.seedLimit = 24
-        self.termMin = 3
+        self.glinerTypeAllowList = ["person", "organization", "place", "category", "event"]
+        self.glinerChunkTokenLength = 250
+        self.glinerChunkTokenMin = 25
+        self.glinerNameMinLength = 3
+        self.glinerNameMinLengthWide = 2
+        self.glinerScoreMin = 0.4
+        self.glinerRelationGapMax = 60
+        self.glinerEntId = 250103
+        self.glinerSepId = 250104
+        self.glinerClsId = 1
+        self.glinerEosId = 2
+        self.glinerMaxWidth = 12
+        self.glinerMaxLength = 384
 
-        self.entId = 250103
-        self.sepId = 250104
-        self.clsId = 1
-        self.eosId = 2
-        self.maxWidth = 12
-        self.maxLength = 384
-
-        self.embeddingTokenMax = 2048
+        self.rerankerScoreMin = 0.0005
+        self.rerankerPool = 24
+        self.rerankerBatchLength = 8
+        self.rerankerTokenMax = 512
+        self.rerankerPromptTokenMax = 128
+        self.rerankerBosId = 0
+        self.rerankerPadId = 1
+        self.rerankerEosId = 2
+        self.rerankerUnkId = 3
+        self.rerankerOffset = 1
+        self.rerankerCitationLimit = 8
 
         proto = sentencepieceModel.ModelProto()
 
@@ -1875,15 +1930,17 @@ class Engine:
 
         proto.normalizer_spec.add_dummy_prefix = False
 
-        self.sentencepiece = sentencepiece.SentencePieceProcessor()
-        self.sentencepiece.LoadFromSerializedProto(proto.SerializeToString())
-
-        self.onnxSession = onnxSessionBuild(f"{self.pathModelGliner}model.onnx")
-
         self.sentencepieceEmbedding = sentencepiece.SentencePieceProcessor()
         self.sentencepieceEmbedding.Load(f"{self.pathModelEmbedding}tokenizer.model")
-
         self.onnxSessionEmbedding = onnxSessionBuild(f"{self.pathModelEmbedding}model.onnx")
+
+        self.sentencepieceGliner = sentencepiece.SentencePieceProcessor()
+        self.sentencepieceGliner.LoadFromSerializedProto(proto.SerializeToString())
+        self.onnxSessionGliner = onnxSessionBuild(f"{self.pathModelGliner}model.onnx")
+
+        self.sentencepieceReranker = sentencepiece.SentencePieceProcessor()
+        self.sentencepieceReranker.Load(f"{self.pathModelReranker}sentencepiece.bpe.model")
+        self.onnxSessionReranker = onnxSessionBuild(f"{self.pathModelReranker}model.onnx")
 
         database = Database(True)
         database.close()
