@@ -791,6 +791,9 @@ class Engine:
         candidateList = []
 
         for a in range(len(queryRowList)):
+            if float(queryRowList[a][3]) > self.embeddinggemmaDistanceMaxNode:
+                continue
+
             candidateList.append({"name": queryRowList[a][0], "nameNormalized": queryRowList[a][1], "description": queryRowList[a][2], "distance": float(queryRowList[a][3])})
 
         if len(candidateList) > 0:
@@ -1170,6 +1173,9 @@ class Engine:
             for a in range(len(promptCitationList)):
                 candidate = promptCitationList[a]
 
+                if candidate["distance"] > self.embeddinggemmaDistanceMaxCitation:
+                    continue
+
                 key = candidate["fileName"] + "|" + candidate["chunk"]
 
                 if seenObject.get(key) is None:
@@ -1182,6 +1188,9 @@ class Engine:
 
                 for b in range(len(fileCitationList)):
                     candidate = fileCitationList[b]
+
+                    if candidate["distance"] > self.embeddinggemmaDistanceMaxCitation:
+                        continue
 
                     key = candidate["fileName"] + "|" + candidate["chunk"]
 
@@ -1887,6 +1896,8 @@ class Engine:
 
         self.embeddinggemmaTokenMax = 2048
         self.embeddinggemmaDistanceMaxEdge = 1.20
+        self.embeddinggemmaDistanceMaxCitation = 1.24
+        self.embeddinggemmaDistanceMaxNode = 1.24
         self.embeddinggemmaMarginGlobal = 0.15
         self.embeddinggemmaVectorDimension = 768
         self.embeddinggemmaVectorMatchLimit = 8
