@@ -1830,6 +1830,15 @@ class Engine:
     def search(self, mcpSessionId, prompt, entityList, themeList, rowList):
         result = {"citationList": [], "nodeList": [], "graphList": []}
 
+        if prompt is None:
+            prompt = ""
+
+        if entityList is None:
+            entityList = []
+
+        if themeList is None:
+            themeList = []
+
         if rowList is None:
             rowList = []
 

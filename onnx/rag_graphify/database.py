@@ -28,7 +28,7 @@ class Database:
         DB_USER = os.environ.get("DB_USER")
         DB_PASS = os.environ.get("DB_PASS")
 
-        self.PATH_CERTIFICATE_PEM = os.environ.get("MS_M_PATH_CERTIFICATE_PEM")
+        PATH_CERTIFICATE_PEM = os.environ.get("MS_M_PATH_CERTIFICATE_PEM")
 
         self.connection = psycopg2.connect(
             dbname=DB_NAME,
@@ -37,7 +37,7 @@ class Database:
             user=DB_USER,
             password=DB_PASS,
             sslmode="verify-ca",
-            sslrootcert=self.PATH_CERTIFICATE_PEM
+            sslrootcert=PATH_CERTIFICATE_PEM
         )
 
         self.cursor = None
