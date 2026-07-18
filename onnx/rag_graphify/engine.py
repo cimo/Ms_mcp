@@ -60,21 +60,25 @@ class Engine:
     def _utilNodeNormalize(self, text):
         return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", text).strip().lower())
 
-    def _utilRowParse(self, prompt):
-        resultList = []
+    def _utilAnchorCheck(self, termList, text):
+        result = False
 
-        referenceList = re.findall(r"\b(?:row|riga)\s+([1-9][0-9]*)\b", prompt, re.IGNORECASE)
-        cellList = re.findall(r"\b[A-Z]{1,3}([1-9][0-9]*)\b", prompt)
+        textNormalized = self._utilNodeNormalize(text)
 
-        for a in range(len(referenceList)):
-            if int(referenceList[a]) not in resultList:
-                resultList.append(int(referenceList[a]))
+        for a in range(len(termList)):
+            term = self._utilNodeNormalize(termList[a])
 
-        for a in range(len(cellList)):
-            if int(cellList[a]) not in resultList:
-                resultList.append(int(cellList[a]))
+            termMin = self.embeddinggemmaTermMin
 
-        return resultList
+            if self._utilWideContainCheck(term):
+                termMin = self.embeddinggemmaTermMinWide
+
+            if len(term) >= termMin and term in textNormalized:
+                result = True
+
+                break
+
+        return result
 
     def _utilSecondaryRemove(self, text):
         resultList = []
@@ -643,6 +647,43 @@ class Engine:
 
         return resultList
 
+    def _logicCitationLexicalMatch(self, database, mcpSessionId, fileList, entityList, queryVector):
+        resultList = []
+
+        fileNameObject = {}
+
+        for a in range(len(fileList)):
+            fileNameObject[fileList[a]["id"]] = fileList[a]["name"]
+
+        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag")
+
+        for a in range(len(entityList)):
+            term = self._utilNodeNormalize(entityList[a])
+
+            termMin = self.embeddinggemmaTermMin
+
+            if self._utilWideContainCheck(term):
+                termMin = self.embeddinggemmaTermMinWide
+
+            if len(term) < termMin:
+                continue
+
+            termEscape = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+            queryRowList = database.execute(
+                f'SELECT DISTINCT ON (file_id) chunk, file_id, embedding <-> %s AS distance FROM "{tableName}" WHERE lower(chunk) LIKE %s ORDER BY file_id, distance',
+                (queryVector, f"%{termEscape}%")
+            ).fetchall()
+
+            for b in range(len(queryRowList)):
+                chunk = queryRowList[b][0]
+                fileId = queryRowList[b][1]
+
+                if chunk and fileNameObject.get(fileId) is not None:
+                    resultList.append({"fileName": fileNameObject[fileId], "chunk": chunk, "distance": float(queryRowList[b][2])})
+
+        return resultList
+
     def _logicCitationRowMatch(self, database, mcpSessionId, fileList, fileId, rowList):
         resultList = []
 
@@ -697,7 +738,12 @@ class Engine:
         for a in range(len(termList)):
             term = self._utilNodeNormalize(termList[a])
 
-            if len(term) >= self.embeddinggemmaTermMin:
+            termMin = self.embeddinggemmaTermMin
+
+            if self._utilWideContainCheck(term):
+                termMin = self.embeddinggemmaTermMinWide
+
+            if len(term) >= termMin:
                 likeList.append(f"%{term}%")
 
         if len(likeList) > 0:
@@ -807,17 +853,23 @@ class Engine:
 
             scoreList = self._rerank(queryText, textList)
 
+            scoreBest = 0.0
+
             for a in range(len(candidateList)):
                 candidateList[a]["score"] = scoreList[a]
 
-            candidateList.sort(key=lambda candidate: candidate["score"], reverse=True)
+                if scoreList[a] > scoreBest:
+                    scoreBest = scoreList[a]
 
-            for a in range(len(candidateList)):
-                if len(resultList) >= self.embeddinggemmaVectorMatchLimit:
-                    break
+            if scoreBest >= self.rerankerScoreGround:
+                candidateList.sort(key=lambda candidate: candidate["score"], reverse=True)
 
-                if candidateList[a]["score"] >= self.rerankerScoreMin:
-                    resultList.append(candidateList[a])
+                for a in range(len(candidateList)):
+                    if len(resultList) >= self.embeddinggemmaVectorMatchLimit:
+                        break
+
+                    if candidateList[a]["score"] >= self.rerankerScoreMin:
+                        resultList.append(candidateList[a])
 
         return resultList
 
@@ -983,6 +1035,7 @@ class Engine:
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag")
 
         database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, chunk TEXT NOT NULL, embedding vector({self.embeddinggemmaVectorDimension}))')
+        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_chunk" ON "{name}" USING gin (lower(chunk) gin_trgm_ops)')
 
     def _tableCitationInsert(self, database, mcpSessionId, fileId, chunk, embeddingList):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag")
@@ -1158,7 +1211,7 @@ class Engine:
 
             database.commit()
 
-    def _searchCitation(self, database, mcpSessionId, fileList, promptSearch, promptVector, entityFileIdList):
+    def _searchCitation(self, database, mcpSessionId, fileList, promptSearch, promptVector, entityList, entityFileIdList):
         citationList = []
 
         isCitationSemantic = False
@@ -1173,7 +1226,7 @@ class Engine:
             for a in range(len(promptCitationList)):
                 candidate = promptCitationList[a]
 
-                if candidate["distance"] > self.embeddinggemmaDistanceMaxCitation:
+                if candidate["distance"] > self.embeddinggemmaDistanceMaxCitation and not self._utilAnchorCheck(entityList, candidate["chunk"]):
                     continue
 
                 key = candidate["fileName"] + "|" + candidate["chunk"]
@@ -1189,15 +1242,24 @@ class Engine:
                 for b in range(len(fileCitationList)):
                     candidate = fileCitationList[b]
 
-                    if candidate["distance"] > self.embeddinggemmaDistanceMaxCitation:
-                        continue
-
                     key = candidate["fileName"] + "|" + candidate["chunk"]
 
                     if seenObject.get(key) is None:
                         seenObject[key] = True
 
                         candidateList.append(candidate)
+
+            lexicalCitationList = self._logicCitationLexicalMatch(database, mcpSessionId, fileList, entityList, promptVector)
+
+            for a in range(len(lexicalCitationList)):
+                candidate = lexicalCitationList[a]
+
+                key = candidate["fileName"] + "|" + candidate["chunk"]
+
+                if seenObject.get(key) is None:
+                    seenObject[key] = True
+
+                    candidateList.append(candidate)
 
         if len(candidateList) > 0:
             chunkList = []
@@ -1292,7 +1354,7 @@ class Engine:
 
         return graphCandidateList
 
-    def _searchGraph(self, database, mcpSessionId, graphCandidateList, promptVector):
+    def _searchGraph(self, database, mcpSessionId, graphCandidateList, promptSearch, promptVector):
         graphList = []
 
         graphSeenObject = {}
@@ -1336,7 +1398,7 @@ class Engine:
 
             graphDedupList[a]["rank"] = degreeSource + degreeTarget
 
-            relevance = self.embeddinggemmaDistanceMaxEdge + 1
+            relevance = float("inf")
 
             if relevanceObject.get(graphDedupList[a]["edgeId"]) is not None:
                 relevance = relevanceObject[graphDedupList[a]["edgeId"]]
@@ -1345,35 +1407,39 @@ class Engine:
 
         graphDedupList.sort(key=lambda candidate: (candidate["relevance"], -candidate["rank"]))
 
-        relevanceBest = -1
+        rerankCandidateList = graphDedupList[0:self.rerankerPool]
 
-        for a in range(len(graphDedupList)):
-            if graphDedupList[a]["relevance"] <= self.embeddinggemmaDistanceMaxEdge:
-                relevanceBest = graphDedupList[a]["relevance"]
+        if len(rerankCandidateList) > 0:
+            textList = []
 
-                break
+            for a in range(len(rerankCandidateList)):
+                textList.append(rerankCandidateList[a]["description"])
 
-        graphTokenTotal = 0
+            scoreList = self._rerank(promptSearch, textList)
 
-        for a in range(len(graphDedupList)):
-            candidate = graphDedupList[a]
+            for a in range(len(rerankCandidateList)):
+                rerankCandidateList[a]["score"] = scoreList[a]
 
-            if relevanceBest < 0:
-                break
+            rerankCandidateList.sort(key=lambda candidate: (candidate["score"], candidate["rank"]), reverse=True)
 
-            if candidate["relevance"] > self.embeddinggemmaDistanceMaxEdge or candidate["relevance"] > relevanceBest + self.embeddinggemmaMarginGlobal:
-                continue
+            graphTokenTotal = 0
 
-            tokenCount = self._utilTokenEstimate(f"{candidate['source']} {candidate['target']} {candidate['description']}")
+            for a in range(len(rerankCandidateList)):
+                candidate = rerankCandidateList[a]
 
-            if graphTokenTotal + tokenCount <= self.embeddinggemmaGraphTokenBudget:
-                graphTokenTotal += tokenCount
+                if candidate["score"] < self.rerankerScoreMin:
+                    break
 
-                graphList.append({
-                    "source": candidate["source"],
-                    "target": candidate["target"],
-                    "description": candidate["description"]
-                })
+                tokenCount = self._utilTokenEstimate(f"{candidate['source']} {candidate['target']} {candidate['description']}")
+
+                if graphTokenTotal + tokenCount <= self.embeddinggemmaGraphTokenBudget:
+                    graphTokenTotal += tokenCount
+
+                    graphList.append({
+                        "source": candidate["source"],
+                        "target": candidate["target"],
+                        "description": candidate["description"]
+                    })
 
         return graphList
 
@@ -1761,8 +1827,11 @@ class Engine:
 
         return result
 
-    def search(self, mcpSessionId, prompt, entityList, themeList):
+    def search(self, mcpSessionId, prompt, entityList, themeList, rowList):
         result = {"citationList": [], "nodeList": [], "graphList": []}
+
+        if rowList is None:
+            rowList = []
 
         database = Database()
 
@@ -1803,11 +1872,15 @@ class Engine:
 
             seedObject, seedList, entityFileIdList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingList)
 
-            citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptSearch, promptVector, entityFileIdList)
+            citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptSearch, promptVector, entityList, entityFileIdList)
 
-            rowList = self._utilRowParse(f"{prompt} {' '.join(entityList)} {' '.join(themeList)}")
+            rowNumberList = []
 
-            if len(rowList) > 0:
+            for a in range(len(rowList)):
+                if isinstance(rowList[a], int) and rowList[a] > 0 and rowList[a] not in rowNumberList:
+                    rowNumberList.append(rowList[a])
+
+            if len(rowNumberList) > 0:
                 fileNameObject = {}
 
                 for a in range(len(fileList)):
@@ -1819,7 +1892,7 @@ class Engine:
                     fileName = fileNameObject.get(entityFileIdList[a], "")
 
                     if fileName.lower().endswith(".xlsx"):
-                        rowMatchList = self._logicCitationRowMatch(database, mcpSessionId, fileList, entityFileIdList[a], rowList)
+                        rowMatchList = self._logicCitationRowMatch(database, mcpSessionId, fileList, entityFileIdList[a], rowNumberList)
 
                         for b in range(len(rowMatchList)):
                             rowCitationList.append(rowMatchList[b])
@@ -1854,7 +1927,7 @@ class Engine:
                     for a in range(len(traverseList)):
                         graphCandidateList.append(traverseList[a])
 
-                graphList = self._searchGraph(database, mcpSessionId, graphCandidateList, promptVector)
+                graphList = self._searchGraph(database, mcpSessionId, graphCandidateList, promptSearch, promptVector)
 
                 result = {
                     "citationList": citationList,
@@ -1895,10 +1968,8 @@ class Engine:
         self.pathFileInput = f"{PATH_ROOT}{PATH_FILE}input/"
 
         self.embeddinggemmaTokenMax = 2048
-        self.embeddinggemmaDistanceMaxEdge = 1.20
         self.embeddinggemmaDistanceMaxCitation = 1.24
         self.embeddinggemmaDistanceMaxNode = 1.24
-        self.embeddinggemmaMarginGlobal = 0.15
         self.embeddinggemmaVectorDimension = 768
         self.embeddinggemmaVectorMatchLimit = 8
         self.embeddinggemmaGraphLimitPerSeed = 32
@@ -1907,6 +1978,7 @@ class Engine:
         self.embeddinggemmaCandidatePool = 256
         self.embeddinggemmaSeedLimit = 24
         self.embeddinggemmaTermMin = 3
+        self.embeddinggemmaTermMinWide = 2
 
         self.glinerTypeAllowList = ["person", "organization", "place", "category", "event"]
         self.glinerChunkTokenLength = 250
@@ -1923,6 +1995,7 @@ class Engine:
         self.glinerMaxLength = 384
 
         self.rerankerScoreMin = 0.0005
+        self.rerankerScoreGround = 0.25
         self.rerankerPool = 24
         self.rerankerBatchLength = 8
         self.rerankerTokenMax = 512

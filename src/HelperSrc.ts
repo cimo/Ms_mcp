@@ -727,6 +727,20 @@ export const zodText = (value: string | number | string[] | null | undefined, va
     return result;
 };
 
+export const zodTextList = (value: string | number | string[] | null | undefined): string[] => {
+    let resultList: string[] = [];
+
+    if (Array.isArray(value)) {
+        resultList = value;
+    } else if (typeof value === "string" && value !== "") {
+        resultList = [value];
+    } else if (typeof value === "number") {
+        resultList = [value.toString()];
+    }
+
+    return resultList;
+};
+
 export const zodNumber = (value: number | string | null | undefined, valueDefault: number, valueMin?: number, valueMax?: number): number => {
     let result = valueDefault;
 
@@ -747,15 +761,25 @@ export const zodNumber = (value: number | string | null | undefined, valueDefaul
     return result;
 };
 
-export const zodTextList = (value: string | number | string[] | null | undefined): string[] => {
-    let resultList: string[] = [];
+export const zodNumberList = (value: number | string | number[] | string[] | null | undefined): number[] => {
+    let valueList: (number | string)[] = [];
 
     if (Array.isArray(value)) {
-        resultList = value;
-    } else if (typeof value === "string" && value !== "") {
-        resultList = [value];
-    } else if (typeof value === "number") {
-        resultList = [value.toString()];
+        valueList = value;
+    } else if (typeof value === "number" || (typeof value === "string" && value !== "")) {
+        valueList = [value];
+    }
+
+    const resultList: number[] = [];
+
+    for (let a = 0; a < valueList.length; a++) {
+        const element = valueList[a];
+
+        if (typeof element === "number" && Number.isFinite(element)) {
+            resultList.push(Math.trunc(element));
+        } else if (typeof element === "string" && element.trim() !== "" && Number.isFinite(Number(element))) {
+            resultList.push(Math.trunc(Number(element)));
+        }
     }
 
     return resultList;

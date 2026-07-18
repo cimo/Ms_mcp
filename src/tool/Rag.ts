@@ -41,6 +41,12 @@ export default class Rag {
                 .default([])
                 .describe(
                     "Array of the high level concepts or relations the question is about (what links the entities). Use specific concept phrases of two or more words, avoid single generic words like 'life' or 'activities'."
+                ),
+            row: z
+                .union([z.array(z.number()), z.array(z.string()), z.number(), z.string(), z.null()])
+                .default([])
+                .describe(
+                    "Array of the spreadsheet row numbers referenced in the user prompt, in any language, including the row implied by a cell reference. Empty if the prompt references no row."
                 )
         });
 
@@ -93,7 +99,8 @@ export default class Rag {
                 "You MUST build the json schema using ONLY the following parameters:",
                 `Parameter 1 - prompt: ${this.inputSchemaSearch.shape.prompt.description}`,
                 `Parameter 2 - entity: ${this.inputSchemaSearch.shape.entity.description}`,
-                `Parameter 3 - theme: ${this.inputSchemaSearch.shape.theme.description}`
+                `Parameter 3 - theme: ${this.inputSchemaSearch.shape.theme.description}`,
+                `Parameter 4 - row: ${this.inputSchemaSearch.shape.row.description}`
             ].join("\n"),
             inputSchema: this.inputSchemaSearch
         };
@@ -109,7 +116,8 @@ export default class Rag {
                         extra.sessionId,
                         helperSrc.zodText(argument.prompt),
                         helperSrc.zodTextList(argument.entity),
-                        helperSrc.zodTextList(argument.theme)
+                        helperSrc.zodTextList(argument.theme),
+                        helperSrc.zodNumberList(argument.row)
                     );
                     result = JSON.stringify({ name, result: JSON.parse(resultSearch) });
                 } else {

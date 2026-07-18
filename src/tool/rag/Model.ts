@@ -8,6 +8,7 @@ export interface IrequestSearch {
     prompt: string;
     entityList: string[];
     themeList: string[];
+    rowList: number[];
 }
 
 export interface IrequestDelete {

@@ -30,8 +30,9 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
         prompt = payload.get("prompt")
         entityList = payload.get("entityList")
         themeList = payload.get("themeList")
+        rowList = payload.get("rowList")
 
-        return self.engine.search(mcpSessionId, prompt, entityList, themeList)
+        return self.engine.search(mcpSessionId, prompt, entityList, themeList, rowList)
 
     def _routeStore(self, text):
         payload = json.loads(text)
