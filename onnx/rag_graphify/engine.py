@@ -70,13 +70,23 @@ class Engine:
 
             termMin = self.embeddinggemmaTermMin
 
-            if self._utilWideContainCheck(term):
+            isWide = self._utilWideContainCheck(term)
+
+            if isWide:
                 termMin = self.embeddinggemmaTermMinWide
 
-            if len(term) >= termMin and term in textNormalized:
-                result = True
+            if len(term) >= termMin:
+                isMatch = False
 
-                break
+                if isWide:
+                    isMatch = term in textNormalized
+                elif re.search(r"\b" + re.escape(term), textNormalized) is not None:
+                    isMatch = True
+
+                if isMatch:
+                    result = True
+
+                    break
 
         return result
 
@@ -1211,10 +1221,20 @@ class Engine:
 
             database.commit()
 
-    def _searchCitation(self, database, mcpSessionId, fileList, promptSearch, promptVector, entityList, entityFileIdList):
+    def _searchCitation(self, database, mcpSessionId, fileList, promptSearch, promptVector, entityList, entityFileIdList, seedList):
         citationList = []
 
         isCitationSemantic = False
+
+        anchorTermList = []
+
+        for a in range(len(entityList)):
+            anchorTermList.append(entityList[a])
+
+        promptTermList = promptSearch.split()
+
+        for a in range(len(promptTermList)):
+            anchorTermList.append(promptTermList[a])
 
         seenObject = {}
 
@@ -1226,7 +1246,7 @@ class Engine:
             for a in range(len(promptCitationList)):
                 candidate = promptCitationList[a]
 
-                if candidate["distance"] > self.embeddinggemmaDistanceMaxCitation and not self._utilAnchorCheck(entityList, candidate["chunk"]):
+                if candidate["distance"] > self.embeddinggemmaDistanceMaxCitation and not self._utilAnchorCheck(anchorTermList, candidate["chunk"]):
                     continue
 
                 key = candidate["fileName"] + "|" + candidate["chunk"]
@@ -1269,8 +1289,21 @@ class Engine:
 
             scoreList = self._rerank(promptSearch, chunkList)
 
+            scoreBest = 0.0
+
             for a in range(len(candidateList)):
                 candidateList[a]["score"] = scoreList[a]
+
+                if scoreList[a] > scoreBest:
+                    scoreBest = scoreList[a]
+
+            fileScoreBestObject = {}
+
+            for a in range(len(candidateList)):
+                fileName = candidateList[a]["fileName"]
+
+                if fileScoreBestObject.get(fileName) is None or candidateList[a]["score"] > fileScoreBestObject[fileName]:
+                    fileScoreBestObject[fileName] = candidateList[a]["score"]
 
             candidateList.sort(key=lambda candidate: candidate["score"], reverse=True)
 
@@ -1278,7 +1311,12 @@ class Engine:
                 if len(citationList) >= self.rerankerCitationLimit:
                     break
 
-                if candidateList[a]["score"] >= self.rerankerScoreMin:
+                scoreMin = self.rerankerScoreMin
+
+                if len(seedList) == 0 and not self._utilAnchorCheck(anchorTermList, candidateList[a]["chunk"]):
+                    scoreMin = self.rerankerScoreMinUngrounded
+
+                if candidateList[a]["score"] >= scoreMin and fileScoreBestObject[candidateList[a]["fileName"]] >= scoreBest * self.rerankerScoreFileRatio:
                     citationList.append(candidateList[a])
 
             isCitationSemantic = len(citationList) > 0
@@ -1881,7 +1919,7 @@ class Engine:
 
             seedObject, seedList, entityFileIdList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingList)
 
-            citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptSearch, promptVector, entityList, entityFileIdList)
+            citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptSearch, promptVector, entityList, entityFileIdList, seedList)
 
             rowNumberList = []
 
@@ -2004,7 +2042,9 @@ class Engine:
         self.glinerMaxLength = 384
 
         self.rerankerScoreMin = 0.0005
+        self.rerankerScoreMinUngrounded = 0.004
         self.rerankerScoreGround = 0.25
+        self.rerankerScoreFileRatio = 0.175
         self.rerankerPool = 24
         self.rerankerBatchLength = 8
         self.rerankerTokenMax = 512
