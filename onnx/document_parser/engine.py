@@ -1657,7 +1657,7 @@ class Markdown:
 
             return resultList
 
-        def _itemText(self, elementList, isPlain, boxX0):
+        def _itemText(self, elementList, isPlain, boxX0, referenceX1):
             result = ""
 
             lineList = self._lineGroup(elementList)
@@ -1693,10 +1693,11 @@ class Markdown:
                     if openText is not None and "://" in f"{openText}{lineText.split(')')[0]}":
                         separator = ""
                     elif isPlain == False:
-                        if isMarker:
-                            separator = "\n- "
-                        elif lineList[a]["x0"] < lineList[a - 1]["x0"] - fontSize * self.markerAlignRatio:
+                        if lineList[a]["x0"] < lineList[a - 1]["x0"] - fontSize * self.markerAlignRatio:
                             separator = "\n"
+                        elif isMarker:
+                            if lineList[a - 1]["x1"] < referenceX1 - fontSize * self.lineBreakRatio:
+                                separator = "\n- "
                         elif lineList[a - 1]["x1"] < maxX1 - fontSize * self.lineBreakRatio:
                             separator = "\n"
 
@@ -1731,6 +1732,11 @@ class Markdown:
                     scaleX = page["width"] / astPage["imageWidth"]
                     scaleY = page["height"] / astPage["imageHeight"]
 
+                    referenceX1 = 0
+
+                    for b in range(len(astPage["itemMainList"])):
+                        referenceX1 = max(referenceX1, astPage["itemMainList"][b]["coordinate"][2] * scaleX)
+
                     for b in range(len(astPage["itemMainList"])):
                         item = astPage["itemMainList"][b]
 
@@ -1738,13 +1744,13 @@ class Markdown:
 
                         if len(elementList) > 0:
                             if item["label"] == "doc_title":
-                                result += f"# {self._itemText(elementList, True, item['coordinate'][0] * scaleX)}\n\n"
+                                result += f"# {self._itemText(elementList, True, item['coordinate'][0] * scaleX, referenceX1)}\n\n"
                             elif item["label"] == "paragraph_title":
                                 hashText = self._headingHash(titleSizeRankList, self._titleSizeKey(elementList))
 
-                                result += f"{hashText} {self._itemText(elementList, True, item['coordinate'][0] * scaleX)}\n\n"
+                                result += f"{hashText} {self._itemText(elementList, True, item['coordinate'][0] * scaleX, referenceX1)}\n\n"
                             else:
-                                result += f"{self._itemText(elementList, False, item['coordinate'][0] * scaleX)}\n\n"
+                                result += f"{self._itemText(elementList, False, item['coordinate'][0] * scaleX, referenceX1)}\n\n"
 
             secondaryText = ""
 
@@ -1768,7 +1774,7 @@ class Markdown:
                             elementList = self._elementBoxCollect(page, item["coordinate"], scaleX, scaleY)
 
                             if len(elementList) > 0:
-                                itemText = self._itemText(elementList, True, item["coordinate"][0] * scaleX)
+                                itemText = self._itemText(elementList, True, item["coordinate"][0] * scaleX, item["coordinate"][2] * scaleX)
 
                         if len(itemText) == 0:
                             pageText += f"[{item['label']}]\n" if len(pageText) == 0 else f"\n[{item['label']}]\n"

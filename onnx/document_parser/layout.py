@@ -116,6 +116,162 @@ class Pdf:
 
         return resultList
 
+    def _flowStatistic(self, pageList):
+        result = {"marginLeft": 0, "isSingleColumn": False}
+
+        x1List = []
+        x2List = []
+        widthList = []
+
+        for a in range(len(pageList)):
+            imageWidth = pageList[a]["imageWidth"]
+
+            for b in range(len(pageList[a]["itemList"])):
+                if self._itemFlow(pageList[a]["itemList"][b]["label"]) == "main":
+                    coordinate = pageList[a]["itemList"][b]["coordinate"]
+
+                    x1List.append(coordinate[0] / imageWidth)
+                    x2List.append(coordinate[2] / imageWidth)
+                    widthList.append((coordinate[2] - coordinate[0]) / imageWidth)
+
+        if len(x1List) == 0:
+            return result
+
+        bucketObject = {}
+
+        for a in range(len(x1List)):
+            bucket = int(x1List[a] / self.levelMarginBucket)
+
+            bucketObject[bucket] = bucketObject[bucket] + 1 if bucket in bucketObject else 1
+
+        bucketModal = 0
+        bucketCount = 0
+
+        for bucket in bucketObject:
+            if bucketObject[bucket] > bucketCount:
+                bucketModal = bucket
+                bucketCount = bucketObject[bucket]
+
+        marginTotal = 0
+        marginCount = 0
+
+        for a in range(len(x1List)):
+            if int(x1List[a] / self.levelMarginBucket) == bucketModal:
+                marginTotal += x1List[a]
+                marginCount += 1
+
+        result["marginLeft"] = marginTotal / marginCount
+
+        x2List.sort()
+
+        contentRight = x2List[min(len(x2List) - 1, int(len(x2List) * self.levelContentRight))]
+        contentWidth = contentRight - result["marginLeft"]
+
+        wideCount = 0
+
+        for a in range(len(widthList)):
+            if widthList[a] >= contentWidth * self.levelColumnWide:
+                wideCount += 1
+
+        result["isSingleColumn"] = wideCount >= len(widthList) * self.levelColumnSingle
+
+        return result
+
+    def _flowLateral(self, itemList, referenceList, imageWidth, marginLeft):
+        resultList = []
+
+        overlapGap = imageWidth * self.levelLateralOverlap
+
+        for a in range(len(itemList)):
+            coordinateA = itemList[a]["coordinate"]
+
+            isLateral = False
+
+            if abs(coordinateA[0] / imageWidth - marginLeft) > self.levelMarginRange:
+                for b in range(len(referenceList)):
+                    if abs(coordinateA[0] / imageWidth - referenceList[b]) <= self.levelBandRange:
+                        isLateral = True
+
+                        break
+
+            if isLateral == False and abs(coordinateA[0] / imageWidth - marginLeft) > self.levelMarginRange:
+                for b in range(len(itemList)):
+                    if a == b:
+                        continue
+
+                    coordinateB = itemList[b]["coordinate"]
+
+                    if abs(coordinateB[0] / imageWidth - marginLeft) > self.levelMarginRange:
+                        continue
+
+                    if min(coordinateA[3], coordinateB[3]) - max(coordinateA[1], coordinateB[1]) <= 0:
+                        continue
+
+                    if coordinateB[2] <= coordinateA[0] + overlapGap or coordinateA[2] <= coordinateB[0] + overlapGap:
+                        isLateral = True
+
+                        break
+
+            resultList.append(isLateral)
+
+        return resultList
+
+    def _flowBand(self, itemList, isLateralList, imageWidth):
+        resultList = []
+
+        for a in range(len(itemList)):
+            if isLateralList[a] == False:
+                continue
+
+            coordinate = itemList[a]["coordinate"]
+
+            band = {"x1": coordinate[0] / imageWidth, "x2": coordinate[2] / imageWidth, "indexList": [a], "isConfirmed": False}
+
+            bandList = []
+
+            for b in range(len(resultList)):
+                if band["x1"] < resultList[b]["x2"] and resultList[b]["x1"] < band["x2"]:
+                    band["x1"] = min(band["x1"], resultList[b]["x1"])
+                    band["x2"] = max(band["x2"], resultList[b]["x2"])
+                    band["indexList"] = band["indexList"] + resultList[b]["indexList"]
+                else:
+                    bandList.append(resultList[b])
+
+            bandList.append(band)
+
+            resultList = bandList
+
+        return resultList
+
+    def _flowConfirm(self, pageBandList, pageReferenceList):
+        for a in range(len(pageBandList)):
+            for b in range(len(pageBandList[a])):
+                band = pageBandList[a][b]
+
+                for c in range(len(pageBandList)):
+                    if c == a:
+                        continue
+
+                    for d in range(len(pageBandList[c])):
+                        if abs(band["x1"] - pageBandList[c][d]["x1"]) <= self.levelBandRange:
+                            band["isConfirmed"] = True
+
+                            break
+
+                    if band["isConfirmed"]:
+                        break
+
+                if band["isConfirmed"]:
+                    continue
+
+                for c in range(len(pageReferenceList[a])):
+                    if abs(band["x1"] - pageReferenceList[a][c]) <= self.levelBandRange:
+                        band["isConfirmed"] = True
+
+                        break
+
+        return pageBandList
+
     def _orderSort(self, itemList):
         resultList = list(itemList)
 
@@ -293,16 +449,68 @@ class Pdf:
 
             imageHeight, imageWidth = imageRgb.shape[0:2]
 
-            itemList = self._inference(imageRgb)
+            pageList.append({
+                "number": pageNumber,
+                "imageWidth": imageWidth,
+                "imageHeight": imageHeight,
+                "image": image,
+                "itemList": self._inference(imageRgb)
+            })
+
+        flowObject = self._flowStatistic(pageList)
+
+        pageBandList = []
+        pageReferenceList = []
+
+        for a in range(len(pageList)):
+            itemCandidateList = []
+            referenceList = []
+
+            for b in range(len(pageList[a]["itemList"])):
+                if self._itemFlow(pageList[a]["itemList"][b]["label"]) == "main":
+                    itemCandidateList.append(pageList[a]["itemList"][b])
+                else:
+                    referenceList.append(pageList[a]["itemList"][b]["coordinate"][0] / pageList[a]["imageWidth"])
+
+            isLateralList = []
+
+            for b in range(len(itemCandidateList)):
+                isLateralList.append(False)
+
+            if flowObject["isSingleColumn"]:
+                isLateralList = self._flowLateral(itemCandidateList, referenceList, pageList[a]["imageWidth"], flowObject["marginLeft"])
+
+            pageList[a]["itemCandidateList"] = itemCandidateList
+
+            pageBandList.append(self._flowBand(itemCandidateList, isLateralList, pageList[a]["imageWidth"]))
+            pageReferenceList.append(referenceList)
+
+        pageBandList = self._flowConfirm(pageBandList, pageReferenceList)
+
+        for a in range(len(pageList)):
+            imageWidth = pageList[a]["imageWidth"]
+            imageHeight = pageList[a]["imageHeight"]
+
+            itemCandidateList = pageList[a]["itemCandidateList"]
 
             itemMainList = []
             itemSecondaryList = []
 
-            for b in range(len(itemList)):
-                if self._itemFlow(itemList[b]["label"]) == "main":
-                    itemMainList.append(itemList[b])
+            for b in range(len(pageList[a]["itemList"])):
+                if self._itemFlow(pageList[a]["itemList"][b]["label"]) != "main":
+                    itemSecondaryList.append(pageList[a]["itemList"][b])
+
+            indexLateralList = []
+
+            for b in range(len(pageBandList[a])):
+                if pageBandList[a][b]["isConfirmed"]:
+                    indexLateralList = indexLateralList + pageBandList[a][b]["indexList"]
+
+            for b in range(len(itemCandidateList)):
+                if b in indexLateralList:
+                    itemSecondaryList.append(itemCandidateList[b])
                 else:
-                    itemSecondaryList.append(itemList[b])
+                    itemMainList.append(itemCandidateList[b])
 
             itemMainList = self._orderArrange(itemMainList, imageWidth, imageHeight, 0)
             itemSecondaryList = self._orderSort(itemSecondaryList)
@@ -316,15 +524,14 @@ class Pdf:
                 itemSecondaryList[b]["order"] = b + 1
 
             if self.isDebug:
-                self._debugDraw(pageNumber, image, itemMainList, itemSecondaryList)
+                self._debugDraw(pageList[a]["number"], pageList[a]["image"], itemMainList, itemSecondaryList)
 
-            pageList.append({
-                "number": pageNumber,
-                "imageWidth": imageWidth,
-                "imageHeight": imageHeight,
-                "itemMainList": itemMainList,
-                "itemSecondaryList": itemSecondaryList
-            })
+            del pageList[a]["image"]
+            del pageList[a]["itemList"]
+            del pageList[a]["itemCandidateList"]
+
+            pageList[a]["itemMainList"] = itemMainList
+            pageList[a]["itemSecondaryList"] = itemSecondaryList
 
         resultObject = {"pageList": pageList}
 
@@ -349,6 +556,13 @@ class Pdf:
         self.levelGapColumn = 0.01
         self.levelGapRow = 0.005
         self.levelCaptionWidth = 0.5
+        self.levelMarginBucket = 0.02
+        self.levelMarginRange = 0.05
+        self.levelContentRight = 0.95
+        self.levelColumnWide = 0.7
+        self.levelColumnSingle = 0.15
+        self.levelLateralOverlap = 0.01
+        self.levelBandRange = 0.05
 
         self.scoreThreshold = 0.3
         self.scoreFigureTitle = 0.6
