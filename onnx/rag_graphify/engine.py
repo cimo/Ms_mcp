@@ -84,7 +84,7 @@ class Engine:
 
             logitList.append(float(numpy.log(score / (1.0 - score))))
 
-        if len(logitList) < self.rerankerNoiseCountMin:
+        if len(logitList) == 0:
             return 0.0
 
         noiseMedian = self._utilMedian(logitList)
@@ -177,7 +177,7 @@ class Engine:
 
         return embedding.tolist()
 
-    def _relation(self, entityPredictList, sentenceList):
+    def _relation(self, entityValidList, sentenceList):
         resultList = []
 
         seenObject = {}
@@ -187,46 +187,44 @@ class Engine:
 
             sentenceEntityList = []
 
-            for b in range(len(entityPredictList)):
-                entity = entityPredictList[b]
-
-                if entity.get("nameNormalized") is None:
-                    continue
+            for b in range(len(entityValidList)):
+                entity = entityValidList[b]
 
                 if entity["start"] >= sentence["start"] and entity["start"] < sentence["end"]:
                     sentenceEntityList.append(entity)
 
             sentenceEntityList.sort(key=lambda entity: entity["start"])
 
-            for b in range(len(sentenceEntityList) - 1):
+            for b in range(len(sentenceEntityList)):
                 source = sentenceEntityList[b]
-                target = sentenceEntityList[b + 1]
 
-                if source["nameNormalized"] == target["nameNormalized"]:
-                    continue
+                for c in range(b + 1, len(sentenceEntityList)):
+                    target = sentenceEntityList[c]
 
-                gap = target["start"] - source["end"]
+                    gap = target["start"] - source["end"]
 
-                if gap < 0 or gap > self.glinerRelationGapMax:
-                    continue
+                    # ordinate per start: appena una supera la finestra, tutte le successive sono piu' lontane
+                    if gap > self.glinerRelationGapMax:
+                        break
 
-                key = source["nameNormalized"] + "|" + target["nameNormalized"]
+                    if gap < 0 or source["nameNormalized"] == target["nameNormalized"]:
+                        continue
 
-                if seenObject.get(key) is None:
-                    seenObject[key] = True
+                    key = source["nameNormalized"] + "|" + target["nameNormalized"]
 
-                    resultList.append({
-                        "source": source["text"].strip(),
-                        "target": target["text"].strip(),
-                        "description": sentence["text"]
-                    })
+                    if seenObject.get(key) is None:
+                        seenObject[key] = True
+
+                        resultList.append({
+                            "source": source["text"].strip(),
+                            "target": target["text"].strip(),
+                            "description": sentence["text"]
+                        })
 
         return resultList
 
-    def _entity(self, entityPredictList, sentenceList):
+    def _entityValid(self, entityPredictList):
         resultList = []
-
-        seenObject = {}
 
         for a in range(len(entityPredictList)):
             entity = entityPredictList[a]
@@ -238,9 +236,22 @@ class Engine:
             if len(name) < nameMinLength or name.lower().find("http") != -1:
                 continue
 
-            nameNormalized = self._utilNodeNormalize(name)
+            entity["nameNormalized"] = self._utilNodeNormalize(name)
 
-            entity["nameNormalized"] = nameNormalized
+            resultList.append(entity)
+
+        return resultList
+
+    def _entity(self, entityValidList, sentenceList):
+        resultList = []
+
+        seenObject = {}
+
+        for a in range(len(entityValidList)):
+            entity = entityValidList[a]
+
+            name = entity["text"].strip()
+            nameNormalized = entity["nameNormalized"]
 
             description = ""
 
@@ -473,7 +484,7 @@ class Engine:
 
         chunkText = ""
 
-        partList = self._chunkPartBuild(text)
+        partList = self._chunkPartBuild(re.sub(r"https?://\S+", "", text))
 
         for a in range(len(partList)):
             part = partList[a]
@@ -495,8 +506,7 @@ class Engine:
         cleanList = []
 
         for a in range(len(resultList)):
-            clean = re.sub(r"https?://\S+", "", resultList[a])
-            clean = re.sub(r"\s+", " ", clean).strip()
+            clean = re.sub(r"\s+", " ", resultList[a]).strip()
 
             if self._utilTokenEstimate(clean) >= self.glinerChunkTokenMin:
                 cleanList.append(clean)
@@ -785,7 +795,9 @@ class Engine:
                 termMin = self.embeddinggemmaTermMinWide
 
             if len(term) >= termMin:
-                likeList.append(f"%{term}%")
+                termEscape = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+                likeList.append(f"%{termEscape}%")
 
         if len(likeList) > 0:
             clauseList = []
@@ -793,7 +805,10 @@ class Engine:
             for a in range(len(likeList)):
                 clauseList.append("name_normalized LIKE %s")
 
-            queryList = database.execute(f'SELECT name_normalized FROM "{tableName}" WHERE {" OR ".join(clauseList)} GROUP BY name_normalized ORDER BY length(name_normalized) ASC', tuple(likeList)).fetchall()
+            parameterList = list(likeList)
+            parameterList.append(self.embeddinggemmaSeedLimit)
+
+            queryList = database.execute(f'SELECT name_normalized FROM "{tableName}" WHERE {" OR ".join(clauseList)} GROUP BY name_normalized ORDER BY length(name_normalized) ASC LIMIT %s', tuple(parameterList)).fetchall()
 
             for a in range(len(queryList)):
                 resultList.append(queryList[a][0])
@@ -855,13 +870,17 @@ class Engine:
 
             placeholder = ",".join("%s" for a in range(len(nameNormalizedList)))
 
-            queryList = database.execute(
-                f'SELECT node, COUNT(*) AS degree FROM (SELECT source_normalized AS node FROM "{tableName}" UNION ALL SELECT target_normalized AS node FROM "{tableName}") AS nodeUnion WHERE node IN ({placeholder}) GROUP BY node',
-                tuple(nameNormalizedList)
-            ).fetchall()
+            for column in ["source_normalized", "target_normalized"]:
+                queryList = database.execute(
+                    f'SELECT {column}, COUNT(*) AS degree FROM "{tableName}" WHERE {column} IN ({placeholder}) GROUP BY {column}',
+                    tuple(nameNormalizedList)
+                ).fetchall()
 
-            for a in range(len(queryList)):
-                resultObject[queryList[a][0]] = queryList[a][1]
+                for a in range(len(queryList)):
+                    if resultObject.get(queryList[a][0]) is None:
+                        resultObject[queryList[a][0]] = 0
+
+                    resultObject[queryList[a][0]] += queryList[a][1]
 
         return resultObject
 
@@ -1114,6 +1133,8 @@ class Engine:
 
         database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, chunk TEXT NOT NULL, embedding vector({self.embeddinggemmaVectorDimension}))')
         database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_chunk" ON "{name}" USING gin (lower(chunk) gin_trgm_ops)')
+        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_file" ON "{name}" (file_id)')
+        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_embedding" ON "{name}" USING hnsw (embedding vector_l2_ops)')
 
     def _tableCitationInsert(self, database, mcpSessionId, fileId, chunk, embeddingList):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag")
@@ -1128,6 +1149,7 @@ class Engine:
 
         database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, name TEXT NOT NULL, name_normalized TEXT NOT NULL, type TEXT NOT NULL, description TEXT NOT NULL, UNIQUE (file_id, name_normalized))')
         database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_normalized" ON "{name}" USING gin (name_normalized gin_trgm_ops)')
+        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_file" ON "{name}" (file_id)')
 
     def _tableNodeInsert(self, database, mcpSessionId, fileId, name, type, description):
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node")
@@ -1143,6 +1165,8 @@ class Engine:
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
 
         database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, name TEXT NOT NULL, name_normalized TEXT NOT NULL, description TEXT NOT NULL, embedding vector({self.embeddinggemmaVectorDimension}))')
+        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_file" ON "{name}" (file_id)')
+        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_embedding" ON "{name}" USING hnsw (embedding vector_l2_ops)')
 
     def _tableNodeVecInsert(self, database, mcpSessionId, fileId, name, nameNormalized, description, embeddingList):
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
@@ -1158,6 +1182,7 @@ class Engine:
         database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, source TEXT NOT NULL, target TEXT NOT NULL, description TEXT NOT NULL, source_normalized TEXT NOT NULL, target_normalized TEXT NOT NULL)')
         database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_source" ON "{name}" (source_normalized)')
         database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_target" ON "{name}" (target_normalized)')
+        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_file" ON "{name}" (file_id)')
 
     def _tableEdgeInsert(self, database, mcpSessionId, fileId, relation):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
@@ -1172,6 +1197,9 @@ class Engine:
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
 
         database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, file_id INTEGER, edge_id INTEGER, embedding vector({self.embeddinggemmaVectorDimension}))')
+        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_file" ON "{name}" (file_id)')
+        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_edge" ON "{name}" (edge_id)')
+        database.execute(f'CREATE INDEX IF NOT EXISTS "{name}_embedding" ON "{name}" USING hnsw (embedding vector_l2_ops)')
 
     def _tableEdgeVecInsert(self, database, mcpSessionId, fileId, edgeId, embeddingList):
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
@@ -1233,8 +1261,10 @@ class Engine:
 
             sentenceList = self._sentenceSplit(chunkList[a])
 
-            entityList = self._entity(entityPredictList, sentenceList)
-            relationList = self._relation(entityPredictList, sentenceList)
+            entityValidList = self._entityValid(entityPredictList)
+
+            entityList = self._entity(entityValidList, sentenceList)
+            relationList = self._relation(entityValidList, sentenceList)
 
             for b in range(len(entityList)):
                 entity = entityList[b]
@@ -2120,7 +2150,6 @@ class Engine:
         self.rerankerNoiseMarginMin = 3.5
         self.rerankerNoiseMarginGround = 10.0
         self.rerankerNoiseLength = 8
-        self.rerankerNoiseCountMin = 4
         self.rerankerPool = 24
         self.rerankerBatchLength = 8
         self.rerankerTokenMax = 512
