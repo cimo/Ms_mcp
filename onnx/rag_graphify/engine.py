@@ -60,6 +60,37 @@ class Engine:
     def _utilNodeNormalize(self, text):
         return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", text).strip().lower())
 
+    def _utilMedian(self, valueList):
+        sortedList = sorted(valueList)
+
+        middle = len(sortedList) // 2
+
+        if len(sortedList) % 2 == 1:
+            return sortedList[middle]
+
+        return (sortedList[middle - 1] + sortedList[middle]) / 2.0
+
+    def _utilScoreCutoff(self, scoreList, logitMargin):
+        logitList = []
+
+        for a in range(len(scoreList)):
+            score = scoreList[a]
+
+            if score < self.rerankerScoreEpsilon:
+                score = self.rerankerScoreEpsilon
+
+            if score > 1.0 - self.rerankerScoreEpsilon:
+                score = 1.0 - self.rerankerScoreEpsilon
+
+            logitList.append(float(numpy.log(score / (1.0 - score))))
+
+        if len(logitList) < self.rerankerNoiseCountMin:
+            return 0.0
+
+        noiseMedian = self._utilMedian(logitList)
+
+        return float(1.0 / (1.0 + numpy.exp(-(noiseMedian + logitMargin))))
+
     def _utilAnchorCheck(self, termList, text):
         result = False
 
@@ -834,7 +865,40 @@ class Engine:
 
         return resultObject
 
-    def _logicNodeVecMatch(self, database, mcpSessionId, queryText, queryVector):
+    def _logicNoiseNode(self, database, mcpSessionId):
+        resultList = []
+
+        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
+
+        queryRowList = database.execute(
+            f'SELECT name, description FROM "{tableName}" ORDER BY md5(id::text) LIMIT %s',
+            (self.rerankerNoiseLength,)
+        ).fetchall()
+
+        for a in range(len(queryRowList)):
+            if queryRowList[a][1] == "":
+                resultList.append(queryRowList[a][0])
+            else:
+                resultList.append(f"{queryRowList[a][0]}: {queryRowList[a][1]}")
+
+        return resultList
+
+    def _logicNoiseEdge(self, database, mcpSessionId):
+        resultList = []
+
+        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
+
+        queryRowList = database.execute(
+            f'SELECT description FROM "{tableName}" ORDER BY md5(id::text) LIMIT %s',
+            (self.rerankerNoiseLength,)
+        ).fetchall()
+
+        for a in range(len(queryRowList)):
+            resultList.append(queryRowList[a][0])
+
+        return resultList
+
+    def _logicNodeVecMatch(self, database, mcpSessionId, queryText, queryVector, noiseTextList):
         resultList = []
 
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
@@ -847,9 +911,6 @@ class Engine:
         candidateList = []
 
         for a in range(len(queryRowList)):
-            if float(queryRowList[a][3]) > self.embeddinggemmaDistanceMaxNode:
-                continue
-
             candidateList.append({"name": queryRowList[a][0], "nameNormalized": queryRowList[a][1], "description": queryRowList[a][2], "distance": float(queryRowList[a][3])})
 
         if len(candidateList) > 0:
@@ -861,7 +922,12 @@ class Engine:
                 else:
                     textList.append(f"{candidateList[a]['name']}: {candidateList[a]['description']}")
 
-            scoreList = self._rerank(queryText, textList)
+            scoreList = self._rerank(queryText, textList + noiseTextList)
+
+            noiseScoreList = scoreList[len(textList):]
+
+            scoreCutoff = self._utilScoreCutoff(noiseScoreList, self.rerankerNoiseMarginMin)
+            scoreGround = self._utilScoreCutoff(noiseScoreList, self.rerankerNoiseMarginGround)
 
             scoreBest = 0.0
 
@@ -871,14 +937,14 @@ class Engine:
                 if scoreList[a] > scoreBest:
                     scoreBest = scoreList[a]
 
-            if scoreBest >= self.rerankerScoreGround:
+            if scoreBest > scoreGround:
                 candidateList.sort(key=lambda candidate: candidate["score"], reverse=True)
 
                 for a in range(len(candidateList)):
                     if len(resultList) >= self.embeddinggemmaVectorMatchLimit:
                         break
 
-                    if candidateList[a]["score"] >= self.rerankerScoreMin:
+                    if candidateList[a]["score"] > scoreCutoff:
                         resultList.append(candidateList[a])
 
         return resultList
@@ -971,7 +1037,7 @@ class Engine:
 
         return resultList
 
-    def _logicEdgeVecMatch(self, database, mcpSessionId, queryText, queryVector):
+    def _logicEdgeVecMatch(self, database, mcpSessionId, queryText, queryVector, noiseTextList):
         resultList = []
 
         tableNameVec = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
@@ -993,7 +1059,9 @@ class Engine:
             for a in range(len(candidateList)):
                 textList.append(candidateList[a]["description"])
 
-            scoreList = self._rerank(queryText, textList)
+            scoreList = self._rerank(queryText, textList + noiseTextList)
+
+            scoreCutoff = self._utilScoreCutoff(scoreList[len(textList):], self.rerankerNoiseMarginMin)
 
             for a in range(len(candidateList)):
                 candidateList[a]["score"] = scoreList[a]
@@ -1004,7 +1072,7 @@ class Engine:
                 if len(resultList) >= self.embeddinggemmaVectorMatchLimit:
                     break
 
-                if candidateList[a]["score"] >= self.rerankerScoreMin:
+                if candidateList[a]["score"] > scoreCutoff:
                     resultList.append(candidateList[a]["edgeId"])
 
         return resultList
@@ -1323,14 +1391,14 @@ class Engine:
 
         return citationList, isCitationSemantic
 
-    def _searchSeed(self, database, mcpSessionId, entityList, entityEmbeddingList):
+    def _searchSeed(self, database, mcpSessionId, entityList, entityEmbeddingList, noiseTextList):
         seedObject = {}
         seedList = []
 
         if len(entityList) > 0:
             for a in range(len(entityList)):
                 nodeVector = numpy.array(entityEmbeddingList[a], dtype=numpy.float32)
-                nodeMatchList = self._logicNodeVecMatch(database, mcpSessionId, entityList[a], nodeVector)
+                nodeMatchList = self._logicNodeVecMatch(database, mcpSessionId, entityList[a], nodeVector, noiseTextList)
 
                 for b in range(len(nodeMatchList)):
                     if seedObject.get(nodeMatchList[b]["nameNormalized"]) is None:
@@ -1348,7 +1416,7 @@ class Engine:
 
         return seedObject, seedList, entityFileIdList
 
-    def _searchTheme(self, database, mcpSessionId, themeList, seedObject, seedList, fileIdList):
+    def _searchTheme(self, database, mcpSessionId, themeList, seedObject, seedList, fileIdList, noiseTextList):
         graphCandidateList = []
 
         if len(themeList) > 0:
@@ -1359,7 +1427,7 @@ class Engine:
 
             for a in range(len(themeList)):
                 edgeVector = numpy.array(themeEmbeddingList[a], dtype=numpy.float32)
-                edgeMatchList = self._logicEdgeVecMatch(database, mcpSessionId, themeList[a], edgeVector)
+                edgeMatchList = self._logicEdgeVecMatch(database, mcpSessionId, themeList[a], edgeVector, noiseTextList)
 
                 for b in range(len(edgeMatchList)):
                     if edgeIdObject.get(edgeMatchList[b]) is None:
@@ -1392,7 +1460,7 @@ class Engine:
 
         return graphCandidateList
 
-    def _searchGraph(self, database, mcpSessionId, graphCandidateList, promptSearch, promptVector):
+    def _searchGraph(self, database, mcpSessionId, graphCandidateList, promptSearch, promptVector, noiseTextList):
         graphList = []
 
         graphSeenObject = {}
@@ -1453,7 +1521,9 @@ class Engine:
             for a in range(len(rerankCandidateList)):
                 textList.append(rerankCandidateList[a]["description"])
 
-            scoreList = self._rerank(promptSearch, textList)
+            scoreList = self._rerank(promptSearch, textList + noiseTextList)
+
+            scoreCutoff = self._utilScoreCutoff(scoreList[len(textList):], self.rerankerNoiseMarginMin)
 
             for a in range(len(rerankCandidateList)):
                 rerankCandidateList[a]["score"] = scoreList[a]
@@ -1465,7 +1535,7 @@ class Engine:
             for a in range(len(rerankCandidateList)):
                 candidate = rerankCandidateList[a]
 
-                if candidate["score"] < self.rerankerScoreMin:
+                if candidate["score"] <= scoreCutoff:
                     break
 
                 tokenCount = self._utilTokenEstimate(f"{candidate['source']} {candidate['target']} {candidate['description']}")
@@ -1917,7 +1987,10 @@ class Engine:
             if len(entityList) > 0:
                 entityEmbeddingList = self._embedding("query", entityList)
 
-            seedObject, seedList, entityFileIdList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingList)
+            noiseNodeTextList = self._logicNoiseNode(database, mcpSessionId)
+            noiseEdgeTextList = self._logicNoiseEdge(database, mcpSessionId)
+
+            seedObject, seedList, entityFileIdList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingList, noiseNodeTextList)
 
             citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptSearch, promptVector, entityList, entityFileIdList, seedList)
 
@@ -1965,7 +2038,7 @@ class Engine:
             isInDomain = isCitationSemantic or len(seedList) > 0
 
             if isInDomain:
-                graphCandidateList = self._searchTheme(database, mcpSessionId, themeList, seedObject, seedList, citationFileIdList)
+                graphCandidateList = self._searchTheme(database, mcpSessionId, themeList, seedObject, seedList, citationFileIdList, noiseEdgeTextList)
 
                 if len(seedList) > 0:
                     seedSlice = seedList[0:self.embeddinggemmaSeedLimit]
@@ -1974,7 +2047,7 @@ class Engine:
                     for a in range(len(traverseList)):
                         graphCandidateList.append(traverseList[a])
 
-                graphList = self._searchGraph(database, mcpSessionId, graphCandidateList, promptSearch, promptVector)
+                graphList = self._searchGraph(database, mcpSessionId, graphCandidateList, promptSearch, promptVector, noiseEdgeTextList)
 
                 result = {
                     "citationList": citationList,
@@ -2016,7 +2089,6 @@ class Engine:
 
         self.embeddinggemmaTokenMax = 2048
         self.embeddinggemmaDistanceMaxCitation = 1.24
-        self.embeddinggemmaDistanceMaxNode = 1.24
         self.embeddinggemmaVectorDimension = 768
         self.embeddinggemmaVectorMatchLimit = 8
         self.embeddinggemmaGraphLimitPerSeed = 32
@@ -2043,8 +2115,12 @@ class Engine:
 
         self.rerankerScoreMin = 0.0005
         self.rerankerScoreMinUngrounded = 0.004
-        self.rerankerScoreGround = 0.25
         self.rerankerScoreFileRatio = 0.175
+        self.rerankerScoreEpsilon = 0.000000001
+        self.rerankerNoiseMarginMin = 3.5
+        self.rerankerNoiseMarginGround = 10.0
+        self.rerankerNoiseLength = 8
+        self.rerankerNoiseCountMin = 4
         self.rerankerPool = 24
         self.rerankerBatchLength = 8
         self.rerankerTokenMax = 512
