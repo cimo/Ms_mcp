@@ -60,16 +60,6 @@ class Engine:
     def _utilNodeNormalize(self, text):
         return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", text).strip().lower())
 
-    def _utilMedian(self, valueList):
-        sortedList = sorted(valueList)
-
-        middle = len(sortedList) // 2
-
-        if len(sortedList) % 2 == 1:
-            return sortedList[middle]
-
-        return (sortedList[middle - 1] + sortedList[middle]) / 2.0
-
     def _utilScoreCutoff(self, scoreList, logitMargin):
         logitList = []
 
@@ -87,9 +77,16 @@ class Engine:
         if len(logitList) == 0:
             return 0.0
 
-        noiseMedian = self._utilMedian(logitList)
+        # il pavimento e' la saturazione del reranker sull'irrilevante: si stima col minimo,
+        # non con la mediana, perche' su un campione di chunk lunghi la mediana e' contaminata
+        # da testo parzialmente attinente e sovrastima il pavimento di diversi punti logit.
+        noiseFloor = logitList[0]
 
-        return float(1.0 / (1.0 + numpy.exp(-(noiseMedian + logitMargin))))
+        for a in range(len(logitList)):
+            if logitList[a] < noiseFloor:
+                noiseFloor = logitList[a]
+
+        return float(1.0 / (1.0 + numpy.exp(-(noiseFloor + logitMargin))))
 
     def _utilAnchorCheck(self, termList, text):
         result = False
@@ -902,6 +899,21 @@ class Engine:
 
         return resultList
 
+    def _logicNoiseCitation(self, database, mcpSessionId):
+        resultList = []
+
+        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag")
+
+        queryRowList = database.execute(
+            f'SELECT chunk FROM "{tableName}" ORDER BY md5(id::text) LIMIT %s',
+            (self.rerankerNoiseLengthCitation,)
+        ).fetchall()
+
+        for a in range(len(queryRowList)):
+            resultList.append(queryRowList[a][0])
+
+        return resultList
+
     def _logicNoiseEdge(self, database, mcpSessionId):
         resultList = []
 
@@ -1319,7 +1331,7 @@ class Engine:
 
             database.commit()
 
-    def _searchCitation(self, database, mcpSessionId, fileList, promptSearch, promptVector, entityList, entityFileIdList, seedList):
+    def _searchCitation(self, database, mcpSessionId, fileList, promptSearch, promptVector, entityList, entityFileIdList, seedList, noiseTextList):
         citationList = []
 
         isCitationSemantic = False
@@ -1385,7 +1397,12 @@ class Engine:
             for a in range(len(candidateList)):
                 chunkList.append(candidateList[a]["chunk"])
 
-            scoreList = self._rerank(promptSearch, chunkList)
+            scoreList = self._rerank(promptSearch, chunkList + noiseTextList)
+
+            noiseScoreList = scoreList[len(chunkList):]
+
+            scoreCutoff = self._utilScoreCutoff(noiseScoreList, self.rerankerNoiseMarginMin)
+            scoreCutoffUngrounded = self._utilScoreCutoff(noiseScoreList, self.rerankerNoiseMarginUngrounded)
 
             scoreBest = 0.0
 
@@ -1409,12 +1426,12 @@ class Engine:
                 if len(citationList) >= self.rerankerCitationLimit:
                     break
 
-                scoreMin = self.rerankerScoreMin
+                scoreMin = scoreCutoff
 
                 if len(seedList) == 0 and not self._utilAnchorCheck(anchorTermList, candidateList[a]["chunk"]):
-                    scoreMin = self.rerankerScoreMinUngrounded
+                    scoreMin = scoreCutoffUngrounded
 
-                if candidateList[a]["score"] >= scoreMin and fileScoreBestObject[candidateList[a]["fileName"]] >= scoreBest * self.rerankerScoreFileRatio:
+                if candidateList[a]["score"] > scoreMin and fileScoreBestObject[candidateList[a]["fileName"]] >= scoreBest * self.rerankerScoreFileRatio:
                     citationList.append(candidateList[a])
 
             isCitationSemantic = len(citationList) > 0
@@ -2019,10 +2036,11 @@ class Engine:
 
             noiseNodeTextList = self._logicNoiseNode(database, mcpSessionId)
             noiseEdgeTextList = self._logicNoiseEdge(database, mcpSessionId)
+            noiseCitationTextList = self._logicNoiseCitation(database, mcpSessionId)
 
             seedObject, seedList, entityFileIdList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingList, noiseNodeTextList)
 
-            citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptSearch, promptVector, entityList, entityFileIdList, seedList)
+            citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptSearch, promptVector, entityList, entityFileIdList, seedList, noiseCitationTextList)
 
             rowNumberList = []
 
@@ -2143,13 +2161,13 @@ class Engine:
         self.glinerMaxWidth = 12
         self.glinerMaxLength = 384
 
-        self.rerankerScoreMin = 0.0005
-        self.rerankerScoreMinUngrounded = 0.004
         self.rerankerScoreFileRatio = 0.175
         self.rerankerScoreEpsilon = 0.000000001
         self.rerankerNoiseMarginMin = 3.5
         self.rerankerNoiseMarginGround = 10.0
+        self.rerankerNoiseMarginUngrounded = 5.5
         self.rerankerNoiseLength = 8
+        self.rerankerNoiseLengthCitation = 16
         self.rerankerPool = 24
         self.rerankerBatchLength = 8
         self.rerankerTokenMax = 512
