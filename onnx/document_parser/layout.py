@@ -47,31 +47,8 @@ class Pdf:
             if itemList[a]["label"] == "figure_title":
                 width = itemList[a]["coordinate"][2] - itemList[a]["coordinate"][0]
 
-                if width > imageWidth * self.levelCaptionWidth:
+                if itemList[a]["score"] < self.scoreFigureTitle or width > imageWidth * self.levelCaptionWidth:
                     itemList[a]["label"] = "text"
-
-        return itemList
-
-    def _itemCaption(self, itemList, imageWidth):
-        for a in range(len(itemList)):
-            if itemList[a]["label"] == "text":
-                textCoordinate = itemList[a]["coordinate"]
-                textWidth = textCoordinate[2] - textCoordinate[0]
-                textHeight = textCoordinate[3] - textCoordinate[1]
-
-                for b in range(len(itemList)):
-                    if itemList[b]["label"] == "image":
-                        imageCoordinate = itemList[b]["coordinate"]
-                        imageBoxWidth = imageCoordinate[2] - imageCoordinate[0]
-
-                        if imageBoxWidth <= imageWidth * self.levelCaptionWidth:
-                            gap = textCoordinate[1] - imageCoordinate[3]
-                            overlap = min(textCoordinate[2], imageCoordinate[2]) - max(textCoordinate[0], imageCoordinate[0])
-
-                            if gap >= 0 and gap <= textHeight and textWidth <= imageBoxWidth * self.levelCaptionSlack and overlap > 0 and overlap / textWidth >= self.levelCaptionOverlap:
-                                itemList[a]["label"] = "figure_title"
-
-                                break
 
         return itemList
 
@@ -445,7 +422,6 @@ class Pdf:
 
         itemList = self._itemProcess(itemRawList, imageWidth, imageHeight)
         itemList = self._itemClean(itemList)
-        itemList = self._itemCaption(itemList, imageWidth)
         itemList = self._itemRelabel(itemList, imageWidth)
 
         return itemList
@@ -580,8 +556,6 @@ class Pdf:
         self.levelGapColumn = 0.01
         self.levelGapRow = 0.005
         self.levelCaptionWidth = 0.5
-        self.levelCaptionSlack = 1.1
-        self.levelCaptionOverlap = 0.8
         self.levelMarginBucket = 0.02
         self.levelMarginRange = 0.05
         self.levelContentRight = 0.95
@@ -591,6 +565,7 @@ class Pdf:
         self.levelBandRange = 0.05
 
         self.scoreThreshold = 0.3
+        self.scoreFigureTitle = 0.6
 
         self.labelObject = {
             12: "header",
