@@ -1102,8 +1102,6 @@ class Markdown:
                 self.horizontalScale = number(1) / 100
             elif operator == "TL":
                 self.leading = number(1)
-            elif operator == "Ts":
-                self.textRise = number(1)
             elif operator == "Tj" and self.currentFont is not None:
                 if len(stackList) > 0:
                     self._showText(self.currentFont, [stackList[len(stackList) - 1]])
@@ -1436,7 +1434,6 @@ class Markdown:
                 self.wordSpacing = 0
                 self.horizontalScale = 1
                 self.leading = 0
-                self.textRise = 0
                 self.fillColor = "#000000"
                 self.strokeColor = "#000000"
                 self.currentFont = None
@@ -1498,7 +1495,6 @@ class Markdown:
             self.wordSpacing = 0
             self.horizontalScale = 1
             self.leading = 0
-            self.textRise = 0
             self.fillColor = "#000000"
             self.strokeColor = "#000000"
             self.currentFont = None
@@ -2153,4 +2149,3 @@ class Engine:
 
     def __init__(self):
         self.astFileName = "ast.json"
-    

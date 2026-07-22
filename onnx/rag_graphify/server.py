@@ -68,6 +68,18 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
     def log_message(self, format, *argumentList):
         return
 
+class ServerHttp(ThreadingHTTPServer):
+    def handle_error(self, request, clientAddress):
+        errorText = str(sys.exc_info()[1])
+
+        bodyByte = json.dumps({"error": errorText}, ensure_ascii=False).encode("utf-8")
+
+        headerText = f"HTTP/1.1 500 Internal Server Error\r\nContent-Type: application/json\r\nContent-Length: {len(bodyByte)}\r\nConnection: close\r\n\r\n"
+
+        request.sendall(headerText.encode("utf-8") + bodyByte)
+
+        print(f"Error: {errorText}")
+
 urlSplit = os.environ["MS_M_URL_API_ONNX_RG"].replace("http://", "").split(":")
 host = urlSplit[0]
 port = int(urlSplit[1])
@@ -92,7 +104,7 @@ if isRunning:
         isRunning = checkSocket.connect_ex((host, port)) == 0
         checkSocket.close()
 
-serverHttp = ThreadingHTTPServer((host, port), HandlerHttpRequest)
+serverHttp = ServerHttp((host, port), HandlerHttpRequest)
 
 print(f"Onnx - rag_graphify - Ready on => {host}:{port}")
 
