@@ -1657,6 +1657,42 @@ class Markdown:
 
             return resultList
 
+        def _elementAssign(self, page, itemList, scaleX, scaleY):
+            resultList = []
+
+            for a in range(len(itemList)):
+                resultList.append([])
+
+            for a in range(len(page["elementList"])):
+                element = page["elementList"][a]
+
+                if element["type"] == "text":
+                    centerX = (element["x0"] + element["x1"]) / 2
+                    centerY = (element["y0"] + element["y1"]) / 2
+
+                    bestIndex = -1
+                    bestArea = -1
+
+                    for b in range(len(itemList)):
+                        coordinate = itemList[b]["coordinate"]
+
+                        x1 = coordinate[0] * scaleX
+                        y1 = coordinate[1] * scaleY
+                        x2 = coordinate[2] * scaleX
+                        y2 = coordinate[3] * scaleY
+
+                        if centerX >= x1 and centerX <= x2 and centerY >= y1 and centerY <= y2:
+                            area = (x2 - x1) * (y2 - y1)
+
+                            if area > bestArea:
+                                bestArea = area
+                                bestIndex = b
+
+                    if bestIndex >= 0:
+                        resultList[bestIndex].append(element)
+
+            return resultList
+
         def _itemText(self, elementList, isPlain, boxX0, referenceX1):
             result = ""
 
@@ -1737,10 +1773,12 @@ class Markdown:
                     for b in range(len(astPage["itemMainList"])):
                         referenceX1 = max(referenceX1, astPage["itemMainList"][b]["coordinate"][2] * scaleX)
 
+                    elementAssignList = self._elementAssign(page, astPage["itemMainList"], scaleX, scaleY)
+
                     for b in range(len(astPage["itemMainList"])):
                         item = astPage["itemMainList"][b]
 
-                        elementList = self._elementBoxCollect(page, item["coordinate"], scaleX, scaleY)
+                        elementList = elementAssignList[b]
 
                         if len(elementList) > 0:
                             if item["label"] == "doc_title":
