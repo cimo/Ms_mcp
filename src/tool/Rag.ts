@@ -29,12 +29,14 @@ export default class Rag {
             prompt: z
                 .union([z.string(), z.number(), z.array(z.string()), z.null()])
                 .default("")
-                .describe("The exact content to search, extracted from the user prompt: only the subject words, WITHOUT question or intent words."),
+                .describe(
+                    "The exact content to search, extracted from the user prompt: only the subject words, WITHOUT question or intent words. Words that refer to the documents or the collection being searched, rather than to the topic asked about, are intent words and MUST be excluded from the subject."
+                ),
             entity: z
                 .union([z.array(z.string()), z.string(), z.number(), z.null()])
                 .default([])
                 .describe(
-                    "Array of the key entities and topics (people, organizations, places, things, concepts) mentioned in the user prompt, WITHOUT question or intent words."
+                    "Array of the key entities and topics (people, organizations, places, things, concepts) mentioned in the user prompt, WITHOUT question or intent words and WITHOUT words that refer to the documents or the collection being searched rather than to the topic asked about."
                 ),
             theme: z
                 .union([z.array(z.string()), z.string(), z.number(), z.null()])
