@@ -24,21 +24,23 @@ fi
 
 # Onnx - document_parser
 pathModel="/home/app/onnx/document_parser/model/"
-urlModel="https://huggingface.co/cimo001/PP-DocLayout_plus-L/resolve/main/"
+urlModel="https://huggingface.co/cimo001/paddle/resolve/main/PP-DocLayout_plus-L/"
 
 mkdir -p "${pathModel}"
 
-fileList="onnx/pp-docLayout_plus-l.onnx"
+modelList=(
+    "onnx/pp-docLayout_plus-l.onnx"
+)
 
-for file in ${fileList}
+for model in "${modelList[@]}"
 do
-    fileName=$(basename "${file}")
+    fileName=$(basename "${model}")
 
     if [ ! -f "${pathModel}${fileName}" ]
     then
         echo "Download document_parser PP-DocLayout_plus-L: ${fileName}"
 
-        if ! curl -fsSL "${urlModel}${file}" -o "${pathModel}${fileName}"
+        if ! curl -fsSL "${urlModel}${model}" -o "${pathModel}${fileName}"
         then
             echo "Skip document_parser PP-DocLayout_plus-L - ${fileName}: download failed."
 
@@ -55,17 +57,24 @@ urlModel="https://huggingface.co/cimo001/embeddinggemma-300m/resolve/main/"
 
 mkdir -p "${pathModel}"
 
-fileList="onnx/model.onnx onnx/model.onnx_data tokenizer.model tokenizer_config.json special_tokens_map.json config.json"
+modelList=(
+    "onnx/model.onnx"
+    "onnx/model.onnx_data"
+    "tokenizer.model"
+    "tokenizer_config.json"
+    "special_tokens_map.json"
+    "config.json"
+)
 
-for file in ${fileList}
+for model in "${modelList[@]}"
 do
-    fileName=$(basename "${file}")
+    fileName=$(basename "${model}")
 
     if [ ! -f "${pathModel}${fileName}" ]
     then
         echo "Download rag_graphify embeddinggemma-300m: ${fileName}"
 
-        if ! curl -fsSL "${urlModel}${file}" -o "${pathModel}${fileName}"
+        if ! curl -fsSL "${urlModel}${model}" -o "${pathModel}${fileName}"
         then
             echo "Skip rag_graphify embeddinggemma-300m - ${fileName}: download failed."
 
@@ -80,17 +89,25 @@ urlModel="https://huggingface.co/cimo001/gliner_multi-v2.1/resolve/main/"
 
 mkdir -p "${pathModel}"
 
-fileList="onnx/model.onnx gliner_config.json config.json tokenizer_config.json spm.model special_tokens_map.json added_tokens.json"
+modelList=(
+    "onnx/model.onnx"
+    "gliner_config.json"
+    "config.json"
+    "tokenizer_config.json"
+    "spm.model"
+    "special_tokens_map.json"
+    "added_tokens.json"
+)
 
-for file in ${fileList}
+for model in "${modelList[@]}"
 do
-    fileName=$(basename "${file}")
+    fileName=$(basename "${model}")
 
     if [ ! -f "${pathModel}${fileName}" ]
     then
         echo "Download rag_graphify gliner_multi-v2.1: ${fileName}"
 
-        if ! curl -fsSL "${urlModel}${file}" -o "${pathModel}${fileName}"
+        if ! curl -fsSL "${urlModel}${model}" -o "${pathModel}${fileName}"
         then
             echo "Skip rag_graphify gliner_multi-v2.1 - ${fileName}: download failed."
 
@@ -105,17 +122,24 @@ urlModel="https://huggingface.co/cimo001/bge-reranker-v2-m3/resolve/main/"
 
 mkdir -p "${pathModel}"
 
-fileList="onnx/model.onnx onnx/model.onnx_data tokenizer_config.json special_tokens_map.json config.json sentencepiece.bpe.model"
+modelList=(
+    "onnx/model.onnx"
+    "onnx/model.onnx_data"
+    "tokenizer_config.json"
+    "special_tokens_map.json"
+    "config.json"
+    "sentencepiece.bpe.model"
+)
 
-for file in ${fileList}
+for model in "${modelList[@]}"
 do
-    fileName=$(basename "${file}")
+    fileName=$(basename "${model}")
 
     if [ ! -f "${pathModel}${fileName}" ]
     then
         echo "Download rag_graphify bge-reranker-v2-m3: ${fileName}"
 
-        if ! curl -fsSL "${urlModel}${file}" -o "${pathModel}${fileName}"
+        if ! curl -fsSL "${urlModel}${model}" -o "${pathModel}${fileName}"
         then
             echo "Skip rag_graphify bge-reranker-v2-m3 - ${fileName}: download failed."
 
