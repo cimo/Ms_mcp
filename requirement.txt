@@ -1,6 +1,6 @@
-psycopg2-binary==2.9.10
 numpy==2.4.3
 # rag_graphify
+psycopg2-binary==2.9.10
 pgvector==0.3.6
 sentencepiece==0.2.1
 # document_parser
