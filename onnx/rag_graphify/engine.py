@@ -986,9 +986,12 @@ class Engine:
 
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
 
+        # il canale nodi ha un pool suo: di questi candidati ne sopravvivono al massimo
+        # embeddinggemmaVectorMatchLimit, quindi tenerne quanti ne servono alle citazioni
+        # significa rerankare sequenze che vengono buttate comunque.
         queryRowList = database.execute(
             f'SELECT name, name_normalized, description, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
-            (queryVector, self.rerankerPool)
+            (queryVector, self.embeddinggemmaNodePool)
         ).fetchall()
 
         candidateList = []
@@ -2092,6 +2095,7 @@ class Engine:
         self.embeddinggemmaDistanceMaxCitation = 1.24
         self.embeddinggemmaVectorDimension = 768
         self.embeddinggemmaVectorMatchLimit = 8
+        self.embeddinggemmaNodePool = 12
         self.embeddinggemmaGraphLimitPerSeed = 32
         self.embeddinggemmaGraphTokenBudget = 2000
         self.embeddinggemmaBatchLength = 32
