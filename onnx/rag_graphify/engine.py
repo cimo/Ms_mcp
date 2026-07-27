@@ -63,9 +63,6 @@ class Engine:
     def _utilEnumerationCheck(self, text):
         result = False
 
-        # il testo fra due entita' viene ridotto ai soli caratteri di parola: se non resta
-        # nulla (solo virgole o spazi) oppure resta solo una congiunzione, le due entita'
-        # sono membri dello stesso elenco e non esprimono nessuna relazione fra loro.
         content = re.sub(r"[^\w]+", "", unicodedata.normalize("NFKC", text).lower())
 
         if content == "":
@@ -112,10 +109,6 @@ class Engine:
     def _utilAnchorImpossibleCheck(self, termList, text):
         result = False
 
-        # l'ancora lessicale e' un segnale di script: se i termini sono tutti wide e il testo
-        # non ha nessun carattere wide, non potra' mai scattare per quanto il chunk sia
-        # pertinente. Usarla come condizione per scartare il candidato oltre il ceiling
-        # eliminerebbe proprio i match cross-lingua, che sono lo scopo del sistema.
         if len(termList) > 0 and self._utilWideContainCheck(text) == False:
             result = True
 
@@ -201,12 +194,6 @@ class Engine:
 
             sentenceEntityList.sort(key=lambda entity: entity["start"])
 
-            # si collegano solo entita' adiacenti, non tutte le coppie: dato che la description
-            # e' comunque la frase intera, la clique non aggiungeva nessuna informazione e
-            # generava n^2/2 archi per frase. I membri di un elenco vengono accumulati in
-            # pendingList e collegati tutti insieme alla prima entita' che li segue fuori
-            # dall'elenco, cosi' "Visconti, Gonzaga e Estensi governarono Milano" produce
-            # tre archi verso Milano e nessuno fra i tre casati.
             pendingList = []
 
             if len(sentenceEntityList) > 0:
@@ -521,10 +508,6 @@ class Engine:
     def _chunkCitation(self, text):
         resultList = []
 
-        # i chunk delle citazioni non ereditano i vincoli della NER: nessuna url rimossa e
-        # nessun minimo di token, perche' togliere testo dall'indice delle citazioni rende
-        # quel contenuto non citabile per sempre. La lunghezza resta quella tarata, si
-        # aggiunge solo un overlap in coda per non spezzare una risposta a cavallo di due chunk.
         partList = self._chunkPartBuild(text, self.embeddinggemmaChunkTokenLength)
 
         currentList = []
@@ -700,10 +683,6 @@ class Engine:
                 "idList": [self.rerankerBosId] + promptIdList + [self.rerankerEosId, self.rerankerEosId] + textIdList + [self.rerankerEosId]
             })
 
-        # ogni batch viene riempito fino alla sequenza piu' lunga che contiene, quindi mescolare
-        # testi corti e lunghi fa calcolare padding inutile: misurato dal 22 al 48% dei token.
-        # Raggruppando per lunghezza il risultato e' identico (il padding e' comunque mascherato),
-        # cambia solo il lavoro sprecato. L'ordine di partenza torna dagli indici.
         entryList.sort(key=lambda entry: len(entry["idList"]))
 
         for a in range(0, len(entryList), self.rerankerBatchLength):
@@ -736,8 +715,6 @@ class Engine:
 
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_file")
 
-        # solo un ingest completato conta come presente: una riga con status vuoto e' il
-        # residuo di uno store interrotto a meta' e va reindicizzata.
         queryRow = database.execute(f'SELECT id FROM "{name}" WHERE name = %s AND status = %s', (fileName, "ok")).fetchone()
 
         if queryRow is not None:
@@ -965,8 +942,6 @@ class Engine:
 
             placeholder = ",".join("%s" for a in range(len(nameNormalizedList)))
 
-            # il grado conta i vicini distinti, non le righe: con COUNT(*) un nodo ripetuto in
-            # molte frasi risultava piu' connesso di uno con piu' vicini reali.
             queryList = database.execute(
                 f'SELECT name_normalized, COUNT(DISTINCT other) AS degree FROM ('
                 f'  SELECT source_normalized AS name_normalized, target_normalized AS other FROM "{tableName}"'
@@ -986,9 +961,6 @@ class Engine:
 
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
 
-        # il canale nodi ha un pool suo: di questi candidati ne sopravvivono al massimo
-        # embeddinggemmaVectorMatchLimit, quindi tenerne quanti ne servono alle citazioni
-        # significa rerankare sequenze che vengono buttate comunque.
         queryRowList = database.execute(
             f'SELECT name, name_normalized, description, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
             (queryVector, self.embeddinggemmaNodePool)
@@ -1067,9 +1039,6 @@ class Engine:
 
             parameterList.append(limit)
 
-            # il DISTINCT ON tiene, per ogni coppia, la menzione piu' vicina alla query invece
-            # della prima in ordine di id, e il LIMIT esterno taglia per rilevanza invece che
-            # in ordine alfabetico di source_normalized.
             queryList = database.execute(
                 f'SELECT edge_id, source, target, description, source_normalized, target_normalized, distance FROM ('
                 f'  SELECT DISTINCT ON (edge.source_normalized, edge.target_normalized) '
@@ -1318,12 +1287,6 @@ class Engine:
 
         isCitationSemantic = False
 
-        # due ancore distinte: il ceiling ammette i candidati ed e' generoso, quindi tiene anche
-        # i termini di prompt; il floor decide se la citazione esce e usa SOLO le entita'.
-        # Una parola generica di prompt ('recipe', 'document') altrimenti abbassa la soglia da
-        # 0.004 a 0.0005 e fa passare un chunk soltanto attinente per argomento: misurato, e'
-        # 'recipes' nel chunk sulla cucina giapponese che matchava 'recipe' della domanda
-        # sulla carbonara (il regex \b<term> matcha il prefisso).
         anchorEntityList = []
 
         for a in range(len(entityList)):
@@ -1518,8 +1481,6 @@ class Engine:
                 if candidate["score"] <= self.rerankerScoreMin:
                     break
 
-                # piu' archi della stessa frase portano la stessa description: emetterla una
-                # volta sola evita di consumare il budget con testo gia' presente nel contesto.
                 if descriptionSeenObject.get(candidate["description"]) is not None:
                     continue
 
@@ -1815,10 +1776,6 @@ class Engine:
 
                 nodeList.append({"id": nameNormalized, "label": nodeRowList[a][1], "color": colorObject.get(nodeRowList[a][2], "#888888"), "title": nodeRowList[a][3], "file": fileNameObject.get(nodeRowList[a][4], "-")})
 
-            # gli archi vengono aggregati sulla coppia non orientata: la direzione source/target
-            # dipende solo dall'ordine in cui le due entita' compaiono nel testo, quindi
-            # disegnarla come freccia e' fuorviante e le due direzioni si sovrapponevano.
-            # Il conteggio delle menzioni diventa lo spessore dell'arco.
             edgeRowList = database.execute(
                 f'SELECT least(source_normalized, target_normalized) AS node_a, greatest(source_normalized, target_normalized) AS node_b, '
                 f'COUNT(*) AS weight, (array_agg(description ORDER BY length(description) DESC))[1] AS description '
@@ -1875,8 +1832,6 @@ class Engine:
         if fileIdStored > 0:
             result = "ok"
         else:
-            # la riga eventualmente presente e' il residuo di uno store interrotto: va rimossa
-            # con tutto il contenuto parziale prima di reindicizzare.
             self._tableDelete(database, mcpSessionId, fileName)
 
             fileId = self._tableFileInsert(database, mcpSessionId, fileName)
@@ -2029,9 +1984,6 @@ class Engine:
                 if fileId > 0 and fileId not in citationFileIdList:
                     citationFileIdList.append(fileId)
 
-            # una lista di file vuota significa "nessun filtro": senza citazioni il filtro
-            # restava vuoto e nodi e grafo uscivano da tutti i file, senza nessuna citazione
-            # a fare da ancora. Con i seed disponibili si usano i loro file.
             graphFileIdList = citationFileIdList
 
             if len(graphFileIdList) == 0:
@@ -2121,10 +2073,6 @@ class Engine:
         self.glinerMaxLength = 384
 
         self.rerankerScoreFileRatio = 0.175
-        # bge-reranker-v2-m3 satura l'irrilevante a logit ~ -11.04, misurato costante su
-        # it/en/ja e su temi diversi: le soglie sono quindi sigmoid(-11.04 + margine) e
-        # stimarle a runtime con un pool di rumore costava il 28% del budget di rerank.
-        # Da ricalibrare se si cambia il modello di reranking.
         self.rerankerScoreMin = 0.0005
         self.rerankerScoreMinUngrounded = 0.004
         self.rerankerScoreGround = 0.25
