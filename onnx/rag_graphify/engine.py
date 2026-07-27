@@ -997,7 +997,7 @@ class Engine:
                     if len(resultList) >= self.embeddinggemmaVectorMatchLimit:
                         break
 
-                    if candidateList[a]["score"] > self.rerankerScoreMin:
+                    if candidateList[a]["score"] > self.rerankerScoreMin and candidateList[a]["score"] >= scoreBest * self.rerankerScoreSeedRatio:
                         resultList.append(candidateList[a])
 
         return resultList
@@ -2101,6 +2101,7 @@ class Engine:
         self.rerankerScoreMinUngrounded = 0.004
         self.rerankerScoreGround = 0.25
         self.rerankerFusionWeight = 60
+        self.rerankerScoreSeedRatio = 0.175
         self.rerankerPool = 24
         self.rerankerBatchLength = 8
         self.rerankerTokenMax = 512
