@@ -1372,19 +1372,43 @@ class Engine:
                 if fileScoreBestObject.get(fileName) is None or candidateList[a]["score"] > fileScoreBestObject[fileName]:
                     fileScoreBestObject[fileName] = candidateList[a]["score"]
 
-            candidateList.sort(key=lambda candidate: candidate["score"], reverse=True)
+            rankDistanceList = list(candidateList)
+            rankDistanceList.sort(key=lambda candidate: candidate["distance"])
+
+            for a in range(len(rankDistanceList)):
+                rankDistanceList[a]["rankDistance"] = a + 1
+
+            rankScoreList = list(candidateList)
+            rankScoreList.sort(key=lambda candidate: candidate["score"], reverse=True)
+
+            for a in range(len(rankScoreList)):
+                rankScoreList[a]["rankScore"] = a + 1
 
             for a in range(len(candidateList)):
-                if len(citationList) >= self.rerankerCitationLimit:
-                    break
+                candidateList[a]["fusion"] = 1.0 / (self.rerankerFusionWeight + candidateList[a]["rankDistance"]) + 1.0 / (self.rerankerFusionWeight + candidateList[a]["rankScore"])
 
+            isInDomain = False
+
+            for a in range(len(candidateList)):
                 scoreMin = self.rerankerScoreMin
 
                 if len(seedList) == 0 and not self._utilAnchorCheck(anchorEntityList, candidateList[a]["chunk"]):
                     scoreMin = self.rerankerScoreMinUngrounded
 
                 if candidateList[a]["score"] > scoreMin and fileScoreBestObject[candidateList[a]["fileName"]] >= scoreBest * self.rerankerScoreFileRatio:
-                    citationList.append(candidateList[a])
+                    isInDomain = True
+
+                    break
+
+            if isInDomain:
+                candidateList.sort(key=lambda candidate: candidate["fusion"], reverse=True)
+
+                for a in range(len(candidateList)):
+                    if len(citationList) >= self.rerankerCitationLimit:
+                        break
+
+                    if fileScoreBestObject[candidateList[a]["fileName"]] >= scoreBest * self.rerankerScoreFileRatio:
+                        citationList.append(candidateList[a])
 
             isCitationSemantic = len(citationList) > 0
 
@@ -2076,6 +2100,7 @@ class Engine:
         self.rerankerScoreMin = 0.0005
         self.rerankerScoreMinUngrounded = 0.004
         self.rerankerScoreGround = 0.25
+        self.rerankerFusionWeight = 60
         self.rerankerPool = 24
         self.rerankerBatchLength = 8
         self.rerankerTokenMax = 512
