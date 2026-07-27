@@ -30,19 +30,13 @@ export default class Rag {
                 .union([z.string(), z.number(), z.array(z.string()), z.null()])
                 .default("")
                 .describe(
-                    "The exact content to search, extracted from the user prompt: only the subject words, WITHOUT question or intent words. Words that refer to the documents or the collection being searched, rather than to the topic asked about, are intent words and MUST be excluded from the subject."
+                    "The exact content to search, extracted from the user prompt: only the subject words, WITHOUT question or intent words. Words that refer to the documents or the collection being searched, rather than to the topic asked about, are intent words and MUST be excluded from the subject. Whatever remains after removing them IS the subject and MUST be the value exactly as written, even when it is a single word, unfamiliar or apparently meaningless: NEVER use an intent word as the value because the remaining subject looks empty or unknown to you."
                 ),
             entity: z
                 .union([z.array(z.string()), z.string(), z.number(), z.null()])
                 .default([])
                 .describe(
-                    "Array of the key entities and topics (people, organizations, places, things, concepts) mentioned in the user prompt, WITHOUT question or intent words and WITHOUT words that refer to the documents or the collection being searched rather than to the topic asked about."
-                ),
-            theme: z
-                .union([z.array(z.string()), z.string(), z.number(), z.null()])
-                .default([])
-                .describe(
-                    "Array of the high level concepts or relations the question is about (what links the entities). Use specific concept phrases of two or more words, avoid single generic words like 'life' or 'activities'."
+                    "Array of the key entities and topics (people, organizations, places, things, concepts) mentioned in the user prompt, WITHOUT question or intent words and WITHOUT words that refer to the documents or the collection being searched rather than to the topic asked about. Whatever remains after removing them MUST appear in the array exactly as written, even when it is a single word, unfamiliar or apparently meaningless: return an empty array ONLY when the prompt names no subject at all."
                 ),
             row: z
                 .union([z.array(z.number()), z.array(z.string()), z.number(), z.string(), z.null()])
@@ -101,8 +95,7 @@ export default class Rag {
                 "You MUST build the json schema using ONLY the following parameters:",
                 `Parameter 1 - prompt: ${this.inputSchemaSearch.shape.prompt.description}`,
                 `Parameter 2 - entity: ${this.inputSchemaSearch.shape.entity.description}`,
-                `Parameter 3 - theme: ${this.inputSchemaSearch.shape.theme.description}`,
-                `Parameter 4 - row: ${this.inputSchemaSearch.shape.row.description}`
+                `Parameter 3 - row: ${this.inputSchemaSearch.shape.row.description}`
             ].join("\n"),
             inputSchema: this.inputSchemaSearch
         };
@@ -118,7 +111,6 @@ export default class Rag {
                         extra.sessionId,
                         helperSrc.zodText(argument.prompt),
                         helperSrc.zodTextList(argument.entity),
-                        helperSrc.zodTextList(argument.theme),
                         helperSrc.zodNumberList(argument.row)
                     );
                     result = JSON.stringify({ name, result: JSON.parse(resultSearch) });

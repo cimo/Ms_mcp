@@ -60,33 +60,24 @@ class Engine:
     def _utilNodeNormalize(self, text):
         return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", text).strip().lower())
 
-    def _utilScoreCutoff(self, scoreList, logitMargin):
-        logitList = []
+    def _utilEnumerationCheck(self, text):
+        result = False
 
-        for a in range(len(scoreList)):
-            score = scoreList[a]
+        # il testo fra due entita' viene ridotto ai soli caratteri di parola: se non resta
+        # nulla (solo virgole o spazi) oppure resta solo una congiunzione, le due entita'
+        # sono membri dello stesso elenco e non esprimono nessuna relazione fra loro.
+        content = re.sub(r"[^\w]+", "", unicodedata.normalize("NFKC", text).lower())
 
-            if score < self.rerankerScoreEpsilon:
-                score = self.rerankerScoreEpsilon
+        if content == "":
+            result = True
+        else:
+            for a in range(len(self.glinerSeparatorList)):
+                if content == self.glinerSeparatorList[a]:
+                    result = True
 
-            if score > 1.0 - self.rerankerScoreEpsilon:
-                score = 1.0 - self.rerankerScoreEpsilon
+                    break
 
-            logitList.append(float(numpy.log(score / (1.0 - score))))
-
-        if len(logitList) == 0:
-            return 0.0
-
-        # il pavimento e' la saturazione del reranker sull'irrilevante: si stima col minimo,
-        # non con la mediana, perche' su un campione di chunk lunghi la mediana e' contaminata
-        # da testo parzialmente attinente e sovrastima il pavimento di diversi punti logit.
-        noiseFloor = logitList[0]
-
-        for a in range(len(logitList)):
-            if logitList[a] < noiseFloor:
-                noiseFloor = logitList[a]
-
-        return float(1.0 / (1.0 + numpy.exp(-(noiseFloor + logitMargin))))
+        return result
 
     def _utilAnchorCheck(self, termList, text):
         result = False
@@ -113,6 +104,24 @@ class Engine:
 
                 if isMatch:
                     result = True
+
+                    break
+
+        return result
+
+    def _utilAnchorImpossibleCheck(self, termList, text):
+        result = False
+
+        # l'ancora lessicale e' un segnale di script: se i termini sono tutti wide e il testo
+        # non ha nessun carattere wide, non potra' mai scattare per quanto il chunk sia
+        # pertinente. Usarla come condizione per scartare il candidato oltre il ceiling
+        # eliminerebbe proprio i match cross-lingua, che sono lo scopo del sistema.
+        if len(termList) > 0 and self._utilWideContainCheck(text) == False:
+            result = True
+
+            for a in range(len(termList)):
+                if self._utilWideContainCheck(termList[a]) == False:
+                    result = False
 
                     break
 
@@ -174,7 +183,7 @@ class Engine:
 
         return embedding.tolist()
 
-    def _relation(self, entityValidList, sentenceList):
+    def _relation(self, text, entityValidList, sentenceList):
         resultList = []
 
         seenObject = {}
@@ -192,19 +201,37 @@ class Engine:
 
             sentenceEntityList.sort(key=lambda entity: entity["start"])
 
-            for b in range(len(sentenceEntityList)):
-                source = sentenceEntityList[b]
+            # si collegano solo entita' adiacenti, non tutte le coppie: dato che la description
+            # e' comunque la frase intera, la clique non aggiungeva nessuna informazione e
+            # generava n^2/2 archi per frase. I membri di un elenco vengono accumulati in
+            # pendingList e collegati tutti insieme alla prima entita' che li segue fuori
+            # dall'elenco, cosi' "Visconti, Gonzaga e Estensi governarono Milano" produce
+            # tre archi verso Milano e nessuno fra i tre casati.
+            pendingList = []
 
-                for c in range(b + 1, len(sentenceEntityList)):
-                    target = sentenceEntityList[c]
+            if len(sentenceEntityList) > 0:
+                pendingList.append(sentenceEntityList[0])
 
-                    gap = target["start"] - source["end"]
+            for b in range(1, len(sentenceEntityList)):
+                previous = sentenceEntityList[b - 1]
+                target = sentenceEntityList[b]
 
-                    # ordinate per start: appena una supera la finestra, tutte le successive sono piu' lontane
-                    if gap > self.glinerRelationGapMax:
-                        break
+                gap = target["start"] - previous["end"]
 
-                    if gap < 0 or source["nameNormalized"] == target["nameNormalized"]:
+                if gap < 0 or gap > self.glinerRelationGapMax:
+                    pendingList = [target]
+
+                    continue
+
+                if self._utilEnumerationCheck(text[previous["end"]:target["start"]]):
+                    pendingList.append(target)
+
+                    continue
+
+                for c in range(len(pendingList)):
+                    source = pendingList[c]
+
+                    if source["nameNormalized"] == target["nameNormalized"]:
                         continue
 
                     key = source["nameNormalized"] + "|" + target["nameNormalized"]
@@ -217,6 +244,8 @@ class Engine:
                             "target": target["text"].strip(),
                             "description": sentence["text"]
                         })
+
+                pendingList = [target]
 
         return resultList
 
@@ -456,7 +485,7 @@ class Engine:
 
         return resultList
 
-    def _chunkPartBuild(self, text):
+    def _chunkPartBuild(self, text, tokenLength):
         resultList = []
 
         sentenceList = self._sentenceSplit(text)
@@ -464,15 +493,70 @@ class Engine:
         for a in range(len(sentenceList)):
             sentence = sentenceList[a]["text"]
 
-            if self._utilTokenEstimate(sentence) <= self.glinerChunkTokenLength:
+            if self._utilTokenEstimate(sentence) <= tokenLength:
                 resultList.append(sentence)
             else:
                 for word in sentence.split():
-                    if self._utilTokenEstimate(word) <= self.glinerChunkTokenLength:
+                    if self._utilTokenEstimate(word) <= tokenLength:
                         resultList.append(word)
                     else:
-                        for b in range(0, len(word), self.glinerChunkTokenLength):
-                            resultList.append(word[b:b + self.glinerChunkTokenLength])
+                        for b in range(0, len(word), tokenLength):
+                            resultList.append(word[b:b + tokenLength])
+
+        return resultList
+
+    def _chunkJoin(self, partList):
+        result = ""
+
+        for a in range(len(partList)):
+            if result == "":
+                result = partList[a]
+            else:
+                separator = "" if self._utilWideCheck(result[-1:]) and self._utilWideCheck(partList[a][0:1]) else " "
+
+                result = f"{result}{separator}{partList[a]}"
+
+        return re.sub(r"\s+", " ", result).strip()
+
+    def _chunkCitation(self, text):
+        resultList = []
+
+        # i chunk delle citazioni non ereditano i vincoli della NER: nessuna url rimossa e
+        # nessun minimo di token, perche' togliere testo dall'indice delle citazioni rende
+        # quel contenuto non citabile per sempre. La lunghezza resta quella tarata, si
+        # aggiunge solo un overlap in coda per non spezzare una risposta a cavallo di due chunk.
+        partList = self._chunkPartBuild(text, self.embeddinggemmaChunkTokenLength)
+
+        currentList = []
+        currentToken = 0
+
+        for a in range(len(partList)):
+            part = partList[a]
+            partToken = self._utilTokenEstimate(part)
+
+            if len(currentList) > 0 and currentToken + partToken + 1 > self.embeddinggemmaChunkTokenLength:
+                resultList.append(self._chunkJoin(currentList))
+
+                overlapList = []
+                overlapToken = 0
+
+                for b in range(len(currentList) - 1, -1, -1):
+                    overlapPartToken = self._utilTokenEstimate(currentList[b])
+
+                    if overlapToken + overlapPartToken > self.embeddinggemmaChunkTokenOverlap:
+                        break
+
+                    overlapList.insert(0, currentList[b])
+                    overlapToken += overlapPartToken
+
+                currentList = overlapList
+                currentToken = overlapToken
+
+            currentList.append(part)
+            currentToken += partToken + 1
+
+        if len(currentList) > 0:
+            resultList.append(self._chunkJoin(currentList))
 
         return resultList
 
@@ -481,7 +565,7 @@ class Engine:
 
         chunkText = ""
 
-        partList = self._chunkPartBuild(re.sub(r"https?://\S+", "", text))
+        partList = self._chunkPartBuild(re.sub(r"https?://\S+", "", text), self.glinerChunkTokenLength)
 
         for a in range(len(partList)):
             part = partList[a]
@@ -593,45 +677,57 @@ class Engine:
     def _rerank(self, prompt, textList):
         scoreList = []
 
+        for a in range(len(textList)):
+            scoreList.append(0.0)
+
         promptIdList = self._rerankTokenize(prompt)
 
         if len(promptIdList) > self.rerankerPromptTokenMax:
             promptIdList = promptIdList[0:self.rerankerPromptTokenMax]
 
-        for a in range(0, len(textList), self.rerankerBatchLength):
-            batchList = textList[a:a + self.rerankerBatchLength]
+        lengthText = self.rerankerTokenMax - len(promptIdList) - 4
 
-            sequenceList = []
+        entryList = []
+
+        for a in range(len(textList)):
+            textIdList = self._rerankTokenize(textList[a])
+
+            if len(textIdList) > lengthText:
+                textIdList = textIdList[0:lengthText]
+
+            entryList.append({
+                "index": a,
+                "idList": [self.rerankerBosId] + promptIdList + [self.rerankerEosId, self.rerankerEosId] + textIdList + [self.rerankerEosId]
+            })
+
+        # ogni batch viene riempito fino alla sequenza piu' lunga che contiene, quindi mescolare
+        # testi corti e lunghi fa calcolare padding inutile: misurato dal 22 al 48% dei token.
+        # Raggruppando per lunghezza il risultato e' identico (il padding e' comunque mascherato),
+        # cambia solo il lavoro sprecato. L'ordine di partenza torna dagli indici.
+        entryList.sort(key=lambda entry: len(entry["idList"]))
+
+        for a in range(0, len(entryList), self.rerankerBatchLength):
+            batchList = entryList[a:a + self.rerankerBatchLength]
+
             lengthMax = 0
 
             for b in range(len(batchList)):
-                textIdList = self._rerankTokenize(batchList[b])
+                if len(batchList[b]["idList"]) > lengthMax:
+                    lengthMax = len(batchList[b]["idList"])
 
-                lengthText = self.rerankerTokenMax - len(promptIdList) - 4
+            inputIds = numpy.full((len(batchList), lengthMax), self.rerankerPadId, dtype=numpy.int64)
+            attentionMask = numpy.zeros((len(batchList), lengthMax), dtype=numpy.int64)
 
-                if len(textIdList) > lengthText:
-                    textIdList = textIdList[0:lengthText]
-
-                idList = [self.rerankerBosId] + promptIdList + [self.rerankerEosId, self.rerankerEosId] + textIdList + [self.rerankerEosId]
-
-                if len(idList) > lengthMax:
-                    lengthMax = len(idList)
-
-                sequenceList.append(idList)
-
-            inputIds = numpy.full((len(sequenceList), lengthMax), self.rerankerPadId, dtype=numpy.int64)
-            attentionMask = numpy.zeros((len(sequenceList), lengthMax), dtype=numpy.int64)
-
-            for b in range(len(sequenceList)):
-                inputIds[b, 0:len(sequenceList[b])] = sequenceList[b]
-                attentionMask[b, 0:len(sequenceList[b])] = 1
+            for b in range(len(batchList)):
+                inputIds[b, 0:len(batchList[b]["idList"])] = batchList[b]["idList"]
+                attentionMask[b, 0:len(batchList[b]["idList"])] = 1
 
             feedObject = {"input_ids": inputIds, "attention_mask": attentionMask}
 
             logits = self.onnxSessionReranker.run(["logits"], feedObject)[0]
 
             for b in range(len(logits)):
-                scoreList.append(float(1.0 / (1.0 + numpy.exp(-logits[b][0]))))
+                scoreList[batchList[b]["index"]] = float(1.0 / (1.0 + numpy.exp(-logits[b][0])))
 
         return scoreList
 
@@ -640,7 +736,9 @@ class Engine:
 
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_file")
 
-        queryRow = database.execute(f'SELECT id FROM "{name}" WHERE name = %s', (fileName,)).fetchone()
+        # solo un ingest completato conta come presente: una riga con status vuoto e' il
+        # residuo di uno store interrotto a meta' e va reindicizzata.
+        queryRow = database.execute(f'SELECT id FROM "{name}" WHERE name = %s AND status = %s', (fileName, "ok")).fetchone()
 
         if queryRow is not None:
             result = queryRow[0]
@@ -867,69 +965,23 @@ class Engine:
 
             placeholder = ",".join("%s" for a in range(len(nameNormalizedList)))
 
-            for column in ["source_normalized", "target_normalized"]:
-                queryList = database.execute(
-                    f'SELECT {column}, COUNT(*) AS degree FROM "{tableName}" WHERE {column} IN ({placeholder}) GROUP BY {column}',
-                    tuple(nameNormalizedList)
-                ).fetchall()
+            # il grado conta i vicini distinti, non le righe: con COUNT(*) un nodo ripetuto in
+            # molte frasi risultava piu' connesso di uno con piu' vicini reali.
+            queryList = database.execute(
+                f'SELECT name_normalized, COUNT(DISTINCT other) AS degree FROM ('
+                f'  SELECT source_normalized AS name_normalized, target_normalized AS other FROM "{tableName}"'
+                f'  UNION ALL'
+                f'  SELECT target_normalized AS name_normalized, source_normalized AS other FROM "{tableName}"'
+                f') edge WHERE name_normalized IN ({placeholder}) GROUP BY name_normalized',
+                tuple(nameNormalizedList)
+            ).fetchall()
 
-                for a in range(len(queryList)):
-                    if resultObject.get(queryList[a][0]) is None:
-                        resultObject[queryList[a][0]] = 0
-
-                    resultObject[queryList[a][0]] += queryList[a][1]
+            for a in range(len(queryList)):
+                resultObject[queryList[a][0]] = queryList[a][1]
 
         return resultObject
 
-    def _logicNoiseNode(self, database, mcpSessionId):
-        resultList = []
-
-        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
-
-        queryRowList = database.execute(
-            f'SELECT name, description FROM "{tableName}" ORDER BY md5(id::text) LIMIT %s',
-            (self.rerankerNoiseLength,)
-        ).fetchall()
-
-        for a in range(len(queryRowList)):
-            if queryRowList[a][1] == "":
-                resultList.append(queryRowList[a][0])
-            else:
-                resultList.append(f"{queryRowList[a][0]}: {queryRowList[a][1]}")
-
-        return resultList
-
-    def _logicNoiseCitation(self, database, mcpSessionId):
-        resultList = []
-
-        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag")
-
-        queryRowList = database.execute(
-            f'SELECT chunk FROM "{tableName}" ORDER BY md5(id::text) LIMIT %s',
-            (self.rerankerNoiseLengthCitation,)
-        ).fetchall()
-
-        for a in range(len(queryRowList)):
-            resultList.append(queryRowList[a][0])
-
-        return resultList
-
-    def _logicNoiseEdge(self, database, mcpSessionId):
-        resultList = []
-
-        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
-
-        queryRowList = database.execute(
-            f'SELECT description FROM "{tableName}" ORDER BY md5(id::text) LIMIT %s',
-            (self.rerankerNoiseLength,)
-        ).fetchall()
-
-        for a in range(len(queryRowList)):
-            resultList.append(queryRowList[a][0])
-
-        return resultList
-
-    def _logicNodeVecMatch(self, database, mcpSessionId, queryText, queryVector, noiseTextList):
+    def _logicNodeVecMatch(self, database, mcpSessionId, queryText, queryVector):
         resultList = []
 
         tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_node_vec")
@@ -953,12 +1005,7 @@ class Engine:
                 else:
                     textList.append(f"{candidateList[a]['name']}: {candidateList[a]['description']}")
 
-            scoreList = self._rerank(queryText, textList + noiseTextList)
-
-            noiseScoreList = scoreList[len(textList):]
-
-            scoreCutoff = self._utilScoreCutoff(noiseScoreList, self.rerankerNoiseMarginMin)
-            scoreGround = self._utilScoreCutoff(noiseScoreList, self.rerankerNoiseMarginGround)
+            scoreList = self._rerank(queryText, textList)
 
             scoreBest = 0.0
 
@@ -968,14 +1015,14 @@ class Engine:
                 if scoreList[a] > scoreBest:
                     scoreBest = scoreList[a]
 
-            if scoreBest > scoreGround:
+            if scoreBest > self.rerankerScoreGround:
                 candidateList.sort(key=lambda candidate: candidate["score"], reverse=True)
 
                 for a in range(len(candidateList)):
                     if len(resultList) >= self.embeddinggemmaVectorMatchLimit:
                         break
 
-                    if candidateList[a]["score"] > scoreCutoff:
+                    if candidateList[a]["score"] > self.rerankerScoreMin:
                         resultList.append(candidateList[a])
 
         return resultList
@@ -993,62 +1040,42 @@ class Engine:
 
         return resultList
 
-    def _logicEdgeSelectById(self, database, mcpSessionId, idList, fileIdList):
-        resultList = []
-
-        if len(idList) > 0:
-            tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
-
-            placeholder = ",".join("%s" for a in range(len(idList)))
-
-            parameterList = list(idList)
-
-            fileFilter = ""
-
-            if len(fileIdList) > 0:
-                placeholderFile = ",".join("%s" for a in range(len(fileIdList)))
-                fileFilter = f" AND file_id IN ({placeholderFile})"
-
-                for a in range(len(fileIdList)):
-                    parameterList.append(fileIdList[a])
-
-            queryList = database.execute(
-                f'SELECT id, source, target, description, source_normalized, target_normalized FROM "{tableName}" WHERE id IN ({placeholder}){fileFilter}',
-                tuple(parameterList)
-            ).fetchall()
-
-            for a in range(len(queryList)):
-                query = queryList[a]
-
-                resultList.append({"id": query[0], "source": query[1], "target": query[2], "description": query[3], "sourceNormalized": query[4], "targetNormalized": query[5]})
-
-        return resultList
-
-    def _logicEdgeTraverse(self, database, mcpSessionId, seedList, fileIdList):
+    def _logicEdgeTraverse(self, database, mcpSessionId, seedList, fileIdList, queryVector):
         resultList = []
 
         if len(seedList) > 0:
-            tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
+            tableNameEdge = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
+            tableNameVec = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
 
             limit = len(seedList) * self.embeddinggemmaGraphLimitPerSeed
 
             placeholder = ",".join("%s" for a in range(len(seedList)))
 
-            parameterList = list(seedList) + list(seedList)
+            parameterList = [queryVector] + list(seedList) + list(seedList)
 
             fileFilter = ""
 
             if len(fileIdList) > 0:
                 placeholderFile = ",".join("%s" for a in range(len(fileIdList)))
-                fileFilter = f" AND file_id IN ({placeholderFile})"
+                fileFilter = f" AND edge.file_id IN ({placeholderFile})"
 
                 for a in range(len(fileIdList)):
                     parameterList.append(fileIdList[a])
 
+            parameterList.append(limit)
+
+            # il DISTINCT ON tiene, per ogni coppia, la menzione piu' vicina alla query invece
+            # della prima in ordine di id, e il LIMIT esterno taglia per rilevanza invece che
+            # in ordine alfabetico di source_normalized.
             queryList = database.execute(
-                f'SELECT DISTINCT ON (source_normalized, target_normalized) id, source, target, description, source_normalized, target_normalized FROM "{tableName}" '
-                f'WHERE (source_normalized IN ({placeholder}) OR target_normalized IN ({placeholder})){fileFilter} '
-                f'ORDER BY source_normalized, target_normalized, id LIMIT {limit}',
+                f'SELECT edge_id, source, target, description, source_normalized, target_normalized, distance FROM ('
+                f'  SELECT DISTINCT ON (edge.source_normalized, edge.target_normalized) '
+                f'    edge.id AS edge_id, edge.source, edge.target, edge.description, edge.source_normalized, edge.target_normalized, '
+                f'    vec.embedding <-> %s AS distance '
+                f'  FROM "{tableNameEdge}" edge JOIN "{tableNameVec}" vec ON vec.edge_id = edge.id '
+                f'  WHERE (edge.source_normalized IN ({placeholder}) OR edge.target_normalized IN ({placeholder})){fileFilter} '
+                f'  ORDER BY edge.source_normalized, edge.target_normalized, distance'
+                f') traverse ORDER BY distance LIMIT %s',
                 tuple(parameterList)
             ).fetchall()
 
@@ -1062,71 +1089,17 @@ class Engine:
                     "edgeId": query[0],
                     "sourceNormalized": query[4],
                     "targetNormalized": query[5],
-                    "relevance": 0,
+                    "relevance": float(query[6]),
                     "rank": 0
                 })
 
         return resultList
 
-    def _logicEdgeVecMatch(self, database, mcpSessionId, queryText, queryVector, noiseTextList):
-        resultList = []
-
-        tableNameVec = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
-        tableNameEdge = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge")
-
-        queryRowList = database.execute(
-            f'SELECT vec.edge_id, edge.description, vec.embedding <-> %s AS distance FROM "{tableNameVec}" vec JOIN "{tableNameEdge}" edge ON edge.id = vec.edge_id ORDER BY distance LIMIT %s',
-            (queryVector, self.rerankerPool)
-        ).fetchall()
-
-        candidateList = []
-
-        for a in range(len(queryRowList)):
-            candidateList.append({"edgeId": queryRowList[a][0], "description": queryRowList[a][1], "distance": float(queryRowList[a][2])})
-
-        if len(candidateList) > 0:
-            textList = []
-
-            for a in range(len(candidateList)):
-                textList.append(candidateList[a]["description"])
-
-            scoreList = self._rerank(queryText, textList + noiseTextList)
-
-            scoreCutoff = self._utilScoreCutoff(scoreList[len(textList):], self.rerankerNoiseMarginMin)
-
-            for a in range(len(candidateList)):
-                candidateList[a]["score"] = scoreList[a]
-
-            candidateList.sort(key=lambda candidate: candidate["score"], reverse=True)
-
-            for a in range(len(candidateList)):
-                if len(resultList) >= self.embeddinggemmaVectorMatchLimit:
-                    break
-
-                if candidateList[a]["score"] > scoreCutoff:
-                    resultList.append(candidateList[a]["edgeId"])
-
-        return resultList
-
-    def _logicEdgeRelevance(self, database, mcpSessionId, queryVector):
-        resultObject = {}
-
-        tableName = self._utilReplaceTableName(f"{mcpSessionId}_rag_edge_vec")
-
-        queryRowList = database.execute(
-            f'SELECT edge_id, embedding <-> %s AS distance FROM "{tableName}" ORDER BY distance LIMIT %s',
-            (queryVector, self.embeddinggemmaCandidatePool)
-        ).fetchall()
-
-        for a in range(len(queryRowList)):
-            resultObject[queryRowList[a][0]] = float(queryRowList[a][1])
-
-        return resultObject
-
     def _tableFileCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag_file")
 
-        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE)')
+        database.execute(f'CREATE TABLE IF NOT EXISTS "{name}" (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT \'\')')
+        database.execute(f'ALTER TABLE "{name}" ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT \'\'')
 
     def _tableFileInsert(self, database, mcpSessionId, fileName):
         result = 0
@@ -1139,6 +1112,12 @@ class Engine:
             result = queryRow[0]
 
         return result
+
+    def _tableFileComplete(self, database, mcpSessionId, fileId):
+        name = self._utilReplaceTableName(f"{mcpSessionId}_rag_file")
+
+        if fileId > 0:
+            database.execute(f'UPDATE "{name}" SET status = %s WHERE id = %s', ("ok", fileId))
 
     def _tableCitationCreate(self, database, mcpSessionId):
         name = self._utilReplaceTableName(f"{mcpSessionId}_rag")
@@ -1276,7 +1255,7 @@ class Engine:
             entityValidList = self._entityValid(entityPredictList)
 
             entityList = self._entity(entityValidList, sentenceList)
-            relationList = self._relation(entityValidList, sentenceList)
+            relationList = self._relation(chunkList[a], entityValidList, sentenceList)
 
             for b in range(len(entityList)):
                 entity = entityList[b]
@@ -1331,15 +1310,23 @@ class Engine:
 
             database.commit()
 
-    def _searchCitation(self, database, mcpSessionId, fileList, promptSearch, promptVector, entityList, entityFileIdList, seedList, noiseTextList):
+    def _searchCitation(self, database, mcpSessionId, fileList, promptSearch, promptVector, entityList, entityFileIdList, seedList):
         citationList = []
 
         isCitationSemantic = False
 
-        anchorTermList = []
+        # due ancore distinte: il ceiling ammette i candidati ed e' generoso, quindi tiene anche
+        # i termini di prompt; il floor decide se la citazione esce e usa SOLO le entita'.
+        # Una parola generica di prompt ('recipe', 'document') altrimenti abbassa la soglia da
+        # 0.004 a 0.0005 e fa passare un chunk soltanto attinente per argomento: misurato, e'
+        # 'recipes' nel chunk sulla cucina giapponese che matchava 'recipe' della domanda
+        # sulla carbonara (il regex \b<term> matcha il prefisso).
+        anchorEntityList = []
 
         for a in range(len(entityList)):
-            anchorTermList.append(entityList[a])
+            anchorEntityList.append(entityList[a])
+
+        anchorTermList = list(anchorEntityList)
 
         promptTermList = promptSearch.split()
 
@@ -1356,8 +1343,12 @@ class Engine:
             for a in range(len(promptCitationList)):
                 candidate = promptCitationList[a]
 
-                if candidate["distance"] > self.embeddinggemmaDistanceMaxCitation and not self._utilAnchorCheck(anchorTermList, candidate["chunk"]):
-                    continue
+                if candidate["distance"] > self.embeddinggemmaDistanceMaxCitation:
+                    isAnchor = self._utilAnchorCheck(anchorTermList, candidate["chunk"])
+                    isAnchorImpossible = self._utilAnchorImpossibleCheck(anchorTermList, candidate["chunk"])
+
+                    if isAnchor == False and isAnchorImpossible == False:
+                        continue
 
                 key = candidate["fileName"] + "|" + candidate["chunk"]
 
@@ -1397,12 +1388,7 @@ class Engine:
             for a in range(len(candidateList)):
                 chunkList.append(candidateList[a]["chunk"])
 
-            scoreList = self._rerank(promptSearch, chunkList + noiseTextList)
-
-            noiseScoreList = scoreList[len(chunkList):]
-
-            scoreCutoff = self._utilScoreCutoff(noiseScoreList, self.rerankerNoiseMarginMin)
-            scoreCutoffUngrounded = self._utilScoreCutoff(noiseScoreList, self.rerankerNoiseMarginUngrounded)
+            scoreList = self._rerank(promptSearch, chunkList)
 
             scoreBest = 0.0
 
@@ -1426,10 +1412,10 @@ class Engine:
                 if len(citationList) >= self.rerankerCitationLimit:
                     break
 
-                scoreMin = scoreCutoff
+                scoreMin = self.rerankerScoreMin
 
-                if len(seedList) == 0 and not self._utilAnchorCheck(anchorTermList, candidateList[a]["chunk"]):
-                    scoreMin = scoreCutoffUngrounded
+                if len(seedList) == 0 and not self._utilAnchorCheck(anchorEntityList, candidateList[a]["chunk"]):
+                    scoreMin = self.rerankerScoreMinUngrounded
 
                 if candidateList[a]["score"] > scoreMin and fileScoreBestObject[candidateList[a]["fileName"]] >= scoreBest * self.rerankerScoreFileRatio:
                     citationList.append(candidateList[a])
@@ -1438,14 +1424,14 @@ class Engine:
 
         return citationList, isCitationSemantic
 
-    def _searchSeed(self, database, mcpSessionId, entityList, entityEmbeddingList, noiseTextList):
+    def _searchSeed(self, database, mcpSessionId, entityList, entityEmbeddingList):
         seedObject = {}
         seedList = []
 
         if len(entityList) > 0:
             for a in range(len(entityList)):
                 nodeVector = numpy.array(entityEmbeddingList[a], dtype=numpy.float32)
-                nodeMatchList = self._logicNodeVecMatch(database, mcpSessionId, entityList[a], nodeVector, noiseTextList)
+                nodeMatchList = self._logicNodeVecMatch(database, mcpSessionId, entityList[a], nodeVector)
 
                 for b in range(len(nodeMatchList)):
                     if seedObject.get(nodeMatchList[b]["nameNormalized"]) is None:
@@ -1461,53 +1447,9 @@ class Engine:
 
         entityFileIdList = self._logicNodeFileSelect(database, mcpSessionId, seedList)
 
-        return seedObject, seedList, entityFileIdList
+        return seedList, entityFileIdList
 
-    def _searchTheme(self, database, mcpSessionId, themeList, seedObject, seedList, fileIdList, noiseTextList):
-        graphCandidateList = []
-
-        if len(themeList) > 0:
-            themeEmbeddingList = self._embedding("query", themeList)
-
-            edgeIdObject = {}
-            edgeIdList = []
-
-            for a in range(len(themeList)):
-                edgeVector = numpy.array(themeEmbeddingList[a], dtype=numpy.float32)
-                edgeMatchList = self._logicEdgeVecMatch(database, mcpSessionId, themeList[a], edgeVector, noiseTextList)
-
-                for b in range(len(edgeMatchList)):
-                    if edgeIdObject.get(edgeMatchList[b]) is None:
-                        edgeIdObject[edgeMatchList[b]] = True
-                        edgeIdList.append(edgeMatchList[b])
-
-            edgeFullList = self._logicEdgeSelectById(database, mcpSessionId, edgeIdList, fileIdList)
-
-            for a in range(len(edgeFullList)):
-                edgeFull = edgeFullList[a]
-
-                graphCandidateList.append({
-                    "source": edgeFull["source"],
-                    "target": edgeFull["target"],
-                    "description": edgeFull["description"],
-                    "edgeId": edgeFull["id"],
-                    "sourceNormalized": edgeFull["sourceNormalized"],
-                    "targetNormalized": edgeFull["targetNormalized"],
-                    "relevance": 0,
-                    "rank": 0
-                })
-
-                if seedObject.get(edgeFull["sourceNormalized"]) is None:
-                    seedObject[edgeFull["sourceNormalized"]] = True
-                    seedList.append(edgeFull["sourceNormalized"])
-
-                if seedObject.get(edgeFull["targetNormalized"]) is None:
-                    seedObject[edgeFull["targetNormalized"]] = True
-                    seedList.append(edgeFull["targetNormalized"])
-
-        return graphCandidateList
-
-    def _searchGraph(self, database, mcpSessionId, graphCandidateList, promptSearch, promptVector, noiseTextList):
+    def _searchGraph(self, database, mcpSessionId, graphCandidateList, promptSearch):
         graphList = []
 
         graphSeenObject = {}
@@ -1534,11 +1476,6 @@ class Engine:
 
         degreeObject = self._logicNodeDegree(database, mcpSessionId, nodeNormalizedList)
 
-        relevanceObject = {}
-
-        if promptVector is not None:
-            relevanceObject = self._logicEdgeRelevance(database, mcpSessionId, promptVector)
-
         for a in range(len(graphDedupList)):
             degreeSource = 0
             degreeTarget = 0
@@ -1551,13 +1488,6 @@ class Engine:
 
             graphDedupList[a]["rank"] = degreeSource + degreeTarget
 
-            relevance = float("inf")
-
-            if relevanceObject.get(graphDedupList[a]["edgeId"]) is not None:
-                relevance = relevanceObject[graphDedupList[a]["edgeId"]]
-
-            graphDedupList[a]["relevance"] = relevance
-
         graphDedupList.sort(key=lambda candidate: (candidate["relevance"], -candidate["rank"]))
 
         rerankCandidateList = graphDedupList[0:self.rerankerPool]
@@ -1568,9 +1498,7 @@ class Engine:
             for a in range(len(rerankCandidateList)):
                 textList.append(rerankCandidateList[a]["description"])
 
-            scoreList = self._rerank(promptSearch, textList + noiseTextList)
-
-            scoreCutoff = self._utilScoreCutoff(scoreList[len(textList):], self.rerankerNoiseMarginMin)
+            scoreList = self._rerank(promptSearch, textList)
 
             for a in range(len(rerankCandidateList)):
                 rerankCandidateList[a]["score"] = scoreList[a]
@@ -1579,15 +1507,24 @@ class Engine:
 
             graphTokenTotal = 0
 
+            descriptionSeenObject = {}
+
             for a in range(len(rerankCandidateList)):
                 candidate = rerankCandidateList[a]
 
-                if candidate["score"] <= scoreCutoff:
+                if candidate["score"] <= self.rerankerScoreMin:
                     break
+
+                # piu' archi della stessa frase portano la stessa description: emetterla una
+                # volta sola evita di consumare il budget con testo gia' presente nel contesto.
+                if descriptionSeenObject.get(candidate["description"]) is not None:
+                    continue
 
                 tokenCount = self._utilTokenEstimate(f"{candidate['source']} {candidate['target']} {candidate['description']}")
 
                 if graphTokenTotal + tokenCount <= self.embeddinggemmaGraphTokenBudget:
+                    descriptionSeenObject[candidate["description"]] = True
+
                     graphTokenTotal += tokenCount
 
                     graphList.append({
@@ -1649,7 +1586,7 @@ class Engine:
             const optionObject = {
                 layout: { improvedLayout: false },
                 nodes: { shape: "dot", size: 14, font: { color: "#ffffff", size: 12 } },
-                edges: { arrows: "to", color: { color: "#888888" }, smooth: false },
+                edges: { arrows: { to: { enabled: false } }, color: { color: "#888888" }, smooth: false, scaling: { min: 1, max: 6, label: false } },
                 interaction: { dragNodes: true, hover: true, tooltipDelay: 120, hideEdgesOnDrag: true, hideEdgesOnZoom: true },
                 physics: {
                     enabled: true,
@@ -1875,23 +1812,31 @@ class Engine:
 
                 nodeList.append({"id": nameNormalized, "label": nodeRowList[a][1], "color": colorObject.get(nodeRowList[a][2], "#888888"), "title": nodeRowList[a][3], "file": fileNameObject.get(nodeRowList[a][4], "-")})
 
-            edgeRowList = database.execute(f'SELECT source_normalized, target_normalized, source, target, description FROM "{edgeTableName}"').fetchall()
+            # gli archi vengono aggregati sulla coppia non orientata: la direzione source/target
+            # dipende solo dall'ordine in cui le due entita' compaiono nel testo, quindi
+            # disegnarla come freccia e' fuorviante e le due direzioni si sovrapponevano.
+            # Il conteggio delle menzioni diventa lo spessore dell'arco.
+            edgeRowList = database.execute(
+                f'SELECT least(source_normalized, target_normalized) AS node_a, greatest(source_normalized, target_normalized) AS node_b, '
+                f'COUNT(*) AS weight, (array_agg(description ORDER BY length(description) DESC))[1] AS description '
+                f'FROM "{edgeTableName}" GROUP BY node_a, node_b'
+            ).fetchall()
 
             for a in range(len(edgeRowList)):
-                sourceNormalized = edgeRowList[a][0]
-                targetNormalized = edgeRowList[a][1]
+                nodeA = edgeRowList[a][0]
+                nodeB = edgeRowList[a][1]
 
-                if nodeSeenObject.get(sourceNormalized) is None:
-                    nodeSeenObject[sourceNormalized] = True
+                if nodeSeenObject.get(nodeA) is None or nodeSeenObject.get(nodeB) is None:
+                    continue
 
-                    nodeList.append({"id": sourceNormalized, "label": edgeRowList[a][2], "color": "#888888", "title": "", "file": "-"})
+                weight = edgeRowList[a][2]
 
-                if nodeSeenObject.get(targetNormalized) is None:
-                    nodeSeenObject[targetNormalized] = True
+                title = edgeRowList[a][3]
 
-                    nodeList.append({"id": targetNormalized, "label": edgeRowList[a][3], "color": "#888888", "title": "", "file": "-"})
+                if weight > 1:
+                    title = f"[{weight} menzioni] {title}"
 
-                edgeList.append({"from": sourceNormalized, "to": targetNormalized, "title": edgeRowList[a][4]})
+                edgeList.append({"from": nodeA, "to": nodeB, "title": title, "value": weight})
 
         nodeList.sort(key=lambda node: node["label"].lower())
 
@@ -1927,6 +1872,10 @@ class Engine:
         if fileIdStored > 0:
             result = "ok"
         else:
+            # la riga eventualmente presente e' il residuo di uno store interrotto: va rimossa
+            # con tutto il contenuto parziale prima di reindicizzare.
+            self._tableDelete(database, mcpSessionId, fileName)
+
             fileId = self._tableFileInsert(database, mcpSessionId, fileName)
 
             database.commit()
@@ -1943,21 +1892,27 @@ class Engine:
                 extension = os.path.splitext(fileNameOnly)[1].lower()
 
                 if extension == ".xlsx":
-                    chunkList = self._chunkTable(fileNameOnly, fileContent)
+                    chunkCitationList = self._chunkTable(fileNameOnly, fileContent)
+                    chunkRelationList = chunkCitationList
                 else:
-                    chunkList = self._chunk(fileContent)
+                    chunkCitationList = self._chunkCitation(fileContent)
+                    chunkRelationList = self._chunk(fileContent)
 
-                if len(chunkList) > 0:
-                    self._storeCitation(database, mcpSessionId, fileId, chunkList)
+                if len(chunkCitationList) > 0:
+                    self._storeCitation(database, mcpSessionId, fileId, chunkCitationList)
 
                     if extension == ".xlsx":
                         self._tableNodeInsert(database, mcpSessionId, fileId, fileNameOnly, "file", "")
 
                         database.commit()
 
-                    self._storeRelation(database, mcpSessionId, fileId, chunkList)
+                    self._storeRelation(database, mcpSessionId, fileId, chunkRelationList)
                     self._storeNodeVector(database, mcpSessionId, fileId)
                     self._storeEdgeVector(database, mcpSessionId, fileId)
+
+                    self._tableFileComplete(database, mcpSessionId, fileId)
+
+                    database.commit()
 
                     result = "ok"
 
@@ -1982,7 +1937,7 @@ class Engine:
 
         return result
 
-    def search(self, mcpSessionId, prompt, entityList, themeList, rowList):
+    def search(self, mcpSessionId, prompt, entityList, rowList):
         result = {"citationList": [], "nodeList": [], "graphList": []}
 
         if prompt is None:
@@ -1990,9 +1945,6 @@ class Engine:
 
         if entityList is None:
             entityList = []
-
-        if themeList is None:
-            themeList = []
 
         if rowList is None:
             rowList = []
@@ -2016,9 +1968,6 @@ class Engine:
             for a in range(len(entityList)):
                 entityList[a] = unicodedata.normalize("NFKC", entityList[a])
 
-            for a in range(len(themeList)):
-                themeList[a] = unicodedata.normalize("NFKC", themeList[a])
-
             promptSearch = prompt
 
             for a in range(len(entityList)):
@@ -2034,13 +1983,9 @@ class Engine:
             if len(entityList) > 0:
                 entityEmbeddingList = self._embedding("query", entityList)
 
-            noiseNodeTextList = self._logicNoiseNode(database, mcpSessionId)
-            noiseEdgeTextList = self._logicNoiseEdge(database, mcpSessionId)
-            noiseCitationTextList = self._logicNoiseCitation(database, mcpSessionId)
+            seedList, entityFileIdList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingList)
 
-            seedObject, seedList, entityFileIdList = self._searchSeed(database, mcpSessionId, entityList, entityEmbeddingList, noiseNodeTextList)
-
-            citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptSearch, promptVector, entityList, entityFileIdList, seedList, noiseCitationTextList)
+            citationList, isCitationSemantic = self._searchCitation(database, mcpSessionId, fileList, promptSearch, promptVector, entityList, entityFileIdList, seedList)
 
             rowNumberList = []
 
@@ -2081,21 +2026,29 @@ class Engine:
                 if fileId > 0 and fileId not in citationFileIdList:
                     citationFileIdList.append(fileId)
 
-            nodeList = self._logicNodeDetail(database, mcpSessionId, seedList, citationFileIdList)
+            # una lista di file vuota significa "nessun filtro": senza citazioni il filtro
+            # restava vuoto e nodi e grafo uscivano da tutti i file, senza nessuna citazione
+            # a fare da ancora. Con i seed disponibili si usano i loro file.
+            graphFileIdList = citationFileIdList
+
+            if len(graphFileIdList) == 0:
+                graphFileIdList = entityFileIdList
+
+            nodeList = self._logicNodeDetail(database, mcpSessionId, seedList, graphFileIdList)
 
             isInDomain = isCitationSemantic or len(seedList) > 0
 
             if isInDomain:
-                graphCandidateList = self._searchTheme(database, mcpSessionId, themeList, seedObject, seedList, citationFileIdList, noiseEdgeTextList)
+                graphCandidateList = []
 
                 if len(seedList) > 0:
                     seedSlice = seedList[0:self.embeddinggemmaSeedLimit]
-                    traverseList = self._logicEdgeTraverse(database, mcpSessionId, seedSlice, citationFileIdList)
+                    traverseList = self._logicEdgeTraverse(database, mcpSessionId, seedSlice, graphFileIdList, promptVector)
 
                     for a in range(len(traverseList)):
                         graphCandidateList.append(traverseList[a])
 
-                graphList = self._searchGraph(database, mcpSessionId, graphCandidateList, promptSearch, promptVector, noiseEdgeTextList)
+                graphList = self._searchGraph(database, mcpSessionId, graphCandidateList, promptSearch)
 
                 result = {
                     "citationList": citationList,
@@ -2142,12 +2095,14 @@ class Engine:
         self.embeddinggemmaGraphLimitPerSeed = 32
         self.embeddinggemmaGraphTokenBudget = 2000
         self.embeddinggemmaBatchLength = 32
-        self.embeddinggemmaCandidatePool = 256
         self.embeddinggemmaSeedLimit = 24
         self.embeddinggemmaTermMin = 3
         self.embeddinggemmaTermMinWide = 2
+        self.embeddinggemmaChunkTokenLength = 250
+        self.embeddinggemmaChunkTokenOverlap = 50
 
         self.glinerTypeAllowList = ["person", "organization", "place", "category", "event"]
+        self.glinerSeparatorList = ["and", "or", "e", "ed", "o", "oppure", "y", "et", "ou", "und", "oder", "と", "や", "および", "ならびに", "また", "かつ"]
         self.glinerChunkTokenLength = 250
         self.glinerChunkTokenMin = 25
         self.glinerNameMinLength = 3
@@ -2162,12 +2117,13 @@ class Engine:
         self.glinerMaxLength = 384
 
         self.rerankerScoreFileRatio = 0.175
-        self.rerankerScoreEpsilon = 0.000000001
-        self.rerankerNoiseMarginMin = 3.5
-        self.rerankerNoiseMarginGround = 10.0
-        self.rerankerNoiseMarginUngrounded = 5.5
-        self.rerankerNoiseLength = 8
-        self.rerankerNoiseLengthCitation = 16
+        # bge-reranker-v2-m3 satura l'irrilevante a logit ~ -11.04, misurato costante su
+        # it/en/ja e su temi diversi: le soglie sono quindi sigmoid(-11.04 + margine) e
+        # stimarle a runtime con un pool di rumore costava il 28% del budget di rerank.
+        # Da ricalibrare se si cambia il modello di reranking.
+        self.rerankerScoreMin = 0.0005
+        self.rerankerScoreMinUngrounded = 0.004
+        self.rerankerScoreGround = 0.25
         self.rerankerPool = 24
         self.rerankerBatchLength = 8
         self.rerankerTokenMax = 512

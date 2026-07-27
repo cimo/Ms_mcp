@@ -29,14 +29,8 @@ export const databaseStore = async (mcpSessionId: string, fileName: string): Pro
     return (await apiRagGraphify("/store", { mcpSessionId, fileName })) as string;
 };
 
-export const databaseSearch = async (
-    mcpSessionId: string,
-    prompt: string,
-    entityList: string[],
-    themeList: string[],
-    rowList: number[]
-): Promise<string> => {
-    const result = await apiRagGraphify("/search", { mcpSessionId, prompt, entityList, themeList, rowList });
+export const databaseSearch = async (mcpSessionId: string, prompt: string, entityList: string[], rowList: number[]): Promise<string> => {
+    const result = await apiRagGraphify("/search", { mcpSessionId, prompt, entityList, rowList });
 
     return JSON.stringify(result);
 };

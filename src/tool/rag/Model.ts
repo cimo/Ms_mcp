@@ -7,7 +7,6 @@ export interface IrequestSearch {
     mcpSessionId: string;
     prompt: string;
     entityList: string[];
-    themeList: string[];
     rowList: number[];
 }
 
