@@ -5,7 +5,7 @@ import * as modelHelperSrc from "../../model/HelperSrc.js";
 
 const apiLogin = async (): Promise<string> => {
     return instance.api
-        .get<modelHelperSrc.IresponseBody>("/login", {
+        .get<modelHelperSrc.IapiResponse>("/login", {
             headers: {
                 "Content-Type": "application/json"
             }
@@ -24,7 +24,7 @@ const apiLogin = async (): Promise<string> => {
 
 const apiCheck = async (mode: string, target: string): Promise<string> => {
     return instance.api
-        .post<modelHelperSrc.IresponseBody>(
+        .post<modelHelperSrc.IapiResponse>(
             "/api/check",
             {
                 headers: {
@@ -48,7 +48,7 @@ const apiCheck = async (mode: string, target: string): Promise<string> => {
 
 const apiLogout = async (): Promise<string> => {
     return instance.api
-        .get<modelHelperSrc.IresponseBody>("/logout", {
+        .get<modelHelperSrc.IapiResponse>("/logout", {
             headers: {
                 "Content-Type": "application/json"
             }

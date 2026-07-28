@@ -632,7 +632,7 @@ export const headerBearerToken = (request: Request): string => {
 };
 
 export const responseBody = (stdoutValue: string, stderrValue: string | Error, response: Response, mode: number): void => {
-    const responseBody: modelHelperSrc.IresponseBody = { response: { stdout: stdoutValue, stderr: stderrValue } };
+    const responseBody: modelHelperSrc.IapiResponse = { response: { stdout: stdoutValue, stderr: stderrValue } };
 
     response.status(mode).send(responseBody);
 };

@@ -6,7 +6,7 @@ import * as model from "./Model.js";
 
 const apiLogin = async (): Promise<string> => {
     return instance.api
-        .get<modelHelperSrc.IresponseBody>("/login", {
+        .get<modelHelperSrc.IapiResponse>("/login", {
             headers: {
                 "Content-Type": "application/json"
             }
@@ -25,7 +25,7 @@ const apiLogin = async (): Promise<string> => {
 
 const apiExtract = async (formData: FormData): Promise<model.ItoolOcrResult[]> => {
     return instance.api
-        .post<modelHelperSrc.IresponseBody>("/api/extract", {}, formData)
+        .post<modelHelperSrc.IapiResponse>("/api/extract", {}, formData)
         .then((resultApi) => {
             const data = resultApi.data;
             const stdout = JSON.parse(data.response.stdout);
@@ -70,7 +70,7 @@ const apiExtract = async (formData: FormData): Promise<model.ItoolOcrResult[]> =
 
 const apiLogout = async (): Promise<string> => {
     return instance.api
-        .get<modelHelperSrc.IresponseBody>("/logout", {
+        .get<modelHelperSrc.IapiResponse>("/logout", {
             headers: {
                 "Content-Type": "application/json"
             }

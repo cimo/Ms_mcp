@@ -5,7 +5,7 @@ import * as modelHelperSrc from "../../model/HelperSrc.js";
 
 const apiLogin = async (): Promise<string> => {
     return instance.api
-        .get<modelHelperSrc.IresponseBody>("/login", {
+        .get<modelHelperSrc.IapiResponse>("/login", {
             headers: {
                 "Content-Type": "application/json"
             }
@@ -24,7 +24,7 @@ const apiLogin = async (): Promise<string> => {
 
 const apiListTest = async (): Promise<string> => {
     return instance.api
-        .get<modelHelperSrc.IresponseBody>("/api/list-test", {
+        .get<modelHelperSrc.IapiResponse>("/api/list-test", {
             headers: {
                 "Content-Type": "application/json"
             }
@@ -44,7 +44,7 @@ const apiListTest = async (): Promise<string> => {
 
 const apiRun = async (file: string, browser = "desktop_chrome"): Promise<string> => {
     return instance.api
-        .post<modelHelperSrc.IresponseBody>(
+        .post<modelHelperSrc.IapiResponse>(
             "/api/run",
             {
                 headers: {
@@ -72,7 +72,7 @@ const apiRun = async (file: string, browser = "desktop_chrome"): Promise<string>
 
 const apiListVideo = async (video: string): Promise<string> => {
     return instance.api
-        .post<modelHelperSrc.IresponseBody>(
+        .post<modelHelperSrc.IapiResponse>(
             "/api/list-video",
             {
                 headers: {
@@ -98,7 +98,7 @@ const apiListVideo = async (video: string): Promise<string> => {
 
 const apiLogout = async (): Promise<string> => {
     return instance.api
-        .get<modelHelperSrc.IresponseBody>("/logout", {
+        .get<modelHelperSrc.IapiResponse>("/logout", {
             headers: {
                 "Content-Type": "application/json"
             }

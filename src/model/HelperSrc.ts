@@ -34,7 +34,7 @@ export interface Iexecution {
     stderr: string;
 }
 
-export interface IresponseBody {
+export interface IapiResponse {
     response: {
         stdout: string;
         stderr: string | Error;
