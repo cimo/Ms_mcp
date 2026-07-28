@@ -1,6 +1,31 @@
 [
     {
         "id": 1,
-        "apiId": 1
+        "llm": [
+            {
+                "id": 1,
+                "name": "Local",
+                "module": "./LlmLlamaCpp",
+                "url": "https://host.docker.internal:1046",
+                "apiKey": "",
+                "selected": true
+            },
+            {
+                "id": 2,
+                "name": "Anthropic",
+                "module": "./LlmAnthropic",
+                "url": "https://api.anthropic.com/v1",
+                "apiKey": "",
+                "selected": false
+            },
+            {
+                "id": 3,
+                "name": "OpenAi",
+                "module": "./LlmOpenAi",
+                "url": "https://api.openai.com/v1",
+                "apiKey": "",
+                "selected": false
+            }
+        ]
     }
 ]

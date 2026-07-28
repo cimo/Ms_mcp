@@ -12,9 +12,8 @@ import { Cc } from "@cimo/cronjob/dist/src/Main.js";
 import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import ControllerUser from "./User.js";
-import ControllerLlm from "./Llm.js";
-import ControllerSetting from "./Setting.js";
 import ControllerAgent from "./Agent.js";
+import ControllerSetting from "./Setting.js";
 import ControllerTool from "./Tool.js";
 import ControllerDocument from "./Document.js";
 import ControllerRag from "./Rag.js";
@@ -104,10 +103,6 @@ export default class Server {
             controllerUser.api();
             controllerUser.tableCreate();
 
-            const controllerLlm = new ControllerLlm(this.app, this.limiter);
-            controllerLlm.api();
-            controllerLlm.tableCreate();
-
             const controllerSetting = new ControllerSetting(this.app, this.limiter);
             controllerSetting.api();
 
@@ -156,8 +151,8 @@ export default class Server {
                     if (loginRpc !== "ko") {
                         controllerXvfb.start(loginSession.mcpSessionId);
 
-                        controllerSetting.tableCreate(loginSession.mcpSessionId);
-                        controllerAgent.tableCreate(loginSession.mcpSessionId);
+                        await controllerSetting.tableCreate(loginSession.mcpSessionId);
+                        await controllerAgent.tableCreate(loginSession.mcpSessionId);
 
                         helperSrc.responseBody(JSON.stringify({ mcpSessionId: loginSession.mcpSessionId, message: "" }), "", response, 200);
                     } else {

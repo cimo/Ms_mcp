@@ -1,14 +1,23 @@
+export interface Illm {
+    id: number;
+    name: string;
+    module: string;
+    url: string;
+    apiKey: string;
+    selected: boolean;
+}
+
 export interface IapiDataUpdateBody {
     id: number;
-    apiId: number;
+    llm: Illm[];
 }
 
 export interface Idata {
     id: number;
-    apiId: number;
+    llm: Illm[];
 }
 
 export interface IdataDatabaseQuery {
     id: number;
-    api_id: number;
+    llm: Illm[];
 }

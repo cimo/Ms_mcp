@@ -36,6 +36,18 @@ export default class User {
         return isResult;
     };
 
+    private checkField = (name: string, surname: string): string => {
+        let result = "";
+
+        if (name === "") {
+            result = "User name is required";
+        } else if (surname === "") {
+            result = "User surname is required";
+        }
+
+        return result;
+    };
+
     private tableInsert = (id: number, email: string, name: string, surname: string, password: string, mcpSessionId: string): Promise<boolean> => {
         const hash = password === "" ? null : this.passwordHash(password);
 
@@ -179,7 +191,7 @@ export default class User {
     };
 
     api = (): void => {
-        this.app.get("/api/user-info", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.get("/api/user-read", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId === "string") {
@@ -210,12 +222,18 @@ export default class User {
             const password = body.password;
 
             if (typeof mcpSessionId === "string") {
-                const isUpdate = await this.tableUpdate(id, name, surname, password, mcpSessionId);
+                const message = this.checkField(name, surname);
 
-                if (isUpdate) {
-                    helperSrc.responseBody("ok", "", response, 200);
+                if (message === "") {
+                    const isUpdate = await this.tableUpdate(id, name, surname, password, mcpSessionId);
+
+                    if (isUpdate) {
+                        helperSrc.responseBody(JSON.stringify({ status: "ok", message: "User updated successfully." }), "", response, 200);
+                    } else {
+                        helperSrc.responseBody(JSON.stringify({ status: "ko", message: "Failed to update user." }), "", response, 200);
+                    }
                 } else {
-                    helperSrc.responseBody("ko", "", response, 200);
+                    helperSrc.responseBody(JSON.stringify({ status: "ko", message }), "", response, 200);
                 }
             } else {
                 helperSrc.writeLog("User.ts - api() - post(/api/user-update) - Error", "Missing or invalid header.");

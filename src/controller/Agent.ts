@@ -14,6 +14,20 @@ export default class Agent {
     private limiter: RateLimitRequestHandler;
 
     // Method
+    private checkField = (name: string, description: string, skillName: string): string => {
+        let result = "";
+
+        if (name === "") {
+            result = "Agent name is required";
+        } else if (description === "") {
+            result = "Agent description is required";
+        } else if (skillName === "") {
+            result = "Agent skill name is required";
+        }
+
+        return result;
+    };
+
     private tableInsert = async (mcpSessionId: string, name: string, description: string, skillName: string): Promise<boolean> => {
         let isResult = false;
 
@@ -144,12 +158,18 @@ export default class Agent {
             const skillName = body.skillName;
 
             if (typeof mcpSessionId === "string") {
-                const isInsert = await this.tableInsert(mcpSessionId, name, description, skillName);
+                const message = this.checkField(name, description, skillName);
 
-                if (isInsert) {
-                    helperSrc.responseBody("ok", "", response, 200);
+                if (message === "") {
+                    const isInsert = await this.tableInsert(mcpSessionId, name, description, skillName);
+
+                    if (isInsert) {
+                        helperSrc.responseBody(JSON.stringify({ status: "ok", message: "Agent created successfully." }), "", response, 200);
+                    } else {
+                        helperSrc.responseBody(JSON.stringify({ status: "ko", message: "Failed to create agent." }), "", response, 200);
+                    }
                 } else {
-                    helperSrc.responseBody("", "ko", response, 500);
+                    helperSrc.responseBody(JSON.stringify({ status: "ko", message }), "", response, 200);
                 }
             } else {
                 helperSrc.writeLog("Agent.ts - api() - post(/api/agent-create) - Error", "Missing or invalid header.");
@@ -168,12 +188,18 @@ export default class Agent {
             const skillName = body.skillName;
 
             if (typeof mcpSessionId === "string") {
-                const isUpdate = await this.tableUpdate(mcpSessionId, id, name, description, skillName);
+                const message = this.checkField(name, description, skillName);
 
-                if (isUpdate) {
-                    helperSrc.responseBody("ok", "", response, 200);
+                if (message === "") {
+                    const isUpdate = await this.tableUpdate(mcpSessionId, id, name, description, skillName);
+
+                    if (isUpdate) {
+                        helperSrc.responseBody(JSON.stringify({ status: "ok", message: "Agent updated successfully." }), "", response, 200);
+                    } else {
+                        helperSrc.responseBody(JSON.stringify({ status: "ko", message: "Failed to update agent." }), "", response, 200);
+                    }
                 } else {
-                    helperSrc.responseBody("ko", "", response, 200);
+                    helperSrc.responseBody(JSON.stringify({ status: "ko", message }), "", response, 200);
                 }
             } else {
                 helperSrc.writeLog("Agent.ts - api() - post(/api/agent-update) - Error", "Missing or invalid header.");
