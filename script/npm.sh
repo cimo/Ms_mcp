@@ -2,14 +2,14 @@
 
 p1=$(printf '%s' "${1}" | xargs)
 
-if [ "$#" -lt 1 ]
+if [ "$#" -lt 1 ] || [ -z "${p1}" ]
 then
     echo -e "\n❌ npm.sh - Missing parameter."
 
     exit 1
 fi
 
-parameter1="${1}"
+parameter1="${p1}"
 
 rm -rf "${PATH_ROOT}node_modules/" "${PATH_ROOT}package-lock.json"
 npm install

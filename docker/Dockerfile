@@ -135,7 +135,7 @@ USER node
 WORKDIR ${PATH_ROOT}
 
 RUN \
-    # Npm    
+    # Npm
     bash ${PATH_ROOT}script/npm.sh "build"
 
 CMD ["sh", "-c", "bash ${PATH_ROOT}script/dbus.sh && bash ${PATH_ROOT}script/pip.sh && bash ${PATH_ROOT}script/nodejs.sh"]

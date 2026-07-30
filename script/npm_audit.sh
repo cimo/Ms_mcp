@@ -1,13 +1,15 @@
 #!/bin/bash
 
-if [ -z "${1}" ]
+p1=$(printf '%s' "${1}" | xargs)
+
+if [ -z "${p1}" ]
 then
-  echo "❌ Error: specify project path!"
-  
-  exit 1
+    echo -e "\n❌ npm_audit.sh - Missing parameter."
+
+    exit 1
 fi
 
-parameter1="${1}"
+parameter1="${p1}"
 
 cd "${parameter1}"
 
@@ -64,7 +66,7 @@ const entryList = Object.entries(vulnarabilityObject);
 
 if (entryList.length === 0) {
     console.log("\nNo vulnerabilities found.");
-    
+
     process.exit(0);
 }
 

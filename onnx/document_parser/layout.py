@@ -361,7 +361,7 @@ class Pdf:
 
         return resultList
 
-    def _debugDraw(self, pageNumber, image, itemMainList, itemSecondaryList):
+    def _debugDraw(self, pageNumber, image, itemMainList, itemSecondaryList, pathDebug):
         imageCopy = image.copy()
 
         itemList = itemMainList + itemSecondaryList
@@ -392,7 +392,7 @@ class Pdf:
                 cv2.LINE_AA
             )
 
-        cv2.imwrite(f"{self.pathDebug}{pageNumber}.jpg", imageCopy)
+        cv2.imwrite(f"{pathDebug}{pageNumber}.jpg", imageCopy)
 
     def _inference(self, imageRgb):
         imageHeight, imageWidth = imageRgb.shape[0:2]
@@ -429,13 +429,13 @@ class Pdf:
     def execute(self, pathInput, pathOutput, fileName):
         timeStart = time.perf_counter()
 
-        self.pathDebug = f"{pathOutput}debug/"
+        pathDebug = f"{pathOutput}debug/"
 
-        if os.path.isdir(self.pathDebug):
-            shutil.rmtree(self.pathDebug)
+        if os.path.isdir(pathDebug):
+            shutil.rmtree(pathDebug)
 
         if self.isDebug:
-            os.makedirs(self.pathDebug, exist_ok=True)
+            os.makedirs(pathDebug, exist_ok=True)
 
         fileNameList = sorted(glob.glob(f"{pathInput}*.jpg"), key=lambda path: int(os.path.splitext(os.path.basename(path))[0]))
 
@@ -524,7 +524,7 @@ class Pdf:
                 itemSecondaryList[b]["order"] = b + 1
 
             if self.isDebug:
-                self._debugDraw(pageList[a]["number"], pageList[a]["image"], itemMainList, itemSecondaryList)
+                self._debugDraw(pageList[a]["number"], pageList[a]["image"], itemMainList, itemSecondaryList, pathDebug)
 
             del pageList[a]["image"]
             del pageList[a]["itemList"]
@@ -545,8 +545,6 @@ class Pdf:
         return resultObject
 
     def __init__(self):
-        self.pathDebug = ""
-
         self.osPathDirName = f"{os.path.dirname(__file__)}/"
         self.pathModel = f"{self.osPathDirName}model/pp-docLayout_plus-l.onnx"
 
@@ -751,8 +749,8 @@ class Office:
         def _paragraphText(self, paragraphNode):
             return self._textCollect(paragraphNode).strip()
 
-        def _paragraphSize(self, paragraphNode):
-            sizeDefault = self.sizeDocument
+        def _paragraphSize(self, paragraphNode, sizeDocument):
+            sizeDefault = sizeDocument
 
             sizeDefaultNode = paragraphNode.find(f"{{{self.namespaceW}}}pPr/{{{self.namespaceW}}}rPr/{{{self.namespaceW}}}sz")
 
@@ -862,26 +860,26 @@ class Office:
 
             return resultList
 
-        def _blockParagraph(self, paragraphNode, isWrapped):
+        def _blockParagraph(self, paragraphNode, isWrapped, styleObject, sizeDocument):
             resultList = []
 
             text = self._paragraphText(paragraphNode)
 
             if len(text) > 0:
                 style = self._paragraphStyle(paragraphNode)
-                styleObject = self.styleObject.get(style, {"outlineLevel": -1, "name": ""})
+                styleDetailObject = styleObject.get(style, {"outlineLevel": -1, "name": ""})
 
                 outlineLevel = self._paragraphOutlineLevel(paragraphNode)
 
                 if outlineLevel == -1:
-                    outlineLevel = styleObject["outlineLevel"]
+                    outlineLevel = styleDetailObject["outlineLevel"]
 
                 resultList.append({
                     "kind": "paragraph",
                     "text": text,
-                    "size": self._paragraphSize(paragraphNode),
+                    "size": self._paragraphSize(paragraphNode, sizeDocument),
                     "style": style,
-                    "styleName": styleObject["name"],
+                    "styleName": styleDetailObject["name"],
                     "outlineLevel": outlineLevel,
                     "isList": self._paragraphNumberingCheck(paragraphNode),
                     "isAside": isWrapped and len(text) <= self.levelAsideLength,
@@ -896,14 +894,14 @@ class Office:
 
             for node in paragraphNode.iter():
                 if self.office._nodeTag(node) == "txbxContent":
-                    textboxList = self._blockWrapped(node)
+                    textboxList = self._blockWrapped(node, styleObject, sizeDocument)
 
                     for a in range(len(textboxList)):
                         resultList.append(textboxList[a])
 
             return resultList
 
-        def _blockWrapped(self, containerNode):
+        def _blockWrapped(self, containerNode, styleObject, sizeDocument):
             blockList = []
 
             for node in containerNode:
@@ -912,9 +910,9 @@ class Office:
                 childList = []
 
                 if tag == "p":
-                    childList = self._blockParagraph(node, True)
+                    childList = self._blockParagraph(node, True, styleObject, sizeDocument)
                 elif tag == "tbl":
-                    childList = self._blockTable(node)
+                    childList = self._blockTable(node, styleObject, sizeDocument)
 
                 for a in range(len(childList)):
                     blockList.append(childList[a])
@@ -945,7 +943,7 @@ class Office:
 
             return resultList
 
-        def _blockTable(self, tableNode):
+        def _blockTable(self, tableNode, styleObject, sizeDocument):
             resultList = []
 
             rowNodeList = []
@@ -1004,14 +1002,14 @@ class Office:
                 for a in range(len(rowNodeList)):
                     for node in rowNodeList[a]:
                         if self.office._nodeTag(node) == "tc":
-                            blockList = self._blockWrapped(node)
+                            blockList = self._blockWrapped(node, styleObject, sizeDocument)
 
                             for b in range(len(blockList)):
                                 resultList.append(blockList[b])
 
             return resultList
 
-        def _blockBuild(self, containerNode):
+        def _blockBuild(self, containerNode, styleObject, sizeDocument):
             resultList = []
 
             for node in containerNode:
@@ -1020,11 +1018,11 @@ class Office:
                 blockList = []
 
                 if tag == "p":
-                    blockList = self._blockParagraph(node, False)
+                    blockList = self._blockParagraph(node, False, styleObject, sizeDocument)
                 elif tag == "tbl":
-                    blockList = self._blockTable(node)
+                    blockList = self._blockTable(node, styleObject, sizeDocument)
                 elif tag != "sectPr":
-                    blockList = self._blockBuild(node)
+                    blockList = self._blockBuild(node, styleObject, sizeDocument)
 
                 for a in range(len(blockList)):
                     resultList.append(blockList[a])
@@ -1217,20 +1215,20 @@ class Office:
 
             rootNode = self.office._rootBuild(zipFile, "word/document.xml")
 
-            self.sizeDocument = 22.0
-            self.styleObject = {}
+            sizeDocument = 22.0
+            styleObject = {}
 
             styleRootNode = self.office._rootBuild(zipFile, "word/styles.xml")
 
             if styleRootNode is not None:
-                self.styleObject = self._styleBuild(styleRootNode)
+                styleObject = self._styleBuild(styleRootNode)
 
                 sizeNode = styleRootNode.find(
                     f"{{{self.namespaceW}}}docDefaults/{{{self.namespaceW}}}rPrDefault/{{{self.namespaceW}}}rPr/{{{self.namespaceW}}}sz"
                 )
 
                 if sizeNode is not None and self.office._nodeValue(sizeNode) != "":
-                    self.sizeDocument = float(self.office._nodeValue(sizeNode))
+                    sizeDocument = float(self.office._nodeValue(sizeNode))
 
             relationshipRootNode = self.office._rootBuild(zipFile, "word/_rels/document.xml.rels")
 
@@ -1250,7 +1248,7 @@ class Office:
                 bodyNode = rootNode.find(f"{{{self.namespaceW}}}body")
 
                 if bodyNode is not None:
-                    blockList = self._blockBuild(bodyNode)
+                    blockList = self._blockBuild(bodyNode, styleObject, sizeDocument)
 
             blockList = self._asideMark(blockList)
             blockList = self._continuationMark(blockList)
@@ -1350,9 +1348,6 @@ class Office:
             self.namespacePackage = "http://schemas.openxmlformats.org/package/2006/relationships"
 
             self.office = Office(self.namespaceW)
-
-            self.sizeDocument = 22.0
-            self.styleObject = {}
 
             self.levelTitleSize = 1.15
             self.levelTitleLength = 120
@@ -1454,7 +1449,7 @@ class Office:
 
             return result
 
-        def _cellText(self, cellNode):
+        def _cellText(self, cellNode, sharedStringList, dateStyleList):
             result = ""
 
             cellType = cellNode.attrib.get("t", "n")
@@ -1463,8 +1458,8 @@ class Office:
             valueText = valueNode.text if valueNode is not None and valueNode.text is not None else ""
 
             if cellType == "s":
-                if valueText != "" and int(valueText) < len(self.sharedStringList):
-                    result = self.sharedStringList[int(valueText)]
+                if valueText != "" and int(valueText) < len(sharedStringList):
+                    result = sharedStringList[int(valueText)]
             elif cellType == "inlineStr":
                 inlineNode = cellNode.find(f"{{{self.namespaceMain}}}is")
 
@@ -1481,7 +1476,7 @@ class Office:
                     styleText = cellNode.attrib.get("s", "")
                     styleIndex = int(styleText) if styleText.isdigit() else -1
 
-                    if styleIndex in self.dateStyleList:
+                    if styleIndex in dateStyleList:
                         result = self._dateText(float(valueText))
                     else:
                         result = self._numberText(valueText)
@@ -1581,7 +1576,7 @@ class Office:
 
             return resultList
 
-        def _rowCollect(self, sheetRootNode, pivotRangeList):
+        def _rowCollect(self, sheetRootNode, pivotRangeList, sharedStringList, dateStyleList):
             rowObjectList = []
 
             rowNumberNext = 1
@@ -1601,7 +1596,7 @@ class Office:
                         while len(cellList) < column:
                             cellList.append("")
 
-                        cellText = self._cellText(cellNode)
+                        cellText = self._cellText(cellNode, sharedStringList, dateStyleList)
 
                         for a in range(len(pivotRangeList)):
                             if pivotRangeList[a]["rowFirst"] <= rowNumber <= pivotRangeList[a]["rowLast"] and pivotRangeList[a]["columnFirst"] <= column <= pivotRangeList[a]["columnLast"]:
@@ -1689,18 +1684,18 @@ class Office:
 
             zipFile = zipfile.ZipFile(pathInput)
 
-            self.sharedStringList = []
-            self.dateStyleList = []
+            sharedStringList = []
+            dateStyleList = []
 
             sharedStringRootNode = self.office._rootBuild(zipFile, "xl/sharedStrings.xml")
 
             if sharedStringRootNode is not None:
-                self.sharedStringList = self._sharedStringBuild(sharedStringRootNode)
+                sharedStringList = self._sharedStringBuild(sharedStringRootNode)
 
             styleRootNode = self.office._rootBuild(zipFile, "xl/styles.xml")
 
             if styleRootNode is not None:
-                self.dateStyleList = self._dateStyleBuild(styleRootNode)
+                dateStyleList = self._dateStyleBuild(styleRootNode)
 
             sheetList = self._sheetBuild(zipFile)
 
@@ -1712,7 +1707,7 @@ class Office:
 
                 pivotRangeList = self._pivotRangeCollect(zipFile, sheetList[a]["path"])
 
-                rowList = self._rowCollect(sheetRootNode, pivotRangeList) if sheetRootNode is not None else []
+                rowList = self._rowCollect(sheetRootNode, pivotRangeList, sharedStringList, dateStyleList) if sheetRootNode is not None else []
                 mergeList = self._mergeCollect(sheetRootNode) if sheetRootNode is not None else []
 
                 itemMainList = [{"label": "sheetName", "text": sheetList[a]["name"]}]
@@ -1755,9 +1750,6 @@ class Office:
             self.namespacePackage = "http://schemas.openxmlformats.org/package/2006/relationships"
 
             self.office = Office(self.namespaceMain)
-
-            self.sharedStringList = []
-            self.dateStyleList = []
 
             self.numberFormatDateList = [14, 15, 16, 17, 18, 19, 20, 21, 22, 45, 46, 47]
 
