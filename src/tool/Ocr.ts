@@ -16,10 +16,6 @@ export default class Ocr {
         this.sessionObject = sessionObject;
 
         this.inputSchema = z.object({
-            language: z
-                .union([z.string(), z.number(), z.array(z.string()), z.null()])
-                .default("")
-                .describe("Is the locale format that indicates the language used in the file."),
             fileName: z
                 .union([z.string(), z.number(), z.array(z.string()), z.null()])
                 .default("")
@@ -27,11 +23,7 @@ export default class Ocr {
             searchText: z
                 .union([z.string(), z.number(), z.array(z.string()), z.null()])
                 .default("")
-                .describe("Is the word/phrase that the user is asking to look/find/search."),
-            mode: z
-                .union([z.string(), z.number(), z.array(z.string()), z.null()])
-                .default("data")
-                .describe("Is the word that indicates what to extract from the file.")
+                .describe("Is the word/phrase that the user is asking to search.")
         });
     }
 
@@ -40,13 +32,11 @@ export default class Ocr {
 
         const config = {
             description: ["Extract data from an image."].join("\n"),
-            example: ["- In the file 'Image.png' search 'Text' with the language 'en' and mode 'data'."].join("\n"),
+            example: ["- In the file 'Image.jpg' search 'Test'."].join("\n"),
             inputInstruction: [
                 "You MUST build the json schema using ONLY the following parameters:",
-                `Parameter 1 - language: ${this.inputSchema.shape.language.description}`,
-                `Parameter 2 - fileName: ${this.inputSchema.shape.fileName.description}`,
-                `Parameter 3 - searchText: ${this.inputSchema.shape.searchText.description}`,
-                `Parameter 4 - mode: ${this.inputSchema.shape.mode.description}`
+                `Parameter 1 - fileName: ${this.inputSchema.shape.fileName.description}`,
+                `Parameter 2 - searchText: ${this.inputSchema.shape.searchText.description}`
             ].join("\n"),
             inputSchema: this.inputSchema
         };
@@ -60,10 +50,8 @@ export default class Ocr {
                 if (runtime) {
                     const resultRuntime = await runtime.ocrExecute(
                         extra.sessionId,
-                        helperSrc.zodText(argument.language),
                         helperSrc.zodText(argument.fileName),
-                        helperSrc.zodText(argument.searchText),
-                        helperSrc.zodText(argument.mode, "data")
+                        helperSrc.zodText(argument.searchText)
                     );
                     result = JSON.stringify({ name, result: resultRuntime });
                 }

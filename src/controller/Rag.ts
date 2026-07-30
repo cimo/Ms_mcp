@@ -54,7 +54,7 @@ export default class Rag {
 
         this.app.post("/api/rag-check", Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelRag.IapiDataCheckBody;
+            const body = request.body as modelRag.IapiCheckBody;
 
             const fileName = body.fileName;
             const fileDetail = helperSrc.fileDetail(fileName);

@@ -85,7 +85,7 @@ export default class Document {
 
         this.app.post("/api/document-read", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelDocument.IapiDataReadBody;
+            const body = request.body as modelDocument.IapiReadBody;
 
             const fileName = body.fileName;
             const fileDetail = helperSrc.fileDetail(fileName);
@@ -155,7 +155,7 @@ export default class Document {
 
         this.app.post("/api/document-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelDocument.IapiDataDeleteBody;
+            const body = request.body as modelDocument.IapiDeleteBody;
 
             const fileName = body.fileName;
             const fileDetail = helperSrc.fileDetail(fileName);

@@ -164,7 +164,7 @@ export default class Setting {
 
         this.app.post("/api/setting-update", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelSetting.IapiDataUpdateBody;
+            const body = request.body as modelSetting.IapiUpdateBody;
 
             const id = body.id;
             const llm = body.llm;

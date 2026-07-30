@@ -23,48 +23,18 @@ const apiLogin = async (): Promise<string> => {
         });
 };
 
-const apiExtract = async (formData: FormData): Promise<model.ItoolOcrResult[]> => {
+const apiExtract = async (formData: FormData): Promise<string> => {
     return instance.api
         .post<modelHelperSrc.IapiResponse>("/api/extract", {}, formData)
         .then((resultApi) => {
             const data = resultApi.data;
-            const stdout = JSON.parse(data.response.stdout);
 
-            let resultList: model.ItoolOcrResult[] = [];
-
-            for (let a = 0; a < stdout.length; a++) {
-                const xList: number[] = [];
-                const yList: number[] = [];
-
-                for (let b = 0; b < stdout[a].polygon.length; b++) {
-                    const point = stdout[a].polygon[b];
-
-                    xList.push(point[0]);
-                    yList.push(point[1]);
-                }
-
-                const xMin = Math.min(...xList);
-                const xMax = Math.max(...xList);
-                const yMin = Math.min(...yList);
-                const yMax = Math.max(...yList);
-
-                resultList.push({
-                    id: stdout[a].id,
-                    text: stdout[a].text,
-                    centerPoint: {
-                        x: (xMin + xMax) / 2,
-                        y: (yMin + yMax) / 2
-                    },
-                    isMatch: stdout[a].isMatch
-                });
-            }
-
-            return resultList;
+            return data.response.stdout;
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Extractor.ts - apiExtract() - catch()", error.message);
 
-            return [];
+            return "ko";
         });
 };
 
@@ -87,35 +57,37 @@ const apiLogout = async (): Promise<string> => {
         });
 };
 
-export const execute = (mcpSessionId: string, language: string, fileName: string, searchText: string, mode: string): Promise<string> => {
+export const execute = (mcpSessionId: string, fileName: string, searchText: string): Promise<string> => {
     return instance.runWithContext(async () => {
-        let resultList: model.ItoolOcrResult[] = [];
+        let resultObject = { uniqueId: "", layoutList: [], itemList: [] } as model.IapiExtractResponse;
 
         await apiLogin();
 
         const fileDetail = helperSrc.fileDetail(fileName);
 
-        const pathFile = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/${fileName}`;
+        const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
 
-        const fileReadStream = await helperSrc.fileReadStream(pathFile);
+        const fileReadStream = await helperSrc.fileReadStream(`${pathDocument}${fileDetail.fileName}`);
 
         if (Buffer.isBuffer(fileReadStream)) {
             const buffer = Buffer.from(fileReadStream);
             const blob = new Blob([buffer], { type: fileDetail.mimeType });
 
             const formData = new FormData();
-            formData.append("language", language);
             formData.append("file", blob, fileDetail.fileName);
             formData.append("searchText", searchText);
-            formData.append("mode", mode);
 
-            resultList = await apiExtract(formData);
+            const stdout = await apiExtract(formData);
+
+            if (stdout !== "ko") {
+                resultObject = JSON.parse(stdout) as model.IapiExtractResponse;
+            }
         } else {
             helperSrc.writeLog(`Extractor.ts - execute() - fileReadStream()`, fileReadStream.toString());
         }
 
         await apiLogout();
 
-        return JSON.stringify(resultList);
+        return JSON.stringify(resultObject);
     });
 };

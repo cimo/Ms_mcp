@@ -1,17 +1,17 @@
-export interface IapiDataCreateBody {
+export interface IapiCreateBody {
     name: string;
     description: string;
     skillName: string;
 }
 
-export interface IapiDataUpdateBody {
+export interface IapiUpdateBody {
     id: number;
     name: string;
     description: string;
     skillName: string;
 }
 
-export interface IapiDataDeleteBody {
+export interface IapiDeleteBody {
     id: number;
 }
 

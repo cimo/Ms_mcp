@@ -1,8 +1,13 @@
-export interface IinstanceContext {
-    cookie?: string;
+interface Ilayout {
+    label: string;
+    score: number;
+    centerPoint: {
+        x: number;
+        y: number;
+    };
 }
 
-export interface ItoolOcrResult {
+interface Iitem {
     id: number;
     text: string;
     centerPoint: {
@@ -10,4 +15,14 @@ export interface ItoolOcrResult {
         y: number;
     };
     isMatch: boolean;
+}
+
+export interface IinstanceContext {
+    cookie?: string;
+}
+
+export interface IapiExtractResponse {
+    uniqueId: string;
+    layoutList: Ilayout[];
+    itemList: Iitem[];
 }

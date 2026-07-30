@@ -98,7 +98,7 @@ export default class Skill {
 
         this.app.post("/api/skill-read", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelSkill.IapiDataReadBody;
+            const body = request.body as modelSkill.IapiReadBody;
 
             const fileName = body.fileName;
 
@@ -146,7 +146,7 @@ export default class Skill {
 
         this.app.post("/api/skill-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelSkill.IapiDataDeleteBody;
+            const body = request.body as modelSkill.IapiDeleteBody;
 
             const fileName = body.fileName;
 

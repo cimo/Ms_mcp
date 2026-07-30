@@ -151,7 +151,7 @@ export default class Agent {
     api = (): void => {
         this.app.post("/api/agent-create", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelAgent.IapiDataCreateBody;
+            const body = request.body as modelAgent.IapiCreateBody;
 
             const name = body.name;
             const description = body.description;
@@ -180,7 +180,7 @@ export default class Agent {
 
         this.app.post("/api/agent-update", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelAgent.IapiDataUpdateBody;
+            const body = request.body as modelAgent.IapiUpdateBody;
 
             const id = body.id;
             const name = body.name;
@@ -224,7 +224,7 @@ export default class Agent {
 
         this.app.post("/api/agent-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelAgent.IapiDataDeleteBody;
+            const body = request.body as modelAgent.IapiDeleteBody;
 
             const id = body.id;
 

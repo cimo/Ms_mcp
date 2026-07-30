@@ -1,7 +1,7 @@
-export interface IapiDataReadBody {
+export interface IapiReadBody {
     fileName: string;
 }
 
-export interface IapiDataDeleteBody {
+export interface IapiDeleteBody {
     fileName: string;
 }

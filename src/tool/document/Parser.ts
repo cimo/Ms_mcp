@@ -3,7 +3,7 @@ import * as helperSrc from "../../HelperSrc.js";
 import * as instanceDocumentParser from "./InstanceDocumentParser.js";
 import * as instance from "./Instance.js";
 import * as modelHelperSrc from "../../model/HelperSrc.js";
-import * as modelDocument from "./Model.js";
+import * as model from "./Model.js";
 
 const apiLogin = async (): Promise<string> => {
     return instance.api
@@ -83,7 +83,7 @@ const apiDocumentParser = async (path: string, pathInput: string, pathOutput: st
 
 export const execute = (mcpSessionId: string, fileName: string, searchInput: string): Promise<string> => {
     return instance.runWithContext(async () => {
-        let resultObject = {} as modelDocument.Iparser;
+        let resultObject = {} as model.Iparse;
 
         await apiLogin();
 

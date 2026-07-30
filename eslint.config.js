@@ -14,7 +14,6 @@ const configIgnore = {
         ".local",
         ".npm",
         ".nv",
-        ".paddlex",
         ".pki",
         ".venv",
         "certificate",

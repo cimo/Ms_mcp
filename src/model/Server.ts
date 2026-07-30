@@ -5,7 +5,7 @@ import { ChildProcess } from "child_process";
 // Source
 import ControllerRuntime from "../controller/Runtime.js";
 
-export interface IapiDataLoginBody {
+export interface IapiLoginBody {
     username: string;
     password: string;
 }

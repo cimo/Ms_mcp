@@ -2058,8 +2058,8 @@ class Engine:
         return result
 
     def __init__(self):
-        PATH_ROOT = os.environ.get("PATH_ROOT")
-        PATH_FILE = os.environ.get("MS_M_PATH_FILE")
+        PATH_ROOT = os.environ["PATH_ROOT"]
+        PATH_FILE = os.environ["MS_M_PATH_FILE"]
 
         self.pathOsDirName = f"{os.path.dirname(__file__)}/"
         self.pathModelEmbedding = f"{self.pathOsDirName}model/embeddinggemma-300m/"

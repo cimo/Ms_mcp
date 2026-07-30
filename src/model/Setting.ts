@@ -7,7 +7,7 @@ export interface Illm {
     selected: boolean;
 }
 
-export interface IapiDataUpdateBody {
+export interface IapiUpdateBody {
     id: number;
     llm: Illm[];
 }

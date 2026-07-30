@@ -1,4 +1,4 @@
-export interface IapiDataUpdateBody {
+export interface IapiUpdateBody {
     id: number;
     name: string;
     surname: string;

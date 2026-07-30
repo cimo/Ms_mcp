@@ -550,7 +550,7 @@ class Pdf:
         self.osPathDirName = f"{os.path.dirname(__file__)}/"
         self.pathModel = f"{self.osPathDirName}model/pp-docLayout_plus-l.onnx"
 
-        self.isDebug = True
+        self.isDebug = os.environ["MS_M_IS_DEBUG"] == "true"
         self.levelDebugOpacity = 0.2
         self.levelBoxContained = 0.9
         self.levelGapColumn = 0.01

@@ -214,7 +214,7 @@ export default class User {
 
         this.app.post("/api/user-update", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelUser.IapiDataUpdateBody;
+            const body = request.body as modelUser.IapiUpdateBody;
 
             const id = body.id;
             const name = body.name;

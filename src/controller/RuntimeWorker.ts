@@ -95,13 +95,7 @@ process.on("message", (data: modelRuntime.IdataWorkerMessage) => {
         return;
     } else if (data.tool === "ocrExecute") {
         ocrExtractor
-            .execute(
-                data.mcpSessionId,
-                data.argumentList[0] as string,
-                data.argumentList[1] as string,
-                data.argumentList[2] as string,
-                data.argumentList[3] as string
-            )
+            .execute(data.mcpSessionId, data.argumentList[0] as string, data.argumentList[1] as string)
             .then((result) => {
                 resultProcessObject = { id: data.id, result };
 

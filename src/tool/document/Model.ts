@@ -2,7 +2,7 @@ export interface IinstanceContext {
     cookie?: string;
 }
 
-export interface Iparser {
+export interface Iparse {
     fileName: string;
     searchInput: string;
 }

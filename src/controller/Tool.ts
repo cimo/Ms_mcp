@@ -9,6 +9,7 @@ import * as helperSrc from "../HelperSrc.js";
 import * as instance from "../Instance.js";
 import * as modelServer from "../model/Server.js";
 import * as modelTool from "../model/Tool.js";
+import * as modelToolOcr from "../tool/ocr/Model.js";
 import ToolAutomate from "../tool/Automate.js";
 import ToolBrowser from "../tool/Browser.js";
 import ToolDocument from "../tool/Document.js";
@@ -64,7 +65,7 @@ export default class Tool {
 
         if (typeof cookie === "string") {
             return instance.api
-                .post<object>(
+                .post<unknown>(
                     "/rpc",
                     {
                         headers: {
@@ -107,7 +108,7 @@ export default class Tool {
 
         if (typeof mcpSessionId === "string" && typeof mcpCookie === "string") {
             return instance.api
-                .post<object>(
+                .post<unknown>(
                     "/rpc",
                     {
                         headers: {
@@ -293,7 +294,7 @@ export default class Tool {
 
             if (typeof mcpSessionId === "string" && typeof mcpCookie === "string") {
                 instance.api
-                    .post<object>(
+                    .post<unknown>(
                         "/rpc",
                         {
                             headers: {
@@ -353,7 +354,7 @@ export default class Tool {
                 const runtime = this.sessionObject[mcpSessionId].runtime;
 
                 if (runtime) {
-                    let result = "[]";
+                    let result = JSON.stringify({ uniqueId: "", layoutList: [], itemList: [] } as modelToolOcr.IapiExtractResponse);
 
                     if (Array.isArray(body.list)) {
                         for (let a = 0; a < body.list.length; a++) {
@@ -373,11 +374,14 @@ export default class Tool {
                         }
 
                         let count = 0;
+                        let itemCount = 0;
 
-                        while (result === "[]" && count <= 2) {
+                        while (itemCount === 0 && count <= 2) {
                             await runtime.automateScreenshot(mcpSessionId);
 
-                            result = await runtime.ocrExecute(mcpSessionId, "", "screenshot.jpg", "", "data");
+                            result = await runtime.ocrExecute(mcpSessionId, "screenshot.jpg", "");
+
+                            itemCount = (JSON.parse(result) as modelToolOcr.IapiExtractResponse).itemList.length;
 
                             await new Promise((resolve) => setTimeout(resolve, 3000));
 
@@ -392,7 +396,7 @@ export default class Tool {
                             count++;
                         }
 
-                        if (result === "[]" && count === 3) {
+                        if (itemCount === 0 && count === 3) {
                             result = "Data empty.";
 
                             helperSrc.writeLog("Tool.ts - api() - post(/api/task-call) - Error", result);
