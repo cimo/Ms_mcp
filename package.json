@@ -10,7 +10,6 @@
     },
     "type": "module",
     "scripts": {
-        "preinstall": "npx -y npm-force-resolutions",
         "delete_dist": "node -e \"const fs = require('fs'); try{ fs.rmdirSync('./dist/', { recursive: true }) } catch{}; process.exit(0);\"",
         "check": "eslint --no-cache --config eslint.config.js",
         "build_tsc": "npm run delete_dist && tsc --build tsconfig.tsc.json",
@@ -30,9 +29,9 @@
         "@modelcontextprotocol/sdk": "1.26.0",
         "zod": "4.3.6",
         "pg": "8.16.3",
-        "adm-zip": "0.5.17",
+        "adm-zip": "0.6.0",
         "@nut-tree-fork/nut-js": "4.2.6",
-        "sharp": "0.34.5",
+        "sharp": "0.35.3",
         "chrome-launcher": "1.2.1"
     },
     "devDependencies": {
@@ -41,16 +40,17 @@
         "@types/cookie-parser": "1.4.8",
         "@types/cors": "2.8.17",
         "@types/adm-zip": "0.5.8",
-        "@typescript-eslint/parser": "8.24.1",
-        "@typescript-eslint/eslint-plugin": "8.24.1",
+        "@typescript-eslint/parser": "8.65.0",
+        "@typescript-eslint/eslint-plugin": "8.65.0",
         "typescript": "5.7.2",
-        "nodemon": "3.1.9",
+        "nodemon": "3.1.14",
         "prettier": "3.4.2",
-        "eslint": "9.31.0",
-        "eslint-plugin-prettier": "5.2.1",
-        "@types/pg": "8.15.4"
+        "eslint": "10.8.0",
+        "eslint-plugin-prettier": "5.5.6",
+        "@types/pg": "8.20.3"
     },
-    "resolutions": {
-        "file-type": "22.0.1"
+    "overrides": {
+        "file-type": "22.0.1",
+        "@hono/node-server": "2.0.10"
     }
 }

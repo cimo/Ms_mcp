@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:25.10
 
 ARG _ENV_NAME
 ARG _DOMAIN
@@ -52,9 +52,9 @@ RUN cd ~ \
     && groupadd -g 1000 node \
     && useradd -m -u 1000 -g 1000 -d ${PATH_ROOT} -s /bin/bash node \
     && uid="$(id -u node)" \
-    && mkdir -p ${PATH_ROOT} /home/node/ /run/user/${uid} \
-    && chown -R node:node ${PATH_ROOT} /home/node/ /run/user/${uid} \
-    && chmod -R 775 ${PATH_ROOT} /home/node/ \
+    && mkdir -p ${PATH_ROOT} /home/node/ /run/user/${uid} /usr/lib/node_modules/npm/ \
+    && chown -R node:node ${PATH_ROOT} /home/node/ /run/user/${uid} /usr/lib/node_modules/npm/ \
+    && chmod -R 775 ${PATH_ROOT} /home/node/ /usr/lib/node_modules/npm/ \
     && chmod -R 700 /run/user/${uid} \
     # Update
     && echo 'Acquire::Retries "3";' > /etc/apt/apt.conf.d/80-retries \
@@ -70,6 +70,13 @@ RUN cd ~ \
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get update && apt-get install -y \
     nodejs \
+    && npm install -g npm@latest \
+    && rm -rf /usr/lib/node_modules/npm/node_modules/brace-expansion \
+    && mkdir -p /usr/lib/node_modules/npm/node_modules/brace-expansion \
+    && curl -fsSL https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.8.tgz | tar -xz --strip-components=1 -C /usr/lib/node_modules/npm/node_modules/brace-expansion \
+    && rm -rf /usr/lib/node_modules/npm/node_modules/tar \
+    && mkdir -p /usr/lib/node_modules/npm/node_modules/tar \
+    && curl -fsSL https://registry.npmjs.org/tar/-/tar-7.5.21.tgz | tar -xz --strip-components=1 -C /usr/lib/node_modules/npm/node_modules/tar \
     # Python
     && apt-get update && apt-get install -y \
     python3-venv \
@@ -125,10 +132,11 @@ RUN cd ~ \
     libxtst-dev \
     # Clean
     && apt-get remove --purge -y sudo \
-    && rm -rf /var/lib/apt/lists/* \
+    && rm -f cuda-keyring_1.1-1_all.deb \
     && apt-get clean -y \
     && apt-get autoclean -y \
-    && apt-get autoremove -y
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
 
 USER node
 

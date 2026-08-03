@@ -25,7 +25,7 @@ if [ -f "package-lock.json" ]
 then
     echo -e "\nFile 'package.lock.json' found, clean source and reinstall the package.\n"
 
-    rm -rf "node_modules/" "package-lock.json"
+    rm -rf "node_modules/"
 
     npm install --no-audit
 else

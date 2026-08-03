@@ -1,9 +1,14 @@
 import prettierPlugin from "eslint-plugin-prettier";
 import typescriptParser from "@typescript-eslint/parser";
 import typescriptPlugin from "@typescript-eslint/eslint-plugin";
+import Path from "path";
+import { fileURLToPath } from "url";
 
 // Source
 import customRule from "./dist/eslint.customRule.js";
+
+const filename = fileURLToPath(import.meta.url);
+const dirname = Path.dirname(filename);
 
 const configIgnore = {
     ignores: [
@@ -65,8 +70,8 @@ const configTypescript = {
         parser: typescriptParser,
         parserOptions: {
             ...configBase.languageOptions.parserOptions,
-            tsconfigRootDir: "./",
-            project: "./tsconfig.json"
+            tsconfigRootDir: dirname,
+            project: Path.join(dirname, "tsconfig.json")
         }
     },
     plugins: {

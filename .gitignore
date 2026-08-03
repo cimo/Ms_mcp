@@ -69,4 +69,3 @@ src/tool/*
 !src/tool/Rag.ts
 !src/tool/Security.ts
 !src/tool/Playwright.ts
-package-lock.json
