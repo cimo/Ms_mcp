@@ -14,15 +14,21 @@ export default class Setting {
     private limiter: RateLimitRequestHandler;
 
     // Method
-    private checkField = (llm: modelSetting.Illm[]): string => {
+    private checkField = (llmList: modelSetting.Illm[]): string => {
         let result = "";
 
-        for (const item of llm) {
-            if (item.selected) {
-                if (item.url === "") {
-                    result = "Llm URL is required";
-                } else if (item.apiKey === "" && item.id !== 1) {
-                    result = "Llm API key is required";
+        for (const llm of llmList) {
+            if (llm.selected) {
+                if (
+                    !/^https?:\/\/(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?::\d{1,5})?(?:\/[A-Za-z0-9._~-]+)*\/?$/.test(
+                        llm.url
+                    )
+                ) {
+                    result = "Llm - Url: Can only contain a standard url format.";
+                }
+
+                if (!/^[A-Za-z0-9_-]+$/.test(llm.apiKey) && llm.id !== 1) {
+                    result = "Llm - Api key: Can only contain letter, number, underscore and hyphen.";
                 }
 
                 break;
@@ -167,21 +173,21 @@ export default class Setting {
             const body = request.body as modelSetting.IapiUpdateBody;
 
             const id = body.id;
-            const llm = body.llm;
+            const llmList = body.llm;
 
             if (typeof mcpSessionId === "string") {
-                const message = this.checkField(llm);
+                const checkMessage = this.checkField(llmList);
 
-                if (message === "") {
-                    const isUpdate = await this.tableUpdate(mcpSessionId, id, llm);
+                if (checkMessage === "") {
+                    const isSuccess = await this.tableUpdate(mcpSessionId, id, llmList);
 
-                    if (isUpdate) {
-                        helperSrc.responseBody(JSON.stringify({ status: "ok", message: "Setting updated successfully." }), "", response, 200);
+                    if (isSuccess) {
+                        helperSrc.responseBody(JSON.stringify({ message: "Setting updated successfully.", isComplete: true }), "", response, 200);
                     } else {
-                        helperSrc.responseBody(JSON.stringify({ status: "ko", message: "Failed to update setting." }), "", response, 200);
+                        helperSrc.responseBody(JSON.stringify({ message: "Failed to update setting.", isComplete: false }), "", response, 200);
                     }
                 } else {
-                    helperSrc.responseBody(JSON.stringify({ status: "ko", message }), "", response, 200);
+                    helperSrc.responseBody(JSON.stringify({ message: checkMessage, isComplete: false }), "", response, 200);
                 }
             } else {
                 helperSrc.writeLog("Setting.ts - api() - post(/api/setting-update) - Error", "Missing or invalid header.");

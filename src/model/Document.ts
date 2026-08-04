@@ -1,7 +1,16 @@
+export interface IapiListBody {
+    folderJoin: string;
+}
+
 export interface IapiReadBody {
     fileName: string;
 }
 
 export interface IapiDeleteBody {
-    fileName: string;
+    pathFile: string;
+}
+
+export interface IapiFolderCreateBody {
+    folderName: string;
+    folderJoin: string;
 }

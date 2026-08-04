@@ -17,12 +17,16 @@ export default class Agent {
     private checkField = (name: string, description: string, skillName: string): string => {
         let result = "";
 
-        if (name === "") {
-            result = "Agent name is required";
-        } else if (description === "") {
-            result = "Agent description is required";
-        } else if (skillName === "") {
-            result = "Agent skill name is required";
+        if (!/^[A-Za-z0-9_ ]+$/.test(name)) {
+            result = "Name: Can only contain letter, number, underscore and space.";
+        }
+
+        if (!/^[A-Za-z0-9_,. ]+$/.test(description)) {
+            result = "Description: Can only contain letter, number, underscore, comma, dot and space.";
+        }
+
+        if (skillName !== "" && !/^[A-Za-z0-9_]+$/.test(skillName)) {
+            result = "Skill name: Can only contain letter, number and underscore.";
         }
 
         return result;
@@ -158,18 +162,18 @@ export default class Agent {
             const skillName = body.skillName;
 
             if (typeof mcpSessionId === "string") {
-                const message = this.checkField(name, description, skillName);
+                const checkMessage = this.checkField(name, description, skillName);
 
-                if (message === "") {
-                    const isInsert = await this.tableInsert(mcpSessionId, name, description, skillName);
+                if (checkMessage === "") {
+                    const isSuccess = await this.tableInsert(mcpSessionId, name, description, skillName);
 
-                    if (isInsert) {
-                        helperSrc.responseBody(JSON.stringify({ status: "ok", message: "Agent created successfully." }), "", response, 200);
+                    if (isSuccess) {
+                        helperSrc.responseBody(JSON.stringify({ message: "Agent created successfully.", isComplete: true }), "", response, 200);
                     } else {
-                        helperSrc.responseBody(JSON.stringify({ status: "ko", message: "Failed to create agent." }), "", response, 200);
+                        helperSrc.responseBody(JSON.stringify({ message: "Failed to create agent.", isComplete: false }), "", response, 200);
                     }
                 } else {
-                    helperSrc.responseBody(JSON.stringify({ status: "ko", message }), "", response, 200);
+                    helperSrc.responseBody(JSON.stringify({ message: checkMessage, isComplete: false }), "", response, 200);
                 }
             } else {
                 helperSrc.writeLog("Agent.ts - api() - post(/api/agent-create) - Error", "Missing or invalid header.");
@@ -188,18 +192,18 @@ export default class Agent {
             const skillName = body.skillName;
 
             if (typeof mcpSessionId === "string") {
-                const message = this.checkField(name, description, skillName);
+                const checkMessage = this.checkField(name, description, skillName);
 
-                if (message === "") {
-                    const isUpdate = await this.tableUpdate(mcpSessionId, id, name, description, skillName);
+                if (checkMessage === "") {
+                    const isSuccess = await this.tableUpdate(mcpSessionId, id, name, description, skillName);
 
-                    if (isUpdate) {
-                        helperSrc.responseBody(JSON.stringify({ status: "ok", message: "Agent updated successfully." }), "", response, 200);
+                    if (isSuccess) {
+                        helperSrc.responseBody(JSON.stringify({ message: "Agent updated successfully.", isComplete: true }), "", response, 200);
                     } else {
-                        helperSrc.responseBody(JSON.stringify({ status: "ko", message: "Failed to update agent." }), "", response, 200);
+                        helperSrc.responseBody(JSON.stringify({ message: "Failed to update agent.", isComplete: false }), "", response, 200);
                     }
                 } else {
-                    helperSrc.responseBody(JSON.stringify({ status: "ko", message }), "", response, 200);
+                    helperSrc.responseBody(JSON.stringify({ message: checkMessage, isComplete: false }), "", response, 200);
                 }
             } else {
                 helperSrc.writeLog("Agent.ts - api() - post(/api/agent-update) - Error", "Missing or invalid header.");

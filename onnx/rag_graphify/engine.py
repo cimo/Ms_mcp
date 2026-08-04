@@ -1847,22 +1847,22 @@ class Engine:
         self._tableCreate(database, mcpSessionId)
 
         fileNameOnly = fileName.split("/")[-1]
-        baseName = re.sub(r"\.[^/.]+$", "", fileNameOnly.strip())
 
-        pathInputBasename = f"{self.pathFileInput}{mcpSessionId}/document/{baseName}/"
+        pathDocument = f"{self.pathFileInput}{mcpSessionId}/document/"
+        pathCurrent = f"{pathDocument}{os.path.dirname(fileName)}/"
 
-        fileIdStored = self._logicFileSelect(database, mcpSessionId, fileName)
+        fileIdStored = self._logicFileSelect(database, mcpSessionId, fileNameOnly)
 
         if fileIdStored > 0:
             result = "ok"
         else:
-            self._tableDelete(database, mcpSessionId, fileName)
+            self._tableDelete(database, mcpSessionId, fileNameOnly)
 
-            fileId = self._tableFileInsert(database, mcpSessionId, fileName)
+            fileId = self._tableFileInsert(database, mcpSessionId, fileNameOnly)
 
             database.commit()
 
-            pathMarkdown = f"{pathInputBasename}result.md"
+            pathMarkdown = f"{pathCurrent}result.md"
 
             if os.path.exists(pathMarkdown):
                 with open(pathMarkdown, "r", encoding="utf-8") as file:
@@ -1899,23 +1899,23 @@ class Engine:
                     result = "ok"
 
         if result == "ok":
-            if os.path.isdir(pathInputBasename):
-                with open(f"{pathInputBasename}.rag_done", "w") as file:
+            if os.path.isdir(pathCurrent):
+                with open(f"{pathCurrent}.rag_done", "w") as file:
                     file.write("")
 
             self._htmlGenerate(database, mcpSessionId)
         else:
-            self._tableDelete(database, mcpSessionId, fileName)
+            self._tableDelete(database, mcpSessionId, fileNameOnly)
 
-            if os.path.isdir(pathInputBasename):
-                with open(f"{pathInputBasename}.fail", "w") as file:
+            if os.path.isdir(pathCurrent):
+                with open(f"{pathCurrent}.fail", "w") as file:
                     file.write("")
 
         database.close()
 
         timeEnd = time.perf_counter() - timeStart
 
-        print(f"\nTime: {round(timeEnd, 3)} - {fileName}")
+        print(f"\nTime: {round(timeEnd, 3)} - {fileNameOnly}")
 
         return result
 

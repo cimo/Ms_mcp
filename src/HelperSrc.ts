@@ -532,7 +532,7 @@ export const ansiEscapeDelete = (text: string): string => {
     return text.replace(regex, "");
 };
 
-export const findInDirectoryRecursive = (path: string, extension: string): Promise<string[]> => {
+export const findPathFileRecursive = (path: string, extension: string): Promise<string[]> => {
     return new Promise((resolve) => {
         const resultList: string[] = [];
 
@@ -564,7 +564,7 @@ export const findInDirectoryRecursive = (path: string, extension: string): Promi
 
                     Fs.stat(pathData, (errorStat, statData) => {
                         if (!errorStat && statData.isDirectory()) {
-                            findInDirectoryRecursive(`${pathData}/`, extension).then((dataSubList) => {
+                            findPathFileRecursive(`${pathData}/`, extension).then((dataSubList) => {
                                 for (let a = 0; a < dataSubList.length; a++) {
                                     const dataSub = dataSubList[a];
 
@@ -573,7 +573,7 @@ export const findInDirectoryRecursive = (path: string, extension: string): Promi
 
                                 next();
                             });
-                        } else if (!errorStat && statData.isFile() && (data.endsWith(extension) || extension === ".*")) {
+                        } else if (!errorStat && statData.isFile() && (data.endsWith(`.${extension}`) || extension === "*")) {
                             resultList.push(pathData);
 
                             next();
@@ -585,6 +585,111 @@ export const findInDirectoryRecursive = (path: string, extension: string): Promi
 
                 next();
             });
+        });
+    });
+};
+
+export const findPathDirnameRecursive = async (path: string, fileName: string): Promise<string> => {
+    let result = "";
+
+    const detail = fileDetail(fileName);
+
+    const pathFileList = await findPathFileRecursive(path, detail.extension);
+
+    for (let a = 0; a < pathFileList.length; a++) {
+        const pathFile = pathFileList[a];
+
+        if (pathFile.endsWith(fileName)) {
+            result = `${Path.dirname(pathFile)}/`;
+
+            break;
+        }
+    }
+
+    return result;
+};
+
+export const readFirstLevelRecursive = (path: string, extension: string, pathPrevious?: string): Promise<string[]> => {
+    return new Promise((resolve) => {
+        const resultList: string[] = [];
+
+        Fs.access(path, Fs.constants.F_OK, (errorAccess) => {
+            if (errorAccess) {
+                resolve(resultList);
+
+                return;
+            }
+
+            Fs.readdir(path, (errorReadDir, dataList) => {
+                if (errorReadDir) {
+                    resolve(resultList);
+
+                    return;
+                }
+
+                let count = 0;
+
+                const next = () => {
+                    if (count >= dataList.length) {
+                        resolve(resultList);
+
+                        return;
+                    }
+
+                    const data = dataList[count++];
+                    const pathData = `${path}${data}`;
+
+                    Fs.stat(pathData, (errorStat, statData) => {
+                        if (!errorStat && statData.isDirectory()) {
+                            if (!pathPrevious) {
+                                resultList.push(pathData);
+
+                                readFirstLevelRecursive(`${pathData}/`, extension, path).then((dataSubList) => {
+                                    for (let a = 0; a < dataSubList.length; a++) {
+                                        const dataSub = dataSubList[a];
+
+                                        resultList.push(dataSub);
+                                    }
+
+                                    next();
+                                });
+                            } else {
+                                next();
+                            }
+                        } else if (!errorStat && statData.isFile() && (data.endsWith(`.${extension}`) || extension === "*")) {
+                            resultList.push(pathData);
+
+                            next();
+                        } else {
+                            next();
+                        }
+                    });
+                };
+
+                next();
+            });
+        });
+    });
+};
+
+export const readAllLevelPathFileRecursive = async (path: string): Promise<string[]> => {
+    return new Promise<string[]>((resolve) => {
+        findPathFileRecursive(path, "*").then((pathFileList) => {
+            const resultList: string[] = [];
+
+            for (let a = 0; a < pathFileList.length; a++) {
+                const pathRelative = pathFileList[a].replace(path, "");
+                const pathRelativeSplit = pathRelative.split("/");
+
+                if (
+                    pathRelativeSplit.length > 1 &&
+                    pathRelativeSplit[pathRelativeSplit.length - 1].startsWith(pathRelativeSplit[pathRelativeSplit.length - 2])
+                ) {
+                    resultList.push(pathRelative);
+                }
+            }
+
+            resolve(resultList);
         });
     });
 };
@@ -638,26 +743,42 @@ export const responseBody = (stdoutValue: string, stderrValue: string | Error, r
 };
 
 // Custom
-export const uploadedDocumentRead = (mcpSessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
+export const uploadedDocumentRead = (mcpSessionId: string, extension: string, folderJoin?: string): Promise<modelHelperSrc.IfileDetail[]> => {
     return new Promise<modelHelperSrc.IfileDetail[]>((resolve) => {
-        const input = `${PATH_ROOT}${PATH_FILE}input/${mcpSessionId}/document/`;
+        let pathDocument = `${PATH_ROOT}${PATH_FILE}input/${mcpSessionId}/document/`;
 
-        findInDirectoryRecursive(input, extension).then((pathFileList) => {
+        if (folderJoin) {
+            pathDocument = `${pathDocument}${folderJoin}/`;
+        }
+
+        readFirstLevelRecursive(pathDocument, extension).then((pathList) => {
             const resultList: modelHelperSrc.IfileDetail[] = [];
 
-            for (let a = 0; a < pathFileList.length; a++) {
-                const pathRelative = pathFileList[a].replace(input, "");
-                const pathList = pathRelative.split("/");
+            for (let a = 0; a < pathList.length; a++) {
+                const pathRelative = pathList[a].replace(pathDocument, "");
+                const pathRelativeSplit = pathRelative.split("/");
 
-                if (pathList.length > 1 && pathList[1].startsWith(pathList[0])) {
-                    const detail = fileDetail(pathFileList[a], undefined, false);
+                const detail = fileDetail(pathList[a], undefined, false);
+
+                if (pathRelativeSplit.length > 1 && pathRelativeSplit[1].startsWith(pathRelativeSplit[0])) {
+                    resultList.pop();
 
                     resultList.push({
-                        fileName: pathList[1],
+                        fileName: pathRelativeSplit[1],
                         baseName: detail.baseName,
                         mimeType: detail.mimeType,
                         extension: detail.extension,
                         category: detail.category,
+                        dateModified: detail.dateModified,
+                        size: detail.size
+                    });
+                } else if (pathRelativeSplit.length === 1 && pathRelativeSplit[0] !== "rag_graph.html") {
+                    resultList.push({
+                        fileName: pathRelativeSplit[0],
+                        baseName: "",
+                        mimeType: "",
+                        extension: "",
+                        category: "folder",
                         dateModified: detail.dateModified,
                         size: detail.size
                     });
@@ -671,32 +792,31 @@ export const uploadedDocumentRead = (mcpSessionId: string, extension: string): P
 
 export const uploadedSkillRead = (mcpSessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
     return new Promise<modelHelperSrc.IfileDetail[]>((resolve) => {
-        const input = `${PATH_ROOT}${PATH_FILE}input/${mcpSessionId}/skill/`;
+        const pathSkill = `${PATH_ROOT}${PATH_FILE}input/${mcpSessionId}/skill/`;
 
-        findInDirectoryRecursive(input, extension).then((pathFileList) => {
+        findPathFileRecursive(pathSkill, extension).then((pathFileList) => {
             const resultList: modelHelperSrc.IfileDetail[] = [];
 
             for (let a = 0; a < pathFileList.length; a++) {
                 if (pathFileList[a].endsWith("skill.md")) {
-                    const pathRelative = pathFileList[a].replace(input, "");
-                    const directoryList = pathRelative.split("/");
-                    const name = directoryList[0];
+                    const pathRelative = pathFileList[a].replace(pathSkill, "");
+                    const pathRelativeSplit = pathRelative.split("/");
 
                     let isAlreadyInList = false;
 
                     for (let b = 0; b < resultList.length; b++) {
-                        if (resultList[b].fileName === name) {
+                        if (resultList[b].fileName === pathRelativeSplit[0]) {
                             isAlreadyInList = true;
 
                             break;
                         }
                     }
 
-                    if (name !== "" && !isAlreadyInList) {
+                    if (pathRelativeSplit[0] !== "" && !isAlreadyInList) {
                         const detail = fileDetail(pathFileList[a], undefined, false);
 
                         resultList.push({
-                            fileName: name,
+                            fileName: pathRelativeSplit[0],
                             baseName: detail.baseName,
                             mimeType: detail.mimeType,
                             extension: detail.extension,

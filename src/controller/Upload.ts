@@ -68,8 +68,8 @@ export default class Upload {
                         const formData = formDataList[a];
 
                         if (formData.name === "file" && formData.fileName && formData.buffer) {
-                            const fileName = isDecode ? decodeURIComponent(formData.fileName) : formData.fileName;
-                            const fileDetail = helperSrc.fileDetail(fileName, formData.buffer);
+                            const fileNameDecode = isDecode ? decodeURIComponent(formData.fileName) : formData.fileName;
+                            const fileDetail = helperSrc.fileDetail(fileNameDecode, formData.buffer);
                             const path = `${pathValue}${fileDetail.baseName}/`;
                             const pathFile = `${path}${fileDetail.fileName}`;
 

@@ -30,21 +30,19 @@ export default class Rag {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId === "string") {
-                const fileList = await helperSrc.uploadedDocumentRead(mcpSessionId, ".*");
+                const pathFileList = await helperSrc.readAllLevelPathFileRecursive(
+                    `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`
+                );
 
-                const fileNameList = [];
-
-                for (const file of fileList) {
-                    const fileDetail = helperSrc.fileDetail(file.fileName);
+                for (const pathFile of pathFileList) {
+                    const fileDetail = helperSrc.fileDetail(pathFile);
 
                     if (fileDetail.category === "document") {
-                        fileNameList.push(fileDetail.fileName);
-
-                        this.toolRag.store().content({ fileName: fileDetail.fileName }, { sessionId: mcpSessionId });
+                        this.toolRag.store().content({ pathFile }, { sessionId: mcpSessionId });
                     }
                 }
 
-                helperSrc.responseBody(JSON.stringify(fileNameList), "", response, 200);
+                helperSrc.responseBody(JSON.stringify(pathFileList), "", response, 200);
             } else {
                 helperSrc.writeLog("Rag.ts - api() - post(/api/rag-start) - Error", "Missing or invalid header.");
 
@@ -52,34 +50,39 @@ export default class Rag {
             }
         });
 
-        this.app.post("/api/rag-check", Ca.authenticationMiddleware, (request: Request, response: Response) => {
+        this.app.post("/api/rag-check", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body as modelRag.IapiCheckBody;
 
-            const fileName = body.fileName;
-            const fileDetail = helperSrc.fileDetail(fileName);
+            const pathFile = body.pathFile;
 
             if (typeof mcpSessionId === "string") {
-                const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
+                const fileDetail = helperSrc.fileDetail(pathFile);
 
-                helperSrc.findInDirectoryRecursive(pathDocument, ".*").then((pathFileList) => {
-                    let status = "Ongoing";
+                const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
+
+                const pathCurrent = fileDetail.baseName
+                    ? await helperSrc.findPathDirnameRecursive(pathDocument, fileDetail.fileName)
+                    : `${pathDocument}${pathFile}`;
+
+                helperSrc.findPathFileRecursive(pathCurrent, "*").then((pathFileList) => {
+                    let state = "ongoing";
 
                     for (let a = 0; a < pathFileList.length; a++) {
                         const pathFile = pathFileList[a];
 
                         if (pathFile.endsWith(".rag_done")) {
-                            status = "Success";
+                            state = "success";
 
                             break;
                         } else if (pathFile.endsWith(".fail")) {
-                            status = "Failed";
+                            state = "failed";
 
                             break;
                         }
                     }
 
-                    helperSrc.responseBody(status, "", response, 200);
+                    helperSrc.responseBody(state, "", response, 200);
                 });
             } else {
                 helperSrc.writeLog("Rag.ts - api() - post(/api/rag-check) - Error", "Missing or invalid header.");

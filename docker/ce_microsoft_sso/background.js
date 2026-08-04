@@ -16,7 +16,7 @@ chrome.runtime.onMessage.addListener(
                 request,
                 function (response) {
                     if (response != null) {
-                        if (response.status == "Fail") {
+                        if (response.status.toLowerCase() === "fail") {
                             RespondWithError(response, sendResponse);
                         }
                         else {

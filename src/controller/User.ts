@@ -39,10 +39,12 @@ export default class User {
     private checkField = (name: string, surname: string): string => {
         let result = "";
 
-        if (name === "") {
-            result = "User name is required";
-        } else if (surname === "") {
-            result = "User surname is required";
+        if (!/^[A-Za-z0-9_]+$/.test(name)) {
+            result = "Name: Can only contain letter, number and underscore.";
+        }
+
+        if (!/^[A-Za-z0-9_]+$/.test(surname)) {
+            result = "Surname: Can only contain letter, number and underscore.";
         }
 
         return result;
@@ -222,18 +224,18 @@ export default class User {
             const password = body.password;
 
             if (typeof mcpSessionId === "string") {
-                const message = this.checkField(name, surname);
+                const checkMessage = this.checkField(name, surname);
 
-                if (message === "") {
-                    const isUpdate = await this.tableUpdate(id, name, surname, password, mcpSessionId);
+                if (checkMessage === "") {
+                    const isSuccess = await this.tableUpdate(id, name, surname, password, mcpSessionId);
 
-                    if (isUpdate) {
-                        helperSrc.responseBody(JSON.stringify({ status: "ok", message: "User updated successfully." }), "", response, 200);
+                    if (isSuccess) {
+                        helperSrc.responseBody(JSON.stringify({ message: "User updated successfully.", isComplete: true }), "", response, 200);
                     } else {
-                        helperSrc.responseBody(JSON.stringify({ status: "ko", message: "Failed to update user." }), "", response, 200);
+                        helperSrc.responseBody(JSON.stringify({ message: "Failed to update user.", isComplete: false }), "", response, 200);
                     }
                 } else {
-                    helperSrc.responseBody(JSON.stringify({ status: "ko", message }), "", response, 200);
+                    helperSrc.responseBody(JSON.stringify({ message: checkMessage, isComplete: false }), "", response, 200);
                 }
             } else {
                 helperSrc.writeLog("User.ts - api() - post(/api/user-update) - Error", "Missing or invalid header.");

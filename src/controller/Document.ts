@@ -1,3 +1,4 @@
+import Fs from "fs";
 import Express, { Request, Response } from "express";
 import { RateLimitRequestHandler } from "express-rate-limit";
 import { Ca } from "@cimo/authentication/dist/src/Main.js";
@@ -21,6 +22,16 @@ export default class Document {
     private toolRag: ToolRag;
 
     // Method
+    private checkField = (folderName: string): string => {
+        let result = "";
+
+        if (!/^[A-Za-z0-9_]+$/.test(folderName)) {
+            result = "Folder name: Can only contain uppercase, lowercase, number and underscore.";
+        }
+
+        return result;
+    };
+
     constructor(app: Express.Express, limiter: RateLimitRequestHandler, sessionObject: Record<string, modelServer.Isession>) {
         this.app = app;
         this.limiter = limiter;
@@ -34,13 +45,18 @@ export default class Document {
     api = (): void => {
         this.app.post("/api/document-upload", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const fileNameHeader = request.headers["filename"];
+            const fileNameEncode = request.headers["filenameencode"];
+            const folderJoin = request.headers["folderjoin"];
 
-            const fileName = decodeURIComponent(typeof fileNameHeader === "string" ? fileNameHeader : "");
-            const fileDetail = helperSrc.fileDetail(fileName);
+            let pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
+
+            const fileNameDecode = decodeURIComponent(typeof fileNameEncode === "string" ? fileNameEncode : "");
+            const fileDetail = helperSrc.fileDetail(fileNameDecode);
 
             if (typeof mcpSessionId === "string") {
-                const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
+                if (folderJoin) {
+                    pathDocument = `${pathDocument}${folderJoin}/`;
+                }
 
                 this.controllerUpload
                     .execute(request, true, true, pathDocument)
@@ -52,9 +68,19 @@ export default class Document {
                                     .content({ fileName: fileDetail.fileName, searchInput: "" }, { sessionId: mcpSessionId });
                             }
 
-                            helperSrc.responseBody(JSON.stringify({ fileName: fileDetail.fileName, status: "Success" }), "", response, 200);
+                            helperSrc.responseBody(
+                                JSON.stringify({ message: "Success", isComplete: true, pathFile: `${folderJoin}/${fileDetail.fileName}` }),
+                                "",
+                                response,
+                                200
+                            );
                         } else {
-                            helperSrc.responseBody(JSON.stringify({ fileName: fileDetail.fileName, status: "Failed" }), "", response, 200);
+                            helperSrc.responseBody(
+                                JSON.stringify({ message: "Failed", isComplete: false, pathFile: `${folderJoin}/${fileDetail.fileName}` }),
+                                "",
+                                response,
+                                200
+                            );
                         }
                     })
                     .catch((error: Error) => {
@@ -69,13 +95,16 @@ export default class Document {
             }
         });
 
-        this.app.get("/api/document-list", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.post("/api/document-list", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
+            const body = request.body as modelDocument.IapiListBody;
+
+            const folderJoin = body.folderJoin;
 
             if (typeof mcpSessionId === "string") {
-                const fileList = await helperSrc.uploadedDocumentRead(mcpSessionId, ".*");
+                const pathList = await helperSrc.uploadedDocumentRead(mcpSessionId, "*", folderJoin);
 
-                helperSrc.responseBody(JSON.stringify(fileList), "", response, 200);
+                helperSrc.responseBody(JSON.stringify(pathList), "", response, 200);
             } else {
                 helperSrc.writeLog("Document.ts - api() - get(/api/document-list) - Error", "Missing or invalid header.");
 
@@ -83,7 +112,7 @@ export default class Document {
             }
         });
 
-        this.app.post("/api/document-read", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
+        this.app.post("/api/document-read", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body as modelDocument.IapiReadBody;
 
@@ -91,7 +120,10 @@ export default class Document {
             const fileDetail = helperSrc.fileDetail(fileName);
 
             if (typeof mcpSessionId === "string") {
-                const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
+                const pathDirname = await helperSrc.findPathDirnameRecursive(
+                    `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`,
+                    fileDetail.fileName
+                );
 
                 let inputExtension = "";
                 let inputFileName = "";
@@ -109,7 +141,7 @@ export default class Document {
                     inputFileName = fileDetail.fileName;
                 }
 
-                helperSrc.findInDirectoryRecursive(pathDocument, inputExtension).then((pathFileList) => {
+                helperSrc.findPathFileRecursive(pathDirname, inputExtension).then((pathFileList) => {
                     let isFound = false;
 
                     for (let a = 0; a < pathFileList.length; a++) {
@@ -120,12 +152,7 @@ export default class Document {
 
                             helperSrc.fileReadStream(pathFile).then((resultFileReadStream) => {
                                 if (Buffer.isBuffer(resultFileReadStream)) {
-                                    const readObject = {
-                                        fileContent: resultFileReadStream.toString("base64"),
-                                        pageTotal: pathFileList.length
-                                    };
-
-                                    helperSrc.responseBody(JSON.stringify(readObject), "", response, 200);
+                                    helperSrc.responseBody(resultFileReadStream.toString("base64"), "", response, 200);
                                 } else {
                                     helperSrc.writeLog(
                                         "Document.ts - api() - post(/api/document-read) - fileReadStream()",
@@ -157,25 +184,80 @@ export default class Document {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body as modelDocument.IapiDeleteBody;
 
-            const fileName = body.fileName;
-            const fileDetail = helperSrc.fileDetail(fileName);
+            const pathFile = body.pathFile;
 
             if (typeof mcpSessionId === "string") {
-                const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
+                const fileDetail = helperSrc.fileDetail(pathFile);
 
-                const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(pathDocument);
+                const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
+
+                const pathCurrent = fileDetail.baseName
+                    ? await helperSrc.findPathDirnameRecursive(pathDocument, fileDetail.fileName)
+                    : `${pathDocument}${pathFile}`;
+
+                let pathFileList: string[] = [];
+
+                if (!fileDetail.baseName) {
+                    pathFileList = await helperSrc.readAllLevelPathFileRecursive(pathCurrent);
+                }
+
+                const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(pathCurrent);
 
                 if (typeof fileOrFolderDelete !== "boolean") {
                     helperSrc.writeLog("Document.ts - api() - post(/api/document-delete) - fileOrFolderDelete()", fileOrFolderDelete.toString());
 
                     helperSrc.responseBody("", "ko", response, 500);
                 } else {
-                    await this.toolRag.delete().content({ fileName }, { sessionId: mcpSessionId });
+                    if (fileDetail.baseName) {
+                        await this.toolRag.delete().content({ fileName: fileDetail.fileName }, { sessionId: mcpSessionId });
+                    } else {
+                        for (const pathFile of pathFileList) {
+                            const fileDetail = helperSrc.fileDetail(pathFile);
+
+                            await this.toolRag.delete().content({ fileName: fileDetail.fileName }, { sessionId: mcpSessionId });
+                        }
+                    }
 
                     helperSrc.responseBody("ok", "", response, 200);
                 }
             } else {
                 helperSrc.writeLog("Document.ts - api() - post(/api/document-delete) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            }
+        });
+
+        this.app.post("/api/document-folder-create", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
+            const mcpSessionId = request.headers["mcp-session-id"];
+            const body = request.body as modelDocument.IapiFolderCreateBody;
+
+            const folderName = body.folderName;
+            const folderJoin = body.folderJoin;
+
+            if (typeof mcpSessionId === "string") {
+                const checkMessage = this.checkField(folderName);
+
+                if (checkMessage === "") {
+                    let pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
+
+                    if (folderJoin) {
+                        pathDocument = `${pathDocument}${folderJoin}/`;
+                    }
+
+                    Fs.mkdir(`${pathDocument}${folderName}/`, { recursive: true }, (error) => {
+                        if (error) {
+                            helperSrc.responseBody(JSON.stringify({ message: "Failed to create folder.", isComplete: false }), "", response, 200);
+
+                            return;
+                        }
+
+                        helperSrc.responseBody(JSON.stringify({ message: "Folder created successfully.", isComplete: true }), "", response, 200);
+                    });
+                } else {
+                    helperSrc.responseBody(JSON.stringify({ message: checkMessage, isComplete: false }), "", response, 200);
+                }
+            } else {
+                helperSrc.writeLog("Document.ts - api() - post(/api/document-folder-create) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             }

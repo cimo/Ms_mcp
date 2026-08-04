@@ -24,20 +24,25 @@ export default class Skill {
     api = (): void => {
         this.app.post("/api/skill-upload", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
-            const fileNameHeader = request.headers["filename"];
+            const fileNameEncode = request.headers["filenameencode"];
 
-            const fileName = decodeURIComponent(typeof fileNameHeader === "string" ? fileNameHeader : "");
-            const fileDetail = helperSrc.fileDetail(fileName);
+            const pathSkill = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/`;
 
-            if (fileDetail.extension === "zip" && !/^[a-z0-9_.]+$/.test(fileDetail.baseName)) {
-                helperSrc.responseBody(JSON.stringify({ fileName: fileDetail.fileName, status: "Failed" }), "", response, 200);
+            const fileNameDecode = decodeURIComponent(typeof fileNameEncode === "string" ? fileNameEncode : "");
+            const fileDetail = helperSrc.fileDetail(fileNameDecode);
+
+            if (fileDetail.extension === "zip" && !/^[A-Za-z0-9_]+$/.test(fileDetail.baseName)) {
+                helperSrc.responseBody(
+                    JSON.stringify({ message: "Failed", isComplete: false, pathFile: `/${fileDetail.fileName}` }),
+                    "",
+                    response,
+                    200
+                );
 
                 return;
             }
 
             if (typeof mcpSessionId === "string") {
-                const pathSkill = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/`;
-
                 this.controllerUpload
                     .execute(request, true, true, pathSkill)
                     .then((resultControllerUploadList) => {
@@ -65,9 +70,19 @@ export default class Skill {
                                 zip.extractAllTo(`${pathSkill}${fileDetail.baseName}`, true);
                             }
 
-                            helperSrc.responseBody(JSON.stringify({ fileName: fileDetail.fileName, status: "Success" }), "", response, 200);
+                            helperSrc.responseBody(
+                                JSON.stringify({ message: "Success", isComplete: true, pathFile: `/${fileDetail.fileName}` }),
+                                "",
+                                response,
+                                200
+                            );
                         } else {
-                            helperSrc.responseBody(JSON.stringify({ fileName: fileDetail.fileName, status: "Failed" }), "", response, 200);
+                            helperSrc.responseBody(
+                                JSON.stringify({ message: "Failed", isComplete: false, pathFile: `/${fileDetail.fileName}` }),
+                                "",
+                                response,
+                                200
+                            );
                         }
                     })
                     .catch((error: Error) => {
@@ -86,7 +101,7 @@ export default class Skill {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId === "string") {
-                const fileList = await helperSrc.uploadedSkillRead(mcpSessionId, ".*");
+                const fileList = await helperSrc.uploadedSkillRead(mcpSessionId, "*");
 
                 helperSrc.responseBody(JSON.stringify(fileList), "", response, 200);
             } else {
@@ -105,7 +120,7 @@ export default class Skill {
             if (typeof mcpSessionId === "string") {
                 const pathSkill = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/${fileName}/`;
 
-                helperSrc.findInDirectoryRecursive(pathSkill, ".md").then((pathFileList) => {
+                helperSrc.findPathFileRecursive(pathSkill, "md").then((pathFileList) => {
                     let isFound = false;
 
                     for (let a = 0; a < pathFileList.length; a++) {

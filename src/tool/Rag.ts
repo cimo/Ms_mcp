@@ -19,10 +19,10 @@ export default class Rag {
         this.sessionObject = sessionObject;
 
         this.inputSchemaStore = z.object({
-            fileName: z
+            pathFile: z
                 .union([z.string(), z.number(), z.array(z.string()), z.null()])
                 .default("")
-                .describe("File name.")
+                .describe("File.")
         });
 
         this.inputSchemaSearch = z.object({
@@ -68,7 +68,7 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultStore = await ragProcess.databaseStore(extra.sessionId, helperSrc.zodText(argument.fileName));
+                const resultStore = await ragProcess.databaseStore(extra.sessionId, helperSrc.zodText(argument.pathFile));
                 result = JSON.stringify({ name, result: resultStore });
             }
 
@@ -104,9 +104,11 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const documentList = await helperSrc.uploadedDocumentRead(extra.sessionId, ".*");
+                const pathFileList = await helperSrc.readAllLevelPathFileRecursive(
+                    `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${extra.sessionId}/document/`
+                );
 
-                if (documentList.length > 0) {
+                if (pathFileList.length > 0) {
                     const resultSearch = await ragProcess.databaseSearch(
                         extra.sessionId,
                         helperSrc.zodText(argument.prompt),

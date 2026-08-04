@@ -89,10 +89,13 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
 
         const fileDetail = helperSrc.fileDetail(fileName);
 
-        const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
+        const pathDirname = await helperSrc.findPathDirnameRecursive(
+            `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`,
+            fileDetail.fileName
+        );
 
         if (fileDetail.extension !== "pdf") {
-            const fileReadStream = await helperSrc.fileReadStream(`${pathDocument}${fileDetail.fileName}`);
+            const fileReadStream = await helperSrc.fileReadStream(`${pathDirname}${fileDetail.fileName}`);
 
             if (Buffer.isBuffer(fileReadStream)) {
                 const buffer = Buffer.from(fileReadStream);
@@ -104,15 +107,15 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
                 const stdout = await apiToPdf(formData);
 
                 if (stdout !== "ko") {
-                    await helperSrc.fileWriteStream(`${pathDocument}converted.pdf`, Buffer.from(stdout, "base64"));
+                    await helperSrc.fileWriteStream(`${pathDirname}converted.pdf`, Buffer.from(stdout, "base64"));
                 }
             } else {
                 helperSrc.writeLog(`Parser.ts - execute() - no pdf - fileReadStream()`, fileReadStream.toString());
             }
         }
 
-        await apiDocumentParser("/layout", `${pathDocument}${fileDetail.fileName}`, pathDocument);
-        const engineData = await apiDocumentParser("/engine", `${pathDocument}${fileDetail.fileName}`, `${pathDocument}result.md`);
+        await apiDocumentParser("/layout", `${pathDirname}${fileDetail.fileName}`, pathDirname);
+        const engineData = await apiDocumentParser("/engine", `${pathDirname}${fileDetail.fileName}`, `${pathDirname}result.md`);
 
         if (engineData !== "ko") {
             resultObject = {
