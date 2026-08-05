@@ -51,6 +51,8 @@
     },
     "overrides": {
         "file-type": "22.0.1",
-        "@hono/node-server": "2.0.10"
+        "@hono/node-server": "2.0.10",
+        "hono": "4.12.34",
+        "fast-uri": "3.1.5"
     }
 }
