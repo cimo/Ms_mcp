@@ -9,7 +9,7 @@ fi
 
 . "${pathEnv}bin/activate"
 
-python3 -m pip install --no-cache-dir --upgrade pip
+python3 -m pip install --no-cache-dir --upgrade pip==26.2.1
 
 python3 -m pip install -r "${PATH_ROOT}requirement.txt"
 

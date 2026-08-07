@@ -23,13 +23,13 @@ echo -e "\n2. Npm audit --json:"
 
 if [ -f "package-lock.json" ]
 then
-    echo -e "\nFile 'package.lock.json' found, clean source and reinstall the package.\n"
+    echo -e "\nFile 'package-lock.json' found, clean source and reinstall the package.\n"
 
-    rm -rf "node_modules/"
+    rm -rf "node_modules/" "package-lock.json"
 
     npm install --no-audit
 else
-    echo -e "\nFile 'package.lock.json' not found, install the package.\n"
+    echo -e "\nFile 'package-lock.json' not found, install the package.\n"
 
     npm install --no-audit
 fi

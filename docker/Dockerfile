@@ -70,7 +70,7 @@ RUN cd ~ \
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get update && apt-get install -y \
     nodejs \
-    && npm install -g npm@latest \
+    && npm install -g npm@12.0.2 \
     && rm -rf /usr/lib/node_modules/npm/node_modules/brace-expansion \
     && mkdir -p /usr/lib/node_modules/npm/node_modules/brace-expansion \
     && curl -fsSL https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.9.tgz | tar -xz --strip-components=1 -C /usr/lib/node_modules/npm/node_modules/brace-expansion \
