@@ -73,19 +73,26 @@ RUN cd ~ \
     && apt-get update && apt-get install -y \
     nodejs \
     && npm install -g npm@12.0.2 \
-    && rm -rf /usr/lib/node_modules/npm/node_modules/brace-expansion \
-    && mkdir -p /usr/lib/node_modules/npm/node_modules/brace-expansion \
-    && curl -fsSL https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.9.tgz | tar -xz --strip-components=1 -C /usr/lib/node_modules/npm/node_modules/brace-expansion \
-    && rm -rf /usr/lib/node_modules/npm/node_modules/tar \
-    && mkdir -p /usr/lib/node_modules/npm/node_modules/tar \
-    && curl -fsSL https://registry.npmjs.org/tar/-/tar-7.5.21.tgz | tar -xz --strip-components=1 -C /usr/lib/node_modules/npm/node_modules/tar \
-    && rm -rf /usr/lib/node_modules/npm/node_modules/ip-address \
-    && mkdir -p /usr/lib/node_modules/npm/node_modules/ip-address \
-    && curl -fsSL https://registry.npmjs.org/ip-address/-/ip-address-10.3.1.tgz | tar -xz --strip-components=1 -C /usr/lib/node_modules/npm/node_modules/ip-address \
-    && rm -rf /usr/lib/node_modules/npm/node_modules/undici \
-    && rm -rf /usr/lib/node_modules/npm/node_modules/node-gyp/node_modules/undici \
-    && mkdir -p /usr/lib/node_modules/npm/node_modules/node-gyp/node_modules/undici \
-    && curl -fsSL https://registry.npmjs.org/undici/-/undici-6.28.0.tgz | tar -xz --strip-components=1 -C /usr/lib/node_modules/npm/node_modules/node-gyp/node_modules/undici \
+    && if [ -d /usr/lib/node_modules/npm/node_modules/brace-expansion/ ]; then \
+    rm -rf /usr/lib/node_modules/npm/node_modules/brace-expansion/; \
+    mkdir -p /usr/lib/node_modules/npm/node_modules/brace-expansion/; \
+    curl -fsSL https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.9.tgz | tar -xz --strip-components=1 -C /usr/lib/node_modules/npm/node_modules/brace-expansion/; \
+    fi \
+    && if [ -d /usr/lib/node_modules/npm/node_modules/tar/ ]; then \
+    rm -rf /usr/lib/node_modules/npm/node_modules/tar/; \
+    mkdir -p /usr/lib/node_modules/npm/node_modules/tar/; \
+    curl -fsSL https://registry.npmjs.org/tar/-/tar-7.5.21.tgz | tar -xz --strip-components=1 -C /usr/lib/node_modules/npm/node_modules/tar/; \
+    fi \
+    && if [ -d /usr/lib/node_modules/npm/node_modules/ip-address/ ]; then \
+    rm -rf /usr/lib/node_modules/npm/node_modules/ip-address/; \
+    mkdir -p /usr/lib/node_modules/npm/node_modules/ip-address/; \
+    curl -fsSL https://registry.npmjs.org/ip-address/-/ip-address-10.3.1.tgz | tar -xz --strip-components=1 -C /usr/lib/node_modules/npm/node_modules/ip-address/; \
+    fi \
+    && if [ -d /usr/lib/node_modules/npm/node_modules/undici/ ]; then \
+    rm -rf /usr/lib/node_modules/npm/node_modules/undici/; \
+    mkdir -p /usr/lib/node_modules/npm/node_modules/undici/; \
+    curl -fsSL https://registry.npmjs.org/undici/-/undici-6.28.0.tgz | tar -xz --strip-components=1 -C /usr/lib/node_modules/npm/node_modules/undici/; \
+    fi \
     # Python
     && apt-get update && apt-get install -y \
     python3-venv \
