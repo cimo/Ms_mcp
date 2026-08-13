@@ -11,6 +11,6 @@ fi
 
 parameter1="${p1}"
 
-rm -rf "${PATH_ROOT}node_modules/" "package-lock.json"
+rm -rf "${PATH_ROOT}node_modules/" "${PATH_ROOT}package-lock.json"
 npm install
 npm run "${parameter1}"
