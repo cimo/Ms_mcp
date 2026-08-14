@@ -39,10 +39,14 @@ export default class Rag {
                     `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`
                 );
 
+                const documentList = [];
+
                 for (const pathFile of pathFileList) {
                     const fileDetail = helperSrc.fileDetail(pathFile);
 
                     if (fileDetail.category === "document") {
+                        documentList.push(pathFile);
+
                         this.toolRag.store().content({ pathFile }, { sessionId: mcpSessionId });
                     }
                 }
@@ -50,7 +54,7 @@ export default class Rag {
                 if (pathFileList.length === 0) {
                     helperSrc.responseBody(JSON.stringify({ state: "ko", message: "No documents found for RAG." }), "", response, 200);
                 } else {
-                    helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: pathFileList }), "", response, 200);
+                    helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: documentList }), "", response, 200);
                 }
             }
         });
