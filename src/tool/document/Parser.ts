@@ -97,7 +97,9 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
         if (fileDetail.extension !== "pdf") {
             const fileReadStream = await helperSrc.fileReadStream(`${pathDirname}${fileDetail.fileName}`);
 
-            if (Buffer.isBuffer(fileReadStream)) {
+            if (!Buffer.isBuffer(fileReadStream)) {
+                helperSrc.writeLog(`Parser.ts - execute() - no pdf - fileReadStream()`, fileReadStream.toString());
+            } else {
                 const buffer = Buffer.from(fileReadStream);
                 const blob = new Blob([buffer], { type: fileDetail.mimeType });
 
@@ -109,8 +111,6 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
                 if (stdout !== "ko") {
                     await helperSrc.fileWriteStream(`${pathDirname}converted.pdf`, Buffer.from(stdout, "base64"));
                 }
-            } else {
-                helperSrc.writeLog(`Parser.ts - execute() - no pdf - fileReadStream()`, fileReadStream.toString());
             }
         }
 

@@ -14,3 +14,8 @@ export interface IapiFolderCreateBody {
     folderName: string;
     folderJoin: string;
 }
+
+export interface IapiFolderMoveBody {
+    pathList: string[];
+    folderJoin: string;
+}

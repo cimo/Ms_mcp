@@ -63,7 +63,9 @@ export default class Tool {
             return "ok";
         }
 
-        if (typeof cookie === "string") {
+        if (typeof cookie !== "string") {
+            return "ko";
+        } else {
             return instance.api
                 .post<unknown>(
                     "/rpc",
@@ -97,8 +99,6 @@ export default class Tool {
 
                     return "ko";
                 });
-        } else {
-            return "ko";
         }
     };
 
@@ -106,7 +106,9 @@ export default class Tool {
         const mcpSessionId = request.headers["mcp-session-id"];
         const mcpCookie = request.headers["mcp-cookie"];
 
-        if (typeof mcpSessionId === "string" && typeof mcpCookie === "string") {
+        if (typeof mcpSessionId !== "string" || typeof mcpCookie !== "string") {
+            return "ko";
+        } else {
             return instance.api
                 .post<unknown>(
                     "/rpc",
@@ -138,11 +140,9 @@ export default class Tool {
                 .catch((error: Error) => {
                     helperSrc.writeLog("Tool.ts - logoutRpc() - catch()", error.message);
 
-                    return "ko";
+                    return "";
                 });
         }
-
-        return "ko";
     };
 
     toolRegistration = (server: McpServer): void => {
@@ -196,29 +196,29 @@ export default class Tool {
             ) {
                 this.sessionObject[mcpSessionId].rpc.close();
 
-                helperSrc.responseBody(mcpSessionId, "", response, 200);
+                helperSrc.responseBody("ok", "", response, 200);
 
                 return;
             }
 
-            if (typeof mcpSessionId === "string" && this.sessionObject[mcpSessionId] && this.sessionObject[mcpSessionId].rpc) {
-                await this.sessionObject[mcpSessionId].rpc.handleRequest(request, response, body);
-            } else {
+            if (typeof mcpSessionId !== "string" || !this.sessionObject[mcpSessionId] || !this.sessionObject[mcpSessionId].rpc) {
                 helperSrc.writeLog("Tool.ts - api() - post(/rpc) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                await this.sessionObject[mcpSessionId].rpc.handleRequest(request, response, body);
             }
         });
 
         this.app.get("/rpc", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
-            if (typeof mcpSessionId === "string" && this.sessionObject[mcpSessionId] && this.sessionObject[mcpSessionId].rpc) {
-                await this.sessionObject[mcpSessionId].rpc.handleRequest(request, response);
-            } else {
+            if (typeof mcpSessionId !== "string" || !this.sessionObject[mcpSessionId] || !this.sessionObject[mcpSessionId].rpc) {
                 helperSrc.writeLog("Tool.ts - api() - get(/rpc) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                await this.sessionObject[mcpSessionId].rpc.handleRequest(request, response);
             }
         });
     };
@@ -227,8 +227,12 @@ export default class Tool {
         this.app.get("/api/tool-list", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
-            if (typeof mcpSessionId === "string") {
-                const resultList: modelTool.Itool[] = [
+            if (typeof mcpSessionId !== "string") {
+                helperSrc.writeLog("Tool.ts - api() - get(/api/tool-list) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                const toolList: modelTool.Itool[] = [
                     {
                         name: this.toolRag.search().name,
                         argumentObject: this.toolRag.inputSchemaSearch.parse({}),
@@ -279,11 +283,7 @@ export default class Tool {
                     }
                 ];
 
-                helperSrc.responseBody(JSON.stringify(resultList), "", response, 200);
-            } else {
-                helperSrc.writeLog("Tool.ts - api() - get(/api/tool-list) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: toolList }), "", response, 200);
             }
         });
 
@@ -292,7 +292,11 @@ export default class Tool {
             const mcpCookie = request.headers["mcp-cookie"];
             const body = request.body as modelTool.IapiToolCallBody;
 
-            if (typeof mcpSessionId === "string" && typeof mcpCookie === "string") {
+            if (typeof mcpSessionId !== "string" || typeof mcpCookie !== "string") {
+                helperSrc.writeLog("Tool.ts - api() - post(/api/tool-call) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            } else {
                 instance.api
                     .post<unknown>(
                         "/rpc",
@@ -309,25 +313,25 @@ export default class Tool {
                     .then((resultApi) => {
                         const data = resultApi.data;
 
-                        helperSrc.responseBody(JSON.stringify(data), "", response, 200);
+                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data }), "", response, 200);
                     })
                     .catch((error: Error) => {
                         helperSrc.writeLog("Tool.ts - api() - post(/api/tool-call) - post(/rpc) - catch()", error.message);
 
                         helperSrc.responseBody("", "ko", response, 500);
                     });
-            } else {
-                helperSrc.writeLog("Tool.ts - api() - post(/api/tool-call) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody("", "ko", response, 500);
             }
         });
 
         this.app.get("/api/task-list", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
-            if (typeof mcpSessionId === "string") {
-                const resultList: modelTool.Itask[] = [
+            if (typeof mcpSessionId !== "string") {
+                helperSrc.writeLog("Tool.ts - api() - get(/api/task-list) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                const taskList: modelTool.Itask[] = [
                     {
                         name: "automate_browser",
                         argumentObject: { url: "..." },
@@ -338,11 +342,7 @@ export default class Tool {
                     }
                 ];
 
-                helperSrc.responseBody(JSON.stringify(resultList), "", response, 200);
-            } else {
-                helperSrc.writeLog("Tool.ts - api() - get(/api/task-list) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: taskList }), "", response, 200);
             }
         });
 
@@ -350,10 +350,18 @@ export default class Tool {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body as modelTool.IapiTaskCallBody;
 
-            if (typeof mcpSessionId === "string" && this.sessionObject[mcpSessionId]) {
+            if (typeof mcpSessionId !== "string" || !this.sessionObject[mcpSessionId]) {
+                helperSrc.writeLog("Tool.ts - api() - post(/api/task-call) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            } else {
                 const runtime = this.sessionObject[mcpSessionId].runtime;
 
-                if (runtime) {
+                if (!runtime) {
+                    helperSrc.writeLog("Tool.ts - api() - post(/api/task-call) - Error", "Runtime problem.");
+
+                    helperSrc.responseBody("", "ko", response, 500);
+                } else {
                     let result = JSON.stringify({ uniqueId: "", layoutList: [], itemList: [] } as modelToolOcr.IapiExtractResponse);
 
                     if (Array.isArray(body.list)) {
@@ -403,16 +411,8 @@ export default class Tool {
                         }
                     }
 
-                    helperSrc.responseBody(result, "", response, 200);
-                } else {
-                    helperSrc.writeLog("Tool.ts - api() - post(/api/task-call) - Error", "Runtime problem.");
-
-                    helperSrc.responseBody("", "ko", response, 500);
+                    helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: result }), "", response, 200);
                 }
-            } else {
-                helperSrc.writeLog("Tool.ts - api() - post(/api/task-call) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody("", "ko", response, 500);
             }
         });
     };

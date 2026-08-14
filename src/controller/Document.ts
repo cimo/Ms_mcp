@@ -1,4 +1,5 @@
 import Fs from "fs";
+import Path from "path";
 import Express, { Request, Response } from "express";
 import { RateLimitRequestHandler } from "express-rate-limit";
 import { Ca } from "@cimo/authentication/dist/src/Main.js";
@@ -22,14 +23,14 @@ export default class Document {
     private toolRag: ToolRag;
 
     // Method
-    private checkField = (folderName: string): string => {
-        let result = "";
+    private checkField = (folderName: string): string[] => {
+        const resultList: string[] = [];
 
         if (!/^[A-Za-z0-9_]+$/.test(folderName)) {
-            result = "Folder name: Can only contain uppercase, lowercase, number and underscore.";
+            resultList.push("Folder name: Can only contain uppercase, lowercase, number and underscore.");
         }
 
-        return result;
+        return resultList;
     };
 
     constructor(app: Express.Express, limiter: RateLimitRequestHandler, sessionObject: Record<string, modelServer.Isession>) {
@@ -53,7 +54,11 @@ export default class Document {
             const fileNameDecode = decodeURIComponent(typeof fileNameEncode === "string" ? fileNameEncode : "");
             const fileDetail = helperSrc.fileDetail(fileNameDecode);
 
-            if (typeof mcpSessionId === "string") {
+            if (typeof mcpSessionId !== "string") {
+                helperSrc.writeLog("Document.ts - api() - post(/api/document-upload) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            } else {
                 if (folderJoin) {
                     pathDocument = `${pathDocument}${folderJoin}/`;
                 }
@@ -61,7 +66,14 @@ export default class Document {
                 this.controllerUpload
                     .execute(request, true, true, pathDocument)
                     .then(async (resultControllerUploadList) => {
-                        if (resultControllerUploadList.length > 0) {
+                        if (resultControllerUploadList.length === 0) {
+                            helperSrc.responseBody(
+                                JSON.stringify({ state: "ko", message: "", data: `${folderJoin}/${fileDetail.fileName}` }),
+                                "",
+                                response,
+                                200
+                            );
+                        } else {
                             if (fileDetail.category === "document") {
                                 await this.toolDocument
                                     .execute()
@@ -69,14 +81,7 @@ export default class Document {
                             }
 
                             helperSrc.responseBody(
-                                JSON.stringify({ message: "Success", isComplete: true, pathFile: `${folderJoin}/${fileDetail.fileName}` }),
-                                "",
-                                response,
-                                200
-                            );
-                        } else {
-                            helperSrc.responseBody(
-                                JSON.stringify({ message: "Failed", isComplete: false, pathFile: `${folderJoin}/${fileDetail.fileName}` }),
+                                JSON.stringify({ state: "ok", message: "", data: `${folderJoin}/${fileDetail.fileName}` }),
                                 "",
                                 response,
                                 200
@@ -88,10 +93,6 @@ export default class Document {
 
                         helperSrc.responseBody("", "ko", response, 500);
                     });
-            } else {
-                helperSrc.writeLog("Document.ts - api() - post(/api/document-upload) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody("", "ko", response, 500);
             }
         });
 
@@ -101,14 +102,14 @@ export default class Document {
 
             const folderJoin = body.folderJoin;
 
-            if (typeof mcpSessionId === "string") {
-                const pathList = await helperSrc.uploadedDocumentRead(mcpSessionId, "*", folderJoin);
-
-                helperSrc.responseBody(JSON.stringify(pathList), "", response, 200);
-            } else {
+            if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Document.ts - api() - get(/api/document-list) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                const fileDetailList = await helperSrc.uploadedDocumentRead(mcpSessionId, "*", folderJoin);
+
+                helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: fileDetailList }), "", response, 200);
             }
         });
 
@@ -119,7 +120,11 @@ export default class Document {
             const fileName = body.fileName;
             const fileDetail = helperSrc.fileDetail(fileName);
 
-            if (typeof mcpSessionId === "string") {
+            if (typeof mcpSessionId !== "string") {
+                helperSrc.writeLog("Document.ts - api() - post(/api/document-read) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            } else {
                 const pathDirname = await helperSrc.findPathDirnameRecursive(
                     `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`,
                     fileDetail.fileName
@@ -151,15 +156,20 @@ export default class Document {
                             isFound = true;
 
                             helperSrc.fileReadStream(pathFile).then((resultFileReadStream) => {
-                                if (Buffer.isBuffer(resultFileReadStream)) {
-                                    helperSrc.responseBody(resultFileReadStream.toString("base64"), "", response, 200);
-                                } else {
+                                if (!Buffer.isBuffer(resultFileReadStream)) {
                                     helperSrc.writeLog(
                                         "Document.ts - api() - post(/api/document-read) - fileReadStream()",
                                         resultFileReadStream.toString()
                                     );
 
                                     helperSrc.responseBody("", "ko", response, 500);
+                                } else {
+                                    helperSrc.responseBody(
+                                        JSON.stringify({ state: "ok", message: "", data: resultFileReadStream.toString("base64") }),
+                                        "",
+                                        response,
+                                        200
+                                    );
                                 }
                             });
 
@@ -170,13 +180,9 @@ export default class Document {
                     if (!isFound) {
                         helperSrc.writeLog("Document.ts - api() - post(/api/document-read) - Error", "File not found.");
 
-                        helperSrc.responseBody("ko", "", response, 200);
+                        helperSrc.responseBody("", "ko", response, 500);
                     }
                 });
-            } else {
-                helperSrc.writeLog("Document.ts - api() - post(/api/document-read) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody("", "ko", response, 500);
             }
         });
 
@@ -186,14 +192,16 @@ export default class Document {
 
             const pathFile = body.pathFile;
 
-            if (typeof mcpSessionId === "string") {
+            if (typeof mcpSessionId !== "string") {
+                helperSrc.writeLog("Document.ts - api() - post(/api/document-delete) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            } else {
                 const fileDetail = helperSrc.fileDetail(pathFile);
 
                 const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
 
-                const pathCurrent = fileDetail.baseName
-                    ? await helperSrc.findPathDirnameRecursive(pathDocument, fileDetail.fileName)
-                    : `${pathDocument}${pathFile}`;
+                const pathCurrent = fileDetail.baseName ? `${pathDocument}${Path.dirname(pathFile)}/` : `${pathDocument}${pathFile}`;
 
                 let pathFileList: string[] = [];
 
@@ -201,29 +209,33 @@ export default class Document {
                     pathFileList = await helperSrc.readAllLevelPathFileRecursive(pathCurrent);
                 }
 
-                const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(pathCurrent);
+                if (Fs.existsSync(pathCurrent)) {
+                    const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(pathCurrent);
 
-                if (typeof fileOrFolderDelete !== "boolean") {
-                    helperSrc.writeLog("Document.ts - api() - post(/api/document-delete) - fileOrFolderDelete()", fileOrFolderDelete.toString());
+                    if (typeof fileOrFolderDelete !== "boolean") {
+                        helperSrc.writeLog("Document.ts - api() - post(/api/document-delete) - fileOrFolderDelete()", fileOrFolderDelete.toString());
 
-                    helperSrc.responseBody("", "ko", response, 500);
-                } else {
-                    if (fileDetail.baseName) {
-                        await this.toolRag.delete().content({ fileName: fileDetail.fileName }, { sessionId: mcpSessionId });
+                        helperSrc.responseBody("", "ko", response, 500);
                     } else {
-                        for (const pathFile of pathFileList) {
-                            const fileDetail = helperSrc.fileDetail(pathFile);
+                        if (fileDetail.baseName) {
+                            if ((await helperSrc.findPathDirnameRecursive(pathDocument, fileDetail.fileName)) === "") {
+                                await this.toolRag.delete().content({ fileName: fileDetail.fileName }, { sessionId: mcpSessionId });
+                            }
+                        } else {
+                            for (const pathFile of pathFileList) {
+                                const fileDetail = helperSrc.fileDetail(pathFile);
 
-                            await this.toolRag.delete().content({ fileName: fileDetail.fileName }, { sessionId: mcpSessionId });
+                                if ((await helperSrc.findPathDirnameRecursive(pathDocument, fileDetail.fileName)) === "") {
+                                    await this.toolRag.delete().content({ fileName: fileDetail.fileName }, { sessionId: mcpSessionId });
+                                }
+                            }
                         }
-                    }
 
+                        helperSrc.responseBody("ok", "", response, 200);
+                    }
+                } else {
                     helperSrc.responseBody("ok", "", response, 200);
                 }
-            } else {
-                helperSrc.writeLog("Document.ts - api() - post(/api/document-delete) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody("", "ko", response, 500);
             }
         });
 
@@ -234,32 +246,111 @@ export default class Document {
             const folderName = body.folderName;
             const folderJoin = body.folderJoin;
 
-            if (typeof mcpSessionId === "string") {
-                const checkMessage = this.checkField(folderName);
+            if (typeof mcpSessionId !== "string") {
+                helperSrc.writeLog("Document.ts - api() - post(/api/document-folder-create) - Error", "Missing or invalid header.");
 
-                if (checkMessage === "") {
+                helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                const checkMessageList = this.checkField(folderName);
+
+                if (checkMessageList.length > 0) {
+                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: checkMessageList }), "", response, 200);
+                } else {
                     let pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
 
                     if (folderJoin) {
                         pathDocument = `${pathDocument}${folderJoin}/`;
                     }
 
-                    Fs.mkdir(`${pathDocument}${folderName}/`, { recursive: true }, (error) => {
+                    Fs.mkdir(`${pathDocument}${folderName}/`, { recursive: false }, (error) => {
                         if (error) {
-                            helperSrc.responseBody(JSON.stringify({ message: "Failed to create folder.", isComplete: false }), "", response, 200);
+                            helperSrc.responseBody("", "ko", response, 500);
 
                             return;
                         }
 
-                        helperSrc.responseBody(JSON.stringify({ message: "Folder created successfully.", isComplete: true }), "", response, 200);
+                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "" }), "", response, 200);
                     });
-                } else {
-                    helperSrc.responseBody(JSON.stringify({ message: checkMessage, isComplete: false }), "", response, 200);
                 }
-            } else {
-                helperSrc.writeLog("Document.ts - api() - post(/api/document-folder-create) - Error", "Missing or invalid header.");
+            }
+        });
+
+        this.app.post("/api/document-folder-move", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const mcpSessionId = request.headers["mcp-session-id"];
+            const body = request.body as modelDocument.IapiFolderMoveBody;
+
+            const pathList = body.pathList;
+            const folderJoin = body.folderJoin ? `${body.folderJoin}/` : "";
+
+            if (typeof mcpSessionId !== "string") {
+                helperSrc.writeLog("Document.ts - api() - post(/api/document-folder-move) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                let isError = false;
+
+                const targetFolder = Path.normalize(body.folderJoin || ".");
+
+                const pathListSlice = pathList.slice();
+
+                for (const path of pathListSlice) {
+                    const fileDetail = helperSrc.fileDetail(path);
+
+                    const pathNormalize = Path.normalize(path.replace(/\/+$/, ""));
+
+                    const parentFolder = Path.dirname(fileDetail.baseName ? Path.dirname(pathNormalize) : pathNormalize);
+
+                    if (parentFolder === targetFolder) {
+                        isError = true;
+
+                        break;
+                    } else if (!fileDetail.baseName) {
+                        const pathRelative = Path.relative(path, folderJoin);
+
+                        if (pathRelative === "" || (pathRelative !== ".." && !pathRelative.startsWith(`../`))) {
+                            isError = true;
+
+                            break;
+                        } else {
+                            for (let a = pathList.length - 1; a >= 0; a--) {
+                                if (pathList[a] !== path && pathList[a].startsWith(path)) {
+                                    pathList.splice(a, 1);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (isError) {
+                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: "Failed to move." }), "", response, 200);
+                } else {
+                    let fileOrFolderMove: boolean | NodeJS.ErrnoException = false;
+
+                    const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
+
+                    for (const path of pathList) {
+                        const fileDetail = helperSrc.fileDetail(path);
+
+                        const pathCurrent = fileDetail.baseName ? `${pathDocument}${Path.dirname(path)}/` : `${pathDocument}${path}`;
+
+                        fileOrFolderMove = await helperSrc.fileOrFolderMove(
+                            pathCurrent,
+                            `${pathDocument}${folderJoin}${Path.basename(pathCurrent)}/`
+                        );
+
+                        if (typeof fileOrFolderMove !== "boolean") {
+                            break;
+                        }
+                    }
+
+                    if (typeof fileOrFolderMove !== "boolean") {
+                        helperSrc.writeLog("Document.ts - api() - post(/api/document-folder-move) - fileOrFolderMove()", fileOrFolderMove.toString());
+
+                        helperSrc.responseBody("", "ko", response, 500);
+                    } else {
+                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "" }), "", response, 200);
+                    }
+                }
             }
         });
     };

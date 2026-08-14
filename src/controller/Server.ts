@@ -127,10 +127,10 @@ export default class Server {
             helperSrc.writeLog("Server.ts - createServer() - listen() - Port", helperSrc.SERVER_PORT);
 
             this.app.get("/", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
-                if (request.accepts("html")) {
-                    response.sendFile(`${helperSrc.PATH_ROOT}${helperSrc.PATH_PUBLIC}index.html`);
-                } else {
+                if (!request.accepts("html")) {
                     response.status(404).send("/: html not found!");
+                } else {
+                    response.sendFile(`${helperSrc.PATH_ROOT}${helperSrc.PATH_PUBLIC}index.html`);
                 }
             });
 
@@ -145,26 +145,26 @@ export default class Server {
 
                 const loginSession = await controllerUser.loginSessionVerify(body.username, body.password);
 
-                if (loginSession.mcpSessionId !== "" && loginSession.message === "") {
+                if (loginSession.mcpSessionId === "" && loginSession.message !== "") {
+                    helperSrc.responseBody(
+                        JSON.stringify({ state: "ko", message: loginSession.message, data: loginSession.mcpSessionId }),
+                        "",
+                        response,
+                        200
+                    );
+                } else if (loginSession.mcpSessionId !== "" && loginSession.message === "") {
                     const loginRpc = await controllerTool.loginRpc(response, loginSession.mcpSessionId);
 
-                    if (loginRpc !== "ko") {
+                    if (loginRpc === "ko") {
+                        helperSrc.responseBody("", "ko", response, 500);
+                    } else {
                         controllerXvfb.start(loginSession.mcpSessionId);
 
                         await controllerSetting.tableCreate(loginSession.mcpSessionId);
                         await controllerAgent.tableCreate(loginSession.mcpSessionId);
 
-                        helperSrc.responseBody(JSON.stringify({ mcpSessionId: loginSession.mcpSessionId, message: "" }), "", response, 200);
-                    } else {
-                        helperSrc.responseBody("", "ko", response, 500);
+                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: loginSession.mcpSessionId }), "", response, 200);
                     }
-                } else if (loginSession.mcpSessionId === "" && loginSession.message !== "") {
-                    helperSrc.responseBody(
-                        JSON.stringify({ mcpSessionId: loginSession.mcpSessionId, message: loginSession.message }),
-                        "",
-                        response,
-                        200
-                    );
                 }
             });
 
@@ -173,12 +173,12 @@ export default class Server {
 
                 Ca.deleteCookie(`${helperSrc.LABEL}_authentication`, request, response);
 
-                if (resultRpc !== "ko") {
+                if (resultRpc === "") {
+                    helperSrc.responseBody("", "ko", response, 500);
+                } else {
                     controllerXvfb.stop(resultRpc);
 
-                    helperSrc.responseBody(resultRpc, "", response, 200);
-                } else {
-                    helperSrc.responseBody("", resultRpc, response, 500);
+                    helperSrc.responseBody("ok", "", response, 200);
                 }
 
                 delete this.sessionObject[resultRpc];

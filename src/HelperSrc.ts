@@ -435,13 +435,13 @@ export const fileCheckSize = (byte: number): boolean => {
     return true;
 };
 
-export const fileWriteStream = (filePath: string, buffer: Buffer): Promise<boolean | NodeJS.ErrnoException> => {
+export const fileWriteStream = (pathFile: string, buffer: Buffer): Promise<boolean | NodeJS.ErrnoException> => {
     return new Promise((resolve) => {
-        Fs.mkdir(Path.dirname(filePath), { recursive: true }, (error) => {
+        Fs.mkdir(Path.dirname(pathFile), { recursive: true }, (error) => {
             if (error) {
                 resolve(error);
             } else {
-                const writeStream = Fs.createWriteStream(filePath);
+                const writeStream = Fs.createWriteStream(pathFile);
 
                 writeStream.on("open", () => {
                     writeStream.write(buffer);
@@ -460,11 +460,11 @@ export const fileWriteStream = (filePath: string, buffer: Buffer): Promise<boole
     });
 };
 
-export const fileReadStream = (filePath: string): Promise<Buffer | NodeJS.ErrnoException> => {
+export const fileReadStream = (pathFile: string): Promise<Buffer | NodeJS.ErrnoException> => {
     return new Promise((resolve) => {
         const chunkList: Buffer[] = [];
 
-        const readStream = Fs.createReadStream(filePath);
+        const readStream = Fs.createReadStream(pathFile);
 
         readStream.on("data", (chunk: Buffer) => {
             chunkList.push(chunk);
@@ -510,6 +510,20 @@ export const fileOrFolderDelete = (path: string): Promise<boolean | NodeJS.Errno
                     resolve(true);
                 });
             }
+        });
+    });
+};
+
+export const fileOrFolderMove = (pathCurrent: string, pathTarget: string): Promise<boolean | NodeJS.ErrnoException> => {
+    return new Promise((resolve) => {
+        Fs.rename(pathCurrent, pathTarget, (error) => {
+            if (error) {
+                resolve(error);
+
+                return;
+            }
+
+            resolve(true);
         });
     });
 };

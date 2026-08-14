@@ -14,8 +14,8 @@ export default class Setting {
     private limiter: RateLimitRequestHandler;
 
     // Method
-    private checkField = (llmList: modelSetting.Illm[]): string => {
-        let result = "";
+    private checkField = (llmList: modelSetting.Illm[]): string[] => {
+        const resultList: string[] = [];
 
         for (const llm of llmList) {
             if (llm.selected) {
@@ -24,18 +24,18 @@ export default class Setting {
                         llm.url
                     )
                 ) {
-                    result = "Llm - Url: Can only contain a standard url format.";
+                    resultList.push("Llm - Url: Can only contain a standard url format.");
                 }
 
                 if (!/^[A-Za-z0-9_-]+$/.test(llm.apiKey) && llm.id !== 1) {
-                    result = "Llm - Api key: Can only contain letter, number, underscore and hyphen.";
+                    resultList.push("Llm - Api key: Can only contain letter, number, underscore and hyphen.");
                 }
 
                 break;
             }
         }
 
-        return result;
+        return resultList;
     };
 
     private tableInsert = async (mcpSessionId: string, id: number, llm: modelSetting.Illm[]): Promise<boolean> => {
@@ -152,19 +152,30 @@ export default class Setting {
         this.app.get("/api/setting-read", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
-            if (typeof mcpSessionId === "string") {
-                const setting = await this.tableSelect(mcpSessionId);
-
-                const resultObject = {
-                    id: setting.id,
-                    llm: setting.llm
-                };
-
-                helperSrc.responseBody(JSON.stringify(resultObject), "", response, 200);
-            } else {
+            if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Setting.ts - api() - get(/api/setting-read) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                const setting = await this.tableSelect(mcpSessionId);
+
+                if (Object.keys(setting).length === 0) {
+                    helperSrc.responseBody("", "ko", response, 500);
+                } else {
+                    helperSrc.responseBody(
+                        JSON.stringify({
+                            state: "ok",
+                            message: "",
+                            data: {
+                                id: setting.id,
+                                llm: setting.llm
+                            }
+                        }),
+                        "",
+                        response,
+                        200
+                    );
+                }
             }
         });
 
@@ -175,24 +186,24 @@ export default class Setting {
             const id = body.id;
             const llmList = body.llm;
 
-            if (typeof mcpSessionId === "string") {
-                const checkMessage = this.checkField(llmList);
-
-                if (checkMessage === "") {
-                    const isSuccess = await this.tableUpdate(mcpSessionId, id, llmList);
-
-                    if (isSuccess) {
-                        helperSrc.responseBody(JSON.stringify({ message: "Setting updated successfully.", isComplete: true }), "", response, 200);
-                    } else {
-                        helperSrc.responseBody(JSON.stringify({ message: "Failed to update setting.", isComplete: false }), "", response, 200);
-                    }
-                } else {
-                    helperSrc.responseBody(JSON.stringify({ message: checkMessage, isComplete: false }), "", response, 200);
-                }
-            } else {
+            if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Setting.ts - api() - post(/api/setting-update) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                const checkMessageList = this.checkField(llmList);
+
+                if (checkMessageList.length > 0) {
+                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: checkMessageList }), "", response, 200);
+                } else {
+                    const isTableUpdate = await this.tableUpdate(mcpSessionId, id, llmList);
+
+                    if (!isTableUpdate) {
+                        helperSrc.responseBody("", "ko", response, 500);
+                    } else {
+                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "Setting updated successfully." }), "", response, 200);
+                    }
+                }
             }
         });
     };

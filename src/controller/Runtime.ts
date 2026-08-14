@@ -29,14 +29,14 @@ export default class Runtime {
 
                     this.runtimeWorker.off("message", handler);
 
-                    if (data.result) {
-                        resolve(data.result);
-
-                        return;
-                    } else if (data.error) {
+                    if (data.error) {
                         helperSrc.writeLog("Runtime.ts - callRuntimeWorker() - handler() - Error", data.error);
 
                         reject(new Error("Data error."));
+
+                        return;
+                    } else if (data.result) {
+                        resolve(data.result);
 
                         return;
                     }

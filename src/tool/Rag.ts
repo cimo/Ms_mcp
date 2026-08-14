@@ -108,16 +108,17 @@ export default class Rag {
                     `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${extra.sessionId}/document/`
                 );
 
-                if (pathFileList.length > 0) {
+                if (pathFileList.length === 0) {
+                    result = JSON.stringify({ name, result: { citationList: [], nodeList: [], graphList: [] } });
+                } else {
                     const resultSearch = await ragProcess.databaseSearch(
                         extra.sessionId,
                         helperSrc.zodText(argument.prompt),
                         helperSrc.zodTextList(argument.entity),
                         helperSrc.zodNumberList(argument.row)
                     );
+
                     result = JSON.stringify({ name, result: JSON.parse(resultSearch) });
-                } else {
-                    result = JSON.stringify({ name, result: { citationList: [], nodeList: [], graphList: [] } });
                 }
             }
 

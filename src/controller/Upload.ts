@@ -63,7 +63,11 @@ export default class Upload {
 
                 const resultCheckRequest = this.checkRequest(formDataList);
 
-                if (resultCheckRequest === "") {
+                if (resultCheckRequest !== "") {
+                    reject(new Error(resultCheckRequest));
+
+                    return;
+                } else {
                     for (let a = 0; a < formDataList.length; a++) {
                         const formData = formDataList[a];
 
@@ -74,7 +78,13 @@ export default class Upload {
                             const pathFile = `${path}${fileDetail.fileName}`;
 
                             Fs.mkdir(path, { recursive: true }, (error) => {
-                                if (!error) {
+                                if (error) {
+                                    helperSrc.writeLog("Upload.ts - execute() - request.on() - mkdir() - Error", error.message);
+
+                                    reject(new Error(error.message));
+
+                                    return;
+                                } else {
                                     Fs.access(pathFile, Fs.constants.F_OK, (errorAccess) => {
                                         if (isFileExists && !errorAccess) {
                                             resolve([]);
@@ -83,33 +93,23 @@ export default class Upload {
                                         }
 
                                         helperSrc.fileWriteStream(pathFile, formData.buffer).then((resultFileWriteStream) => {
-                                            if (typeof resultFileWriteStream === "boolean" && resultFileWriteStream) {
-                                                resolve(formDataList);
+                                            if (typeof resultFileWriteStream !== "boolean" || !resultFileWriteStream) {
+                                                reject(new Error("Write failed."));
 
                                                 return;
                                             } else {
-                                                reject(new Error("Write failed."));
+                                                resolve(formDataList);
 
                                                 return;
                                             }
                                         });
                                     });
-                                } else {
-                                    helperSrc.writeLog("Upload.ts - execute() - request.on() - mkdir() - Error", error.message);
-
-                                    reject(new Error(error.message));
-
-                                    return;
                                 }
                             });
 
                             break;
                         }
                     }
-                } else {
-                    reject(new Error(resultCheckRequest));
-
-                    return;
                 }
             });
 

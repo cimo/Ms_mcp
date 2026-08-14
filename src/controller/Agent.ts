@@ -14,22 +14,22 @@ export default class Agent {
     private limiter: RateLimitRequestHandler;
 
     // Method
-    private checkField = (name: string, description: string, skillName: string): string => {
-        let result = "";
+    private checkField = (name: string, description: string, skillName: string): string[] => {
+        const resultList: string[] = [];
 
         if (!/^[A-Za-z0-9_ ]+$/.test(name)) {
-            result = "Name: Can only contain letter, number, underscore and space.";
+            resultList.push("Name: Can only contain letter, number, underscore and space.");
         }
 
         if (!/^[A-Za-z0-9_,. ]+$/.test(description)) {
-            result = "Description: Can only contain letter, number, underscore, comma, dot and space.";
+            resultList.push("Description: Can only contain letter, number, underscore, comma, dot and space.");
         }
 
         if (skillName !== "" && !/^[A-Za-z0-9_]+$/.test(skillName)) {
-            result = "Skill name: Can only contain letter, number and underscore.";
+            resultList.push("Skill name: Can only contain letter, number and underscore.");
         }
 
-        return result;
+        return resultList;
     };
 
     private tableInsert = async (mcpSessionId: string, name: string, description: string, skillName: string): Promise<boolean> => {
@@ -161,24 +161,24 @@ export default class Agent {
             const description = body.description;
             const skillName = body.skillName;
 
-            if (typeof mcpSessionId === "string") {
-                const checkMessage = this.checkField(name, description, skillName);
-
-                if (checkMessage === "") {
-                    const isSuccess = await this.tableInsert(mcpSessionId, name, description, skillName);
-
-                    if (isSuccess) {
-                        helperSrc.responseBody(JSON.stringify({ message: "Agent created successfully.", isComplete: true }), "", response, 200);
-                    } else {
-                        helperSrc.responseBody(JSON.stringify({ message: "Failed to create agent.", isComplete: false }), "", response, 200);
-                    }
-                } else {
-                    helperSrc.responseBody(JSON.stringify({ message: checkMessage, isComplete: false }), "", response, 200);
-                }
-            } else {
+            if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Agent.ts - api() - post(/api/agent-create) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                const checkMessageList = this.checkField(name, description, skillName);
+
+                if (checkMessageList.length > 0) {
+                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: checkMessageList }), "", response, 200);
+                } else {
+                    const isTableInsert = await this.tableInsert(mcpSessionId, name, description, skillName);
+
+                    if (!isTableInsert) {
+                        helperSrc.responseBody("", "ko", response, 500);
+                    } else {
+                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "Agent created successfully." }), "", response, 200);
+                    }
+                }
             }
         });
 
@@ -191,38 +191,38 @@ export default class Agent {
             const description = body.description;
             const skillName = body.skillName;
 
-            if (typeof mcpSessionId === "string") {
-                const checkMessage = this.checkField(name, description, skillName);
-
-                if (checkMessage === "") {
-                    const isSuccess = await this.tableUpdate(mcpSessionId, id, name, description, skillName);
-
-                    if (isSuccess) {
-                        helperSrc.responseBody(JSON.stringify({ message: "Agent updated successfully.", isComplete: true }), "", response, 200);
-                    } else {
-                        helperSrc.responseBody(JSON.stringify({ message: "Failed to update agent.", isComplete: false }), "", response, 200);
-                    }
-                } else {
-                    helperSrc.responseBody(JSON.stringify({ message: checkMessage, isComplete: false }), "", response, 200);
-                }
-            } else {
+            if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Agent.ts - api() - post(/api/agent-update) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                const checkMessageList = this.checkField(name, description, skillName);
+
+                if (checkMessageList.length > 0) {
+                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: checkMessageList }), "", response, 200);
+                } else {
+                    const isTableUpdate = await this.tableUpdate(mcpSessionId, id, name, description, skillName);
+
+                    if (!isTableUpdate) {
+                        helperSrc.responseBody("", "ko", response, 500);
+                    } else {
+                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "Agent updated successfully." }), "", response, 200);
+                    }
+                }
             }
         });
 
         this.app.get("/api/agent-list", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
-            if (typeof mcpSessionId === "string") {
-                const resultList = await this.tableSelect(mcpSessionId);
-
-                helperSrc.responseBody(JSON.stringify(resultList), "", response, 200);
-            } else {
+            if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Agent.ts - api() - get(/api/agent-list) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                const agentList = await this.tableSelect(mcpSessionId);
+
+                helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: agentList }), "", response, 200);
             }
         });
 
@@ -232,18 +232,18 @@ export default class Agent {
 
             const id = body.id;
 
-            if (typeof mcpSessionId === "string") {
-                const isDelete = await this.tableDelete(mcpSessionId, id);
-
-                if (isDelete) {
-                    helperSrc.responseBody("ok", "", response, 200);
-                } else {
-                    helperSrc.responseBody("ko", "", response, 200);
-                }
-            } else {
+            if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Agent.ts - api() - post(/api/agent-delete) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                const isTableDelete = await this.tableDelete(mcpSessionId, id);
+
+                if (!isTableDelete) {
+                    helperSrc.responseBody("", "ko", response, 500);
+                } else {
+                    helperSrc.responseBody("ok", "", response, 200);
+                }
             }
         });
     };

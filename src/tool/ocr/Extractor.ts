@@ -69,7 +69,9 @@ export const execute = (mcpSessionId: string, fileName: string, searchText: stri
 
         const fileReadStream = await helperSrc.fileReadStream(`${pathDocument}${fileDetail.fileName}`);
 
-        if (Buffer.isBuffer(fileReadStream)) {
+        if (!Buffer.isBuffer(fileReadStream)) {
+            helperSrc.writeLog(`Extractor.ts - execute() - fileReadStream()`, fileReadStream.toString());
+        } else {
             const buffer = Buffer.from(fileReadStream);
             const blob = new Blob([buffer], { type: fileDetail.mimeType });
 
@@ -82,8 +84,6 @@ export const execute = (mcpSessionId: string, fileName: string, searchText: stri
             if (stdout !== "ko") {
                 resultObject = JSON.parse(stdout) as model.IapiExtractResponse;
             }
-        } else {
-            helperSrc.writeLog(`Extractor.ts - execute() - fileReadStream()`, fileReadStream.toString());
         }
 
         await apiLogout();

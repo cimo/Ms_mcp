@@ -36,18 +36,18 @@ export default class User {
         return isResult;
     };
 
-    private checkField = (name: string, surname: string): string => {
-        let result = "";
+    private checkField = (name: string, surname: string): string[] => {
+        const resultList: string[] = [];
 
         if (!/^[A-Za-z0-9_]+$/.test(name)) {
-            result = "Name: Can only contain letter, number and underscore.";
+            resultList.push("Name: Can only contain letter, number and underscore.");
         }
 
         if (!/^[A-Za-z0-9_]+$/.test(surname)) {
-            result = "Surname: Can only contain letter, number and underscore.";
+            resultList.push("Surname: Can only contain letter, number and underscore.");
         }
 
-        return result;
+        return resultList;
     };
 
     private tableInsert = (id: number, email: string, name: string, surname: string, password: string, mcpSessionId: string): Promise<boolean> => {
@@ -167,26 +167,31 @@ export default class User {
     loginSessionVerify = async (username: string, password: string): Promise<modelUser.IdataLoginSession> => {
         const resultObject = {} as modelUser.IdataLoginSession;
 
-        const user = await this.tableSelect(username, "");
-
-        if (user.id) {
-            if (this.passwordVerify(password, user.password)) {
-                if (user.mcpSessionId) {
-                    resultObject.mcpSessionId = user.mcpSessionId;
-                    resultObject.message = "";
-                } else {
-                    resultObject.mcpSessionId = helperSrc.generateUniqueId();
-                    resultObject.message = "";
-
-                    await this.tableUpdate(user.id, user.name, user.surname, "", resultObject.mcpSessionId);
-                }
-            } else {
-                resultObject.mcpSessionId = "";
-                resultObject.message = "Incorrect password.";
-            }
-        } else {
+        if (username === "" || password === "") {
             resultObject.mcpSessionId = "";
-            resultObject.message = "Incorrect username.";
+            resultObject.message = "Please enter username and password.";
+        } else {
+            const user = await this.tableSelect(username, "");
+
+            if (!user.id) {
+                resultObject.mcpSessionId = "";
+                resultObject.message = "Incorrect username.";
+            } else {
+                if (!this.passwordVerify(password, user.password)) {
+                    resultObject.mcpSessionId = "";
+                    resultObject.message = "Incorrect password.";
+                } else {
+                    if (user.mcpSessionId) {
+                        resultObject.mcpSessionId = user.mcpSessionId;
+                        resultObject.message = "";
+                    } else {
+                        resultObject.mcpSessionId = helperSrc.generateUniqueId();
+                        resultObject.message = "";
+
+                        await this.tableUpdate(user.id, user.name, user.surname, "", resultObject.mcpSessionId);
+                    }
+                }
+            }
         }
 
         return resultObject;
@@ -196,21 +201,32 @@ export default class User {
         this.app.get("/api/user-read", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
-            if (typeof mcpSessionId === "string") {
-                const user = await this.tableSelect("", mcpSessionId);
-
-                const resultObject = {
-                    id: user.id,
-                    email: user.email,
-                    name: user.name,
-                    surname: user.surname
-                };
-
-                helperSrc.responseBody(JSON.stringify(resultObject), "", response, 200);
-            } else {
+            if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("User.ts - api() - get(/api/user-info) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                const user = await this.tableSelect("", mcpSessionId);
+
+                if (Object.keys(user).length === 0) {
+                    helperSrc.responseBody("", "ko", response, 500);
+                } else {
+                    helperSrc.responseBody(
+                        JSON.stringify({
+                            state: "ok",
+                            message: "",
+                            data: {
+                                id: user.id,
+                                email: user.email,
+                                name: user.name,
+                                surname: user.surname
+                            }
+                        }),
+                        "",
+                        response,
+                        200
+                    );
+                }
             }
         });
 
@@ -223,24 +239,24 @@ export default class User {
             const surname = body.surname;
             const password = body.password;
 
-            if (typeof mcpSessionId === "string") {
-                const checkMessage = this.checkField(name, surname);
-
-                if (checkMessage === "") {
-                    const isSuccess = await this.tableUpdate(id, name, surname, password, mcpSessionId);
-
-                    if (isSuccess) {
-                        helperSrc.responseBody(JSON.stringify({ message: "User updated successfully.", isComplete: true }), "", response, 200);
-                    } else {
-                        helperSrc.responseBody(JSON.stringify({ message: "Failed to update user.", isComplete: false }), "", response, 200);
-                    }
-                } else {
-                    helperSrc.responseBody(JSON.stringify({ message: checkMessage, isComplete: false }), "", response, 200);
-                }
-            } else {
+            if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("User.ts - api() - post(/api/user-update) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                const checkMessageList = this.checkField(name, surname);
+
+                if (checkMessageList.length > 0) {
+                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: checkMessageList }), "", response, 200);
+                } else {
+                    const isTableUpdate = await this.tableUpdate(id, name, surname, password, mcpSessionId);
+
+                    if (!isTableUpdate) {
+                        helperSrc.responseBody("", "ko", response, 500);
+                    } else {
+                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "User updated successfully." }), "", response, 200);
+                    }
+                }
             }
         });
     };

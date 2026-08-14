@@ -32,21 +32,22 @@ export default class Skill {
             const fileDetail = helperSrc.fileDetail(fileNameDecode);
 
             if (fileDetail.extension === "zip" && !/^[A-Za-z0-9_]+$/.test(fileDetail.baseName)) {
-                helperSrc.responseBody(
-                    JSON.stringify({ message: "Failed", isComplete: false, pathFile: `/${fileDetail.fileName}` }),
-                    "",
-                    response,
-                    200
-                );
+                helperSrc.responseBody(JSON.stringify({ state: "ko", message: "", data: `/${fileDetail.fileName}` }), "", response, 200);
 
                 return;
             }
 
-            if (typeof mcpSessionId === "string") {
+            if (typeof mcpSessionId !== "string") {
+                helperSrc.writeLog("Skill.ts - api() - post(/api/skill-upload) - Error", `${response}`);
+
+                helperSrc.responseBody("", "ko", response, 500);
+            } else {
                 this.controllerUpload
                     .execute(request, true, true, pathSkill)
                     .then((resultControllerUploadList) => {
-                        if (resultControllerUploadList.length > 0) {
+                        if (resultControllerUploadList.length === 0) {
+                            helperSrc.responseBody(JSON.stringify({ state: "ko", message: "", data: `/${fileDetail.fileName}` }), "", response, 200);
+                        } else {
                             const zip = new AdmZip(`${pathSkill}${fileDetail.baseName}/${fileDetail.fileName}`);
                             const entryList = zip.getEntries();
 
@@ -70,19 +71,7 @@ export default class Skill {
                                 zip.extractAllTo(`${pathSkill}${fileDetail.baseName}`, true);
                             }
 
-                            helperSrc.responseBody(
-                                JSON.stringify({ message: "Success", isComplete: true, pathFile: `/${fileDetail.fileName}` }),
-                                "",
-                                response,
-                                200
-                            );
-                        } else {
-                            helperSrc.responseBody(
-                                JSON.stringify({ message: "Failed", isComplete: false, pathFile: `/${fileDetail.fileName}` }),
-                                "",
-                                response,
-                                200
-                            );
+                            helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: `/${fileDetail.fileName}` }), "", response, 200);
                         }
                     })
                     .catch((error: Error) => {
@@ -90,24 +79,20 @@ export default class Skill {
 
                         helperSrc.responseBody("", "ko", response, 500);
                     });
-            } else {
-                helperSrc.writeLog("Skill.ts - api() - post(/api/skill-upload) - Error", `${response}`);
-
-                helperSrc.responseBody("", "ko", response, 500);
             }
         });
 
         this.app.get("/api/skill-list", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
-            if (typeof mcpSessionId === "string") {
-                const fileList = await helperSrc.uploadedSkillRead(mcpSessionId, "*");
-
-                helperSrc.responseBody(JSON.stringify(fileList), "", response, 200);
-            } else {
+            if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Skill.ts - api() - get(/api/skill-list) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                const fileDetailList = await helperSrc.uploadedSkillRead(mcpSessionId, "*");
+
+                helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: fileDetailList }), "", response, 200);
             }
         });
 
@@ -117,7 +102,11 @@ export default class Skill {
 
             const fileName = body.fileName;
 
-            if (typeof mcpSessionId === "string") {
+            if (typeof mcpSessionId !== "string") {
+                helperSrc.writeLog("Skill.ts - api() - post(/api/skill-read) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            } else {
                 const pathSkill = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/${fileName}/`;
 
                 helperSrc.findPathFileRecursive(pathSkill, "md").then((pathFileList) => {
@@ -130,15 +119,20 @@ export default class Skill {
                             isFound = true;
 
                             helperSrc.fileReadStream(pathFile).then((resultFileReadStream) => {
-                                if (Buffer.isBuffer(resultFileReadStream)) {
-                                    helperSrc.responseBody(resultFileReadStream.toString("base64"), "", response, 200);
-                                } else {
+                                if (!Buffer.isBuffer(resultFileReadStream)) {
                                     helperSrc.writeLog(
                                         "Skill.ts - api() - post(/api/skill-read) - fileReadStream()",
                                         resultFileReadStream.toString()
                                     );
 
                                     helperSrc.responseBody("", "ko", response, 500);
+                                } else {
+                                    helperSrc.responseBody(
+                                        JSON.stringify({ state: "ok", message: "", data: resultFileReadStream.toString("base64") }),
+                                        "",
+                                        response,
+                                        200
+                                    );
                                 }
                             });
 
@@ -149,13 +143,9 @@ export default class Skill {
                     if (!isFound) {
                         helperSrc.writeLog("Skill.ts - api() - post(/api/skill-read) - Error", "File not found.");
 
-                        helperSrc.responseBody("ko", "", response, 200);
+                        helperSrc.responseBody("", "ko", response, 500);
                     }
                 });
-            } else {
-                helperSrc.writeLog("Skill.ts - api() - post(/api/skill-read) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody("", "ko", response, 500);
             }
         });
 
@@ -165,7 +155,11 @@ export default class Skill {
 
             const fileName = body.fileName;
 
-            if (typeof mcpSessionId === "string") {
+            if (typeof mcpSessionId !== "string") {
+                helperSrc.writeLog("Skill.ts - api() - post(/api/skill-delete) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            } else {
                 const pathSkill = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/${fileName}/`;
 
                 const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(pathSkill);
@@ -177,10 +171,6 @@ export default class Skill {
                 } else {
                     helperSrc.responseBody("ok", "", response, 200);
                 }
-            } else {
-                helperSrc.writeLog("Skill.ts - api() - post(/api/skill-delete) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody("", "ko", response, 500);
             }
         });
     };
