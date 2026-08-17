@@ -246,31 +246,45 @@ export default class Document {
             const folderName = body.folderName;
             const folderJoin = body.folderJoin;
 
+            let pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
+
+            if (folderJoin) {
+                pathDocument = `${pathDocument}${folderJoin}/`;
+            }
+
+            const pathTarget = `${pathDocument}${folderName}/`;
+
             if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Document.ts - api() - post(/api/document-folder-create) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             } else {
-                const checkMessageList = this.checkField(folderName);
+                let isError = false;
 
-                if (checkMessageList.length > 0) {
-                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: checkMessageList }), "", response, 200);
+                if (Fs.existsSync(pathTarget)) {
+                    isError = true;
+                }
+
+                if (isError) {
+                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: "Failed to create." }), "", response, 200);
                 } else {
-                    let pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
+                    const checkMessageList = this.checkField(folderName);
 
-                    if (folderJoin) {
-                        pathDocument = `${pathDocument}${folderJoin}/`;
+                    if (checkMessageList.length > 0) {
+                        helperSrc.responseBody(JSON.stringify({ state: "ko", message: checkMessageList }), "", response, 200);
+                    } else {
+                        Fs.mkdir(pathTarget, { recursive: false }, (error) => {
+                            if (error) {
+                                helperSrc.writeLog("Document.ts - api() - post(/api/document-folder-create) - Fs.mkdir()", error.toString());
+
+                                helperSrc.responseBody("", "ko", response, 500);
+
+                                return;
+                            }
+
+                            helperSrc.responseBody(JSON.stringify({ state: "ok", message: "" }), "", response, 200);
+                        });
                     }
-
-                    Fs.mkdir(`${pathDocument}${folderName}/`, { recursive: false }, (error) => {
-                        if (error) {
-                            helperSrc.responseBody("", "ko", response, 500);
-
-                            return;
-                        }
-
-                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "" }), "", response, 200);
-                    });
                 }
             }
         });
@@ -281,6 +295,8 @@ export default class Document {
 
             const pathList = body.pathList;
             const folderJoin = body.folderJoin ? `${body.folderJoin}/` : "";
+
+            const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
 
             if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Document.ts - api() - post(/api/document-folder-move) - Error", "Missing or invalid header.");
@@ -300,7 +316,13 @@ export default class Document {
 
                     const parentFolder = Path.dirname(fileDetail.baseName ? Path.dirname(pathNormalize) : pathNormalize);
 
+                    const pathFolder = fileDetail.baseName ? `${Path.dirname(path)}/` : `${path}`;
+
                     if (parentFolder === targetFolder) {
+                        isError = true;
+
+                        break;
+                    } else if (Fs.existsSync(`${pathDocument}${folderJoin}${Path.basename(pathFolder)}/`)) {
                         isError = true;
 
                         break;
@@ -311,11 +333,11 @@ export default class Document {
                             isError = true;
 
                             break;
-                        } else {
-                            for (let a = pathList.length - 1; a >= 0; a--) {
-                                if (pathList[a] !== path && pathList[a].startsWith(path)) {
-                                    pathList.splice(a, 1);
-                                }
+                        }
+
+                        for (let a = pathList.length - 1; a >= 0; a--) {
+                            if (pathList[a] !== path && pathList[a].startsWith(path)) {
+                                pathList.splice(a, 1);
                             }
                         }
                     }
@@ -325,8 +347,6 @@ export default class Document {
                     helperSrc.responseBody(JSON.stringify({ state: "ko", message: "Failed to move." }), "", response, 200);
                 } else {
                     let fileOrFolderMove: boolean | NodeJS.ErrnoException = false;
-
-                    const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
 
                     for (const path of pathList) {
                         const fileDetail = helperSrc.fileDetail(path);

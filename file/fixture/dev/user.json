@@ -4,13 +4,17 @@
         "email": "user_1@test.com",
         "name": "user_1",
         "surname": "test",
-        "password": "test"
+        "password": "test",
+        "mcpSessionId": "",
+        "isDelete": false
     },
     {
         "id": 2,
         "email": "user_2@test.com",
         "name": "user_2",
         "surname": "test",
-        "password": "test"
+        "password": "test",
+        "mcpSessionId": "",
+        "isDelete": false
     }
 ]

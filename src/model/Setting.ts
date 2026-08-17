@@ -15,6 +15,7 @@ export interface IapiUpdateBody {
 export interface Idata {
     id: number;
     llm: Illm[];
+    isDelete: boolean;
 }
 
 export interface IdataDatabaseQuery {

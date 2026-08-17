@@ -36,7 +36,7 @@ bash docker/container_execute.sh "local" "up"
 
 2. Follow the "Installation" instructions.
 
-## Command
+## Gui
 1. For execute "Chrome" GUI write on terminal:
 ```
 bash script/chrome.sh

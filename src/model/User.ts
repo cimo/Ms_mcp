@@ -11,7 +11,8 @@ export interface Idata {
     name: string;
     surname: string;
     password: string;
-    mcpSessionId?: string | null;
+    mcpSessionId: string | null;
+    isDelete: boolean;
 }
 
 export interface IdataDatabaseQuery {

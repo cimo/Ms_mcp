@@ -26,6 +26,7 @@
                 "apiKey": "",
                 "selected": false
             }
-        ]
+        ],
+        "isDelete": false
     }
 ]
