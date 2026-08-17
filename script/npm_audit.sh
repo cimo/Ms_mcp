@@ -106,7 +106,7 @@ for (let a = 0; a < entryList.length; a++) {
     console.log(`\n- ${key}`);
     console.log(`   Severity: ${severity}`);
     console.log(`   Type: ${direct}`);
-    console.log(`   Range inpact: ${range}`);
+    console.log(`   Range impact: ${range}`);
     console.log(`   Fix: ${fix}`);
 
     if (causeList.length > 0) {
