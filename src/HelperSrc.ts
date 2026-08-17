@@ -1,11 +1,17 @@
 import Fs from /* webpackIgnore: true */ "fs";
 import Path from /* webpackIgnore: true */ "path";
 import { exec, execFile, ChildProcess } from /* webpackIgnore: true */ "child_process";
-import { Request, Response } from /* webpackIgnore: true */ "express";
 import { Ce } from "@cimo/environment/dist/src/Main.js";
+
+// Custom
+import { Request, Response } from /* webpackIgnore: true */ "express";
+// Custom
 
 // Source
 import * as modelHelperSrc from "./model/HelperSrc.js";
+
+// Custom
+// Custom
 
 export const ENV_NAME = Ce.checkVariable("ENV_NAME") || (process.env["ENV_NAME"] as string);
 
@@ -22,8 +28,6 @@ export const IS_DEBUG = Ce.checkVariable("MS_M_IS_DEBUG") || (process.env["MS_M_
 export const NODE_ENV = Ce.checkVariable("MS_M_NODE_ENV") || (process.env["MS_M_NODE_ENV"] as string);
 export const URL_ROOT = Ce.checkVariable("MS_M_URL_ROOT") || (process.env["MS_M_URL_ROOT"] as string);
 export const URL_CORS_ORIGIN = Ce.checkVariable("MS_M_URL_CORS_ORIGIN") || (process.env["MS_M_URL_CORS_ORIGIN"] as string);
-export const URL_API_ONNX_DP = Ce.checkVariable("MS_M_URL_API_ONNX_DP") || (process.env["MS_M_URL_API_ONNX_DP"] as string);
-export const URL_API_ONNX_RG = Ce.checkVariable("MS_M_URL_API_ONNX_RG") || (process.env["MS_M_URL_API_ONNX_RG"] as string);
 export const PATH_CERTIFICATE_KEY = Ce.checkVariable("MS_M_PATH_CERTIFICATE_KEY");
 export const PATH_CERTIFICATE_CRT = Ce.checkVariable("MS_M_PATH_CERTIFICATE_CRT");
 export const PATH_CERTIFICATE_PEM = Ce.checkVariable("MS_M_PATH_CERTIFICATE_PEM");
@@ -33,13 +37,15 @@ export const PATH_PUBLIC = Ce.checkVariable("MS_M_PATH_PUBLIC");
 export const PATH_SCRIPT = Ce.checkVariable("MS_M_PATH_SCRIPT");
 export const MIME_TYPE = Ce.checkVariable("MS_M_MIME_TYPE") || (process.env["MS_M_MIME_TYPE"] as string);
 export const FILE_SIZE_MB = Ce.checkVariable("MS_M_FILE_SIZE_MB") || (process.env["MS_M_FILE_SIZE_MB"] as string);
+
+// Custom
+export const URL_API_ONNX_DP = Ce.checkVariable("MS_M_URL_API_ONNX_DP") || (process.env["MS_M_URL_API_ONNX_DP"] as string);
+export const URL_API_ONNX_RG = Ce.checkVariable("MS_M_URL_API_ONNX_RG") || (process.env["MS_M_URL_API_ONNX_RG"] as string);
 export const DB_NAME = Ce.checkVariable("DB_NAME") || (process.env["DB_NAME"] as string);
 export const DB_HOST = Ce.checkVariable("DB_HOST") || (process.env["DB_HOST"] as string);
 export const DB_PORT = Ce.checkVariable("DB_PORT") || (process.env["DB_PORT"] as string);
 export const DB_USER = Ce.checkVariable("DB_USER") || (process.env["DB_USER"] as string);
 export const DB_PASS = Ce.checkVariable("DB_PASS") || (process.env["DB_PASS"] as string);
-
-// Custom
 // Custom
 
 const fileSize = (value: Uint8Array | number, isOnlyByte = true): string => {
@@ -730,6 +736,7 @@ export const executionFile = (argumentList: string[]): Promise<modelHelperSrc.Ie
     };
 };
 
+// Custom
 export const headerClientIp = (request: Request): string => {
     let result = "";
 
@@ -756,7 +763,6 @@ export const responseBody = (stdoutValue: string, stderrValue: string | Error, r
     response.status(mode).send(responseBody);
 };
 
-// Custom
 export const uploadedDocumentRead = (mcpSessionId: string, extension: string, folderJoin?: string): Promise<modelHelperSrc.IfileDetail[]> => {
     return new Promise<modelHelperSrc.IfileDetail[]>((resolve) => {
         let pathDocument = `${PATH_ROOT}${PATH_FILE}input/${mcpSessionId}/document/`;
