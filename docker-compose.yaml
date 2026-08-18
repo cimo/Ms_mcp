@@ -41,7 +41,7 @@ services:
     network_mode: "host"
     volumes:
       - ./:${PATH_ROOT}
-      - ms_cronjob-volume:${PATH_ROOT}certificate/:ro
+      - ./certificate/:/usr/local/share/ca-certificates/:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
       - /mnt/wslg:/mnt/wslg
