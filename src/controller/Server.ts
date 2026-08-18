@@ -98,10 +98,10 @@ export default class Server {
 
         const server = creation;
 
-        server.listen(helperSrc.SERVER_PORT, () => {
+        server.listen(helperSrc.SERVER_PORT, async () => {
             const controllerUser = new ControllerUser(this.app, this.limiter);
             controllerUser.api();
-            controllerUser.tableCreate();
+            await controllerUser.tableCreate();
 
             const controllerSetting = new ControllerSetting(this.app, this.limiter);
             controllerSetting.api();
@@ -158,7 +158,7 @@ export default class Server {
                     if (loginRpc === "ko") {
                         helperSrc.responseBody("", "ko", response, 500);
                     } else {
-                        controllerXvfb.start(loginSession.mcpSessionId);
+                        await controllerXvfb.start(loginSession.mcpSessionId);
 
                         await controllerSetting.tableCreate(loginSession.mcpSessionId);
                         await controllerAgent.tableCreate(loginSession.mcpSessionId);
@@ -176,7 +176,7 @@ export default class Server {
                 if (resultRpc === "") {
                     helperSrc.responseBody("", "ko", response, 500);
                 } else {
-                    controllerXvfb.stop(resultRpc);
+                    await controllerXvfb.stop(resultRpc);
 
                     helperSrc.responseBody("ok", "", response, 200);
                 }

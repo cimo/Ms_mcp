@@ -39,7 +39,7 @@ export default class Rag {
                     `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`
                 );
 
-                const documentList = [];
+                const documentList: string[] = [];
 
                 for (const pathFile of pathFileList) {
                     const fileDetail = helperSrc.fileDetail(pathFile);
