@@ -22,7 +22,7 @@ docker run --rm \
 -e HOST_GID="$(id -g)" \
 -v "${projectName}_${parameter1}_ms_cronjob-volume:/home/source/:ro" \
 -v "$(pwd)/certificate/:/home/target/" \
-alpine sh -c 'cp -r "/home/source/"* "/home/target/" && chown -R "${HOST_UID}:${HOST_GID}" "/home/target/" && chmod -R u+rwX,go+rX "/home/target/"'
+alpine sh -c 'cp -a "/home/source/." "/home/target/" && chown -R "${HOST_UID}:${HOST_GID}" "/home/target/" && chmod -R u+rwX,go+rX "/home/target/" && chmod 600 "/home/target/ca.key" "/home/target/tls.key"'
 
 echo -e "\nExecute container."
 
