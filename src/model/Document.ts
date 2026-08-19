@@ -7,7 +7,12 @@ export interface IapiReadBody {
 }
 
 export interface IapiDeleteBody {
-    pathFile: string;
+    pathItem: string;
+}
+
+export interface IapiRenameBody {
+    pathItem: string;
+    name: string;
 }
 
 export interface IapiFolderCreateBody {

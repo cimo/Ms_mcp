@@ -23,11 +23,11 @@ export default class Document {
     private toolRag: ToolRag;
 
     // Method
-    private checkField = (folderName: string): string[] => {
+    private checkField = (name: string): string[] => {
         const resultList: string[] = [];
 
-        if (!/^[A-Za-z0-9_]+$/.test(folderName)) {
-            resultList.push("Folder name: Can only contain uppercase, lowercase, number and underscore.");
+        if (!/^[A-Za-z0-9_]+$/.test(name)) {
+            resultList.push("Name: Can only contain uppercase, lowercase, number and underscore.");
         }
 
         return resultList;
@@ -190,18 +190,18 @@ export default class Document {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body as modelDocument.IapiDeleteBody;
 
-            const pathFile = body.pathFile;
+            const pathItem = body.pathItem;
 
             if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Document.ts - api() - post(/api/document-delete) - Error", "Missing or invalid header.");
 
                 helperSrc.responseBody("", "ko", response, 500);
             } else {
-                const fileDetail = await helperSrc.fileDetail(pathFile);
+                const fileDetail = await helperSrc.fileDetail(pathItem);
 
                 const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
 
-                const pathCurrent = fileDetail.baseName ? `${pathDocument}${Path.dirname(pathFile)}/` : `${pathDocument}${pathFile}`;
+                const pathCurrent = fileDetail.baseName ? `${pathDocument}${Path.dirname(pathItem)}/` : `${pathDocument}${pathItem}`;
 
                 let pathFileList: string[] = [];
 
@@ -239,6 +239,63 @@ export default class Document {
             }
         });
 
+        this.app.post("/api/document-rename", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const mcpSessionId = request.headers["mcp-session-id"];
+            const body = request.body as modelDocument.IapiRenameBody;
+
+            const pathItem = body.pathItem;
+            const name = body.name;
+
+            if (typeof mcpSessionId !== "string") {
+                helperSrc.writeLog("Document.ts - api() - post(/api/document-rename) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody("", "ko", response, 500);
+            } else {
+                const fileDetailOld = await helperSrc.fileDetail(pathItem);
+                const nameOld = fileDetailOld.baseName ? fileDetailOld.baseName : Path.basename(pathItem);
+
+                const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
+                const pathNew = pathItem.replaceAll(nameOld, name);
+
+                if (name === "" || nameOld === name) {
+                    helperSrc.responseBody(JSON.stringify({ state: "ok", message: "" }), "", response, 200);
+
+                    return;
+                }
+
+                const checkMessageList = this.checkField(name);
+
+                if (Fs.existsSync(`${pathDocument}${pathNew}`)) {
+                    checkMessageList.push("Name already exists.");
+                }
+
+                if (checkMessageList.length > 0) {
+                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: checkMessageList }), "", response, 200);
+                } else {
+                    let fileOrFolderRename: boolean | NodeJS.ErrnoException = false;
+
+                    if (fileDetailOld.baseName) {
+                        fileOrFolderRename = await helperSrc.fileOrFolderRename(
+                            `${pathDocument}${Path.dirname(pathItem)}/`,
+                            `${pathDocument}${Path.dirname(pathNew)}/`,
+                            fileDetailOld.fileName,
+                            `${name}.${fileDetailOld.extension}`
+                        );
+                    } else {
+                        fileOrFolderRename = await helperSrc.fileOrFolderRename(`${pathDocument}${pathItem}`, `${pathDocument}${pathNew}`);
+                    }
+
+                    if (typeof fileOrFolderRename !== "boolean") {
+                        helperSrc.writeLog("Document.ts - api() - post(/api/document-rename) - fileOrFolderRename()", fileOrFolderRename.toString());
+
+                        helperSrc.responseBody("", "ko", response, 500);
+                    } else {
+                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "" }), "", response, 200);
+                    }
+                }
+            }
+        });
+
         this.app.post("/api/document-folder-create", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body as modelDocument.IapiFolderCreateBody;
@@ -259,32 +316,32 @@ export default class Document {
 
                 helperSrc.responseBody("", "ko", response, 500);
             } else {
-                let isError = false;
+                if (folderName === "") {
+                    helperSrc.responseBody(JSON.stringify({ state: "ok", message: "" }), "", response, 200);
 
-                if (Fs.existsSync(pathTarget)) {
-                    isError = true;
+                    return;
                 }
 
-                if (isError) {
-                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: "Failed to create." }), "", response, 200);
+                const checkMessageList = this.checkField(folderName);
+
+                if (Fs.existsSync(pathTarget)) {
+                    checkMessageList.push("Name already exists.");
+                }
+
+                if (checkMessageList.length > 0) {
+                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: checkMessageList }), "", response, 200);
                 } else {
-                    const checkMessageList = this.checkField(folderName);
+                    Fs.mkdir(pathTarget, { recursive: false }, (error) => {
+                        if (error) {
+                            helperSrc.writeLog("Document.ts - api() - post(/api/document-folder-create) - Fs.mkdir()", error.toString());
 
-                    if (checkMessageList.length > 0) {
-                        helperSrc.responseBody(JSON.stringify({ state: "ko", message: checkMessageList }), "", response, 200);
-                    } else {
-                        Fs.mkdir(pathTarget, { recursive: false }, (error) => {
-                            if (error) {
-                                helperSrc.writeLog("Document.ts - api() - post(/api/document-folder-create) - Fs.mkdir()", error.toString());
+                            helperSrc.responseBody("", "ko", response, 500);
 
-                                helperSrc.responseBody("", "ko", response, 500);
+                            return;
+                        }
 
-                                return;
-                            }
-
-                            helperSrc.responseBody(JSON.stringify({ state: "ok", message: "" }), "", response, 200);
-                        });
-                    }
+                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "" }), "", response, 200);
+                    });
                 }
             }
         });

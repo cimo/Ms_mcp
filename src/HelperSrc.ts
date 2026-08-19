@@ -542,6 +542,37 @@ export const fileOrFolderMove = (pathCurrent: string, pathTarget: string): Promi
     });
 };
 
+export const fileOrFolderRename = (
+    pathOld: string,
+    pathNew: string,
+    fileNameOld?: string,
+    fileNameNew?: string
+): Promise<boolean | NodeJS.ErrnoException> => {
+    return new Promise((resolve) => {
+        Fs.rename(pathOld, pathNew, (error) => {
+            if (error) {
+                resolve(error);
+
+                return;
+            }
+
+            if (fileNameOld === undefined || fileNameNew === undefined) {
+                resolve(true);
+            } else {
+                Fs.rename(`${pathNew}${fileNameOld}`, `${pathNew}${fileNameNew}`, (error) => {
+                    if (error) {
+                        resolve(error);
+
+                        return;
+                    }
+
+                    resolve(true);
+                });
+            }
+        });
+    });
+};
+
 export const keepProcess = (): void => {
     const eventList = ["uncaughtException", "unhandledRejection"];
 
