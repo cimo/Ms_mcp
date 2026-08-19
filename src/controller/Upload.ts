@@ -9,7 +9,7 @@ export default class Upload {
     // Variable
 
     // Method
-    private checkRequest = (formDataList: CfdpModel.Iinput[]): string => {
+    private checkRequest = async (formDataList: CfdpModel.Iinput[]): Promise<string> => {
         let result = "";
 
         const parameterList: string[] = [];
@@ -20,7 +20,7 @@ export default class Upload {
             parameterList.push(formData.name);
 
             if (formData.name === "file") {
-                const fileDetail = helperSrc.fileDetail(formData.fileName, formData.buffer);
+                const fileDetail = await helperSrc.fileDetail(formData.fileName, formData.buffer);
 
                 if (fileDetail.fileName === "" || fileDetail.mimeType === "" || fileDetail.size === "") {
                     result += "File input empty.";
@@ -51,7 +51,7 @@ export default class Upload {
                 chunkList.push(data);
             });
 
-            request.on("end", () => {
+            request.on("end", async () => {
                 if (typeof contentType !== "string") {
                     reject(new Error("Content-type missing."));
 
@@ -61,7 +61,7 @@ export default class Upload {
                 const buffer = Buffer.concat(chunkList);
                 const formDataList = Cfdp.readInput(buffer, contentType);
 
-                const resultCheckRequest = this.checkRequest(formDataList);
+                const resultCheckRequest = await this.checkRequest(formDataList);
 
                 if (resultCheckRequest !== "") {
                     reject(new Error(resultCheckRequest));
@@ -73,7 +73,7 @@ export default class Upload {
 
                         if (formData.name === "file" && formData.fileName && formData.buffer) {
                             const fileNameDecode = isDecode ? decodeURIComponent(formData.fileName) : formData.fileName;
-                            const fileDetail = helperSrc.fileDetail(fileNameDecode, formData.buffer);
+                            const fileDetail = await helperSrc.fileDetail(fileNameDecode, formData.buffer);
                             const path = `${pathValue}${fileDetail.baseName}/`;
                             const pathFile = `${path}${fileDetail.fileName}`;
 

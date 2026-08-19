@@ -44,7 +44,7 @@ export default class Document {
     }
 
     api = (): void => {
-        this.app.post("/api/document-upload", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
+        this.app.post("/api/document-upload", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const fileNameEncode = request.headers["filenameencode"];
             const folderJoin = request.headers["folderjoin"];
@@ -52,7 +52,7 @@ export default class Document {
             let pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
 
             const fileNameDecode = decodeURIComponent(typeof fileNameEncode === "string" ? fileNameEncode : "");
-            const fileDetail = helperSrc.fileDetail(fileNameDecode);
+            const fileDetail = await helperSrc.fileDetail(fileNameDecode);
 
             if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Document.ts - api() - post(/api/document-upload) - Error", "Missing or invalid header.");
@@ -118,7 +118,7 @@ export default class Document {
             const body = request.body as modelDocument.IapiReadBody;
 
             const fileName = body.fileName;
-            const fileDetail = helperSrc.fileDetail(fileName);
+            const fileDetail = await helperSrc.fileDetail(fileName);
 
             if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Document.ts - api() - post(/api/document-read) - Error", "Missing or invalid header.");
@@ -197,7 +197,7 @@ export default class Document {
 
                 helperSrc.responseBody("", "ko", response, 500);
             } else {
-                const fileDetail = helperSrc.fileDetail(pathFile);
+                const fileDetail = await helperSrc.fileDetail(pathFile);
 
                 const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
 
@@ -223,7 +223,7 @@ export default class Document {
                             }
                         } else {
                             for (const pathFile of pathFileList) {
-                                const fileDetail = helperSrc.fileDetail(pathFile);
+                                const fileDetail = await helperSrc.fileDetail(pathFile);
 
                                 if ((await helperSrc.findPathDirnameRecursive(pathDocument, fileDetail.fileName)) === "") {
                                     await this.toolRag.delete().content({ fileName: fileDetail.fileName }, { sessionId: mcpSessionId });
@@ -310,7 +310,7 @@ export default class Document {
                 const pathListSlice = pathList.slice();
 
                 for (const path of pathListSlice) {
-                    const fileDetail = helperSrc.fileDetail(path);
+                    const fileDetail = await helperSrc.fileDetail(path);
 
                     const pathNormalize = Path.normalize(path.replace(/\/+$/, ""));
 
@@ -349,7 +349,7 @@ export default class Document {
                     let fileOrFolderMove: boolean | NodeJS.ErrnoException = false;
 
                     for (const path of pathList) {
-                        const fileDetail = helperSrc.fileDetail(path);
+                        const fileDetail = await helperSrc.fileDetail(path);
 
                         const pathCurrent = fileDetail.baseName ? `${pathDocument}${Path.dirname(path)}/` : `${pathDocument}${path}`;
 

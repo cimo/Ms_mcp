@@ -42,7 +42,7 @@ export default class Rag {
                 const documentList: string[] = [];
 
                 for (const pathFile of pathFileList) {
-                    const fileDetail = helperSrc.fileDetail(pathFile);
+                    const fileDetail = await helperSrc.fileDetail(pathFile);
 
                     if (fileDetail.category === "document") {
                         documentList.push(pathFile);
@@ -70,7 +70,7 @@ export default class Rag {
 
                 helperSrc.responseBody("", "ko", response, 500);
             } else {
-                const fileDetail = helperSrc.fileDetail(pathFile);
+                const fileDetail = await helperSrc.fileDetail(pathFile);
 
                 const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
 

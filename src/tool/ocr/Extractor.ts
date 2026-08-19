@@ -63,7 +63,7 @@ export const execute = (mcpSessionId: string, fileName: string, searchText: stri
 
         await apiLogin();
 
-        const fileDetail = helperSrc.fileDetail(fileName);
+        const fileDetail = await helperSrc.fileDetail(fileName);
 
         const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
 

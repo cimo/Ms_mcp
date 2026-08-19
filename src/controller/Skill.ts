@@ -22,14 +22,14 @@ export default class Skill {
     }
 
     api = (): void => {
-        this.app.post("/api/skill-upload", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
+        this.app.post("/api/skill-upload", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const fileNameEncode = request.headers["filenameencode"];
 
             const pathSkill = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/`;
 
             const fileNameDecode = decodeURIComponent(typeof fileNameEncode === "string" ? fileNameEncode : "");
-            const fileDetail = helperSrc.fileDetail(fileNameDecode);
+            const fileDetail = await helperSrc.fileDetail(fileNameDecode);
 
             if (fileDetail.extension === "zip" && !/^[A-Za-z0-9_]+$/.test(fileDetail.baseName)) {
                 helperSrc.responseBody(JSON.stringify({ state: "ko", message: "", data: `/${fileDetail.fileName}` }), "", response, 200);

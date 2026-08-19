@@ -193,7 +193,31 @@ export const jsonCheck = (value: string): boolean => {
     }
 };
 
-export const fileDetail = (value: string, buffer?: Uint8Array, isOnlyByte = true): modelHelperSrc.IfileDetail => {
+export const fileCheckMimeType = (value: string): boolean => {
+    if (!MIME_TYPE.includes(value)) {
+        return false;
+    }
+
+    return true;
+};
+
+export const fileCheckSize = (byte: number): boolean => {
+    const fileSizeMb = parseInt(FILE_SIZE_MB);
+
+    if (isNaN(fileSizeMb)) {
+        return false;
+    }
+
+    const maxSizeByte = fileSizeMb * 1024 * 1024;
+
+    if (byte > maxSizeByte) {
+        return false;
+    }
+
+    return true;
+};
+
+export const fileDetail = async (value: string, buffer?: Uint8Array, isOnlyByte = true): Promise<modelHelperSrc.IfileDetail> => {
     let resultObject = {} as modelHelperSrc.IfileDetail;
 
     if (!value) {
@@ -203,14 +227,22 @@ export const fileDetail = (value: string, buffer?: Uint8Array, isOnlyByte = true
     const fileNameWithExtension = value.includes("/") ? value.split("/").pop()! : value;
     const baseName = fileNameWithExtension.trim().replace(/\.[^/.]+$/, "");
 
-    if (value.includes("/") && Fs.existsSync(value)) {
-        const stat = Fs.statSync(value);
+    if (value.includes("/")) {
+        resultObject = await new Promise<modelHelperSrc.IfileDetail>((resolve) => {
+            Fs.stat(value, (error, stats) => {
+                if (error) {
+                    resolve(resultObject);
 
-        resultObject = {
-            ...resultObject,
-            size: fileSize(stat.size, isOnlyByte),
-            dateModified: localeFormat(stat.mtime) || ""
-        };
+                    return;
+                }
+
+                resolve({
+                    ...resultObject,
+                    size: fileSize(stats.size, isOnlyByte),
+                    dateModified: localeFormat(stats.mtime) || ""
+                });
+            });
+        });
     }
 
     const signatureList: modelHelperSrc.IfileDetailSignature[] = [
@@ -417,30 +449,6 @@ export const fileDetail = (value: string, buffer?: Uint8Array, isOnlyByte = true
     return resultObject;
 };
 
-export const fileCheckMimeType = (value: string): boolean => {
-    if (!MIME_TYPE.includes(value)) {
-        return false;
-    }
-
-    return true;
-};
-
-export const fileCheckSize = (byte: number): boolean => {
-    const fileSizeMb = parseInt(FILE_SIZE_MB);
-
-    if (isNaN(fileSizeMb)) {
-        return false;
-    }
-
-    const maxSizeByte = fileSizeMb * 1024 * 1024;
-
-    if (byte > maxSizeByte) {
-        return false;
-    }
-
-    return true;
-};
-
 export const fileWriteStream = (pathFile: string, buffer: Buffer): Promise<boolean | NodeJS.ErrnoException> => {
     return new Promise((resolve) => {
         Fs.mkdir(Path.dirname(pathFile), { recursive: true }, (error) => {
@@ -612,7 +620,7 @@ export const findPathFileRecursive = (path: string, extension: string): Promise<
 export const findPathDirnameRecursive = async (path: string, fileName: string): Promise<string> => {
     let result = "";
 
-    const detail = fileDetail(fileName);
+    const detail = await fileDetail(fileName);
 
     const pathFileList = await findPathFileRecursive(path, detail.extension);
 
@@ -771,14 +779,14 @@ export const uploadedDocumentRead = (mcpSessionId: string, extension: string, fo
             pathDocument = `${pathDocument}${folderJoin}/`;
         }
 
-        readFirstLevelRecursive(pathDocument, extension).then((pathList) => {
+        readFirstLevelRecursive(pathDocument, extension).then(async (pathList) => {
             const resultList: modelHelperSrc.IfileDetail[] = [];
 
             for (let a = 0; a < pathList.length; a++) {
                 const pathRelative = pathList[a].replace(pathDocument, "");
                 const pathRelativeSplit = pathRelative.split("/");
 
-                const detail = fileDetail(pathList[a], undefined, false);
+                const detail = await fileDetail(pathList[a], undefined, false);
 
                 if (pathRelativeSplit.length > 1 && pathRelativeSplit[1].startsWith(pathRelativeSplit[0])) {
                     resultList.pop();
@@ -814,7 +822,7 @@ export const uploadedSkillRead = (mcpSessionId: string, extension: string): Prom
     return new Promise<modelHelperSrc.IfileDetail[]>((resolve) => {
         const pathSkill = `${PATH_ROOT}${PATH_FILE}input/${mcpSessionId}/skill/`;
 
-        findPathFileRecursive(pathSkill, extension).then((pathFileList) => {
+        findPathFileRecursive(pathSkill, extension).then(async (pathFileList) => {
             const resultList: modelHelperSrc.IfileDetail[] = [];
 
             for (let a = 0; a < pathFileList.length; a++) {
@@ -833,7 +841,7 @@ export const uploadedSkillRead = (mcpSessionId: string, extension: string): Prom
                     }
 
                     if (pathRelativeSplit[0] !== "" && !isAlreadyInList) {
-                        const detail = fileDetail(pathFileList[a], undefined, false);
+                        const detail = await fileDetail(pathFileList[a], undefined, false);
 
                         resultList.push({
                             fileName: pathRelativeSplit[0],
