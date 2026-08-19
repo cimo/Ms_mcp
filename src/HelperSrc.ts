@@ -415,7 +415,7 @@ export const fileDetail = async (value: string, buffer?: Uint8Array, isOnlyByte 
             if (isMatched) {
                 resultObject = {
                     ...resultObject,
-                    fileName: fileNameWithExtension,
+                    name: fileNameWithExtension,
                     baseName,
                     mimeType: signatureList[a].mimeType,
                     extension: signatureList[a].extension,
@@ -434,7 +434,7 @@ export const fileDetail = async (value: string, buffer?: Uint8Array, isOnlyByte 
             if (signatureList[a].extension === extension) {
                 resultObject = {
                     ...resultObject,
-                    fileName: fileNameWithExtension,
+                    name: fileNameWithExtension,
                     baseName,
                     mimeType: signatureList[a].mimeType,
                     extension: signatureList[a].extension,
@@ -701,7 +701,7 @@ export const readFirstLevelRecursive = (path: string, extension: string, pathPre
                     Fs.stat(pathData, (errorStat, statData) => {
                         if (!errorStat && statData.isDirectory()) {
                             if (!pathPrevious) {
-                                resultList.push(pathData);
+                                resultList.push(`${pathData}/`);
 
                                 readFirstLevelRecursive(`${pathData}/`, extension, path).then((dataSubList) => {
                                     for (let a = 0; a < dataSubList.length; a++) {
@@ -814,16 +814,21 @@ export const uploadedDocumentRead = (mcpSessionId: string, extension: string, fo
             const resultList: modelHelperSrc.IfileDetail[] = [];
 
             for (let a = 0; a < pathList.length; a++) {
-                const pathRelative = pathList[a].replace(pathDocument, "");
+                const isFolderFirstLevel = pathList[a].endsWith("/");
+                const path = isFolderFirstLevel ? pathList[a].slice(0, -1) : pathList[a];
+
+                const pathRelative = path.replace(pathDocument, "");
                 const pathRelativeSplit = pathRelative.split("/");
 
-                const detail = await fileDetail(pathList[a], undefined, false);
+                const isFileNameMatchedFolder = pathRelativeSplit.length > 1 && pathRelativeSplit[1].startsWith(pathRelativeSplit[0]);
 
-                if (pathRelativeSplit.length > 1 && pathRelativeSplit[1].startsWith(pathRelativeSplit[0])) {
+                const detail = await fileDetail(path, undefined, false);
+
+                if (isFileNameMatchedFolder) {
                     resultList.pop();
 
                     resultList.push({
-                        fileName: pathRelativeSplit[1],
+                        name: pathRelativeSplit[1],
                         baseName: detail.baseName,
                         mimeType: detail.mimeType,
                         extension: detail.extension,
@@ -831,15 +836,15 @@ export const uploadedDocumentRead = (mcpSessionId: string, extension: string, fo
                         dateModified: detail.dateModified,
                         size: detail.size
                     });
-                } else if (pathRelativeSplit.length === 1 && pathRelativeSplit[0] !== "rag_graph.html") {
+                } else if (isFolderFirstLevel) {
                     resultList.push({
-                        fileName: pathRelativeSplit[0],
+                        name: pathRelativeSplit[0],
                         baseName: "",
                         mimeType: "",
                         extension: "",
                         category: "folder",
                         dateModified: detail.dateModified,
-                        size: detail.size
+                        size: ""
                     });
                 }
             }
@@ -864,7 +869,7 @@ export const uploadedSkillRead = (mcpSessionId: string, extension: string): Prom
                     let isAlreadyInList = false;
 
                     for (let b = 0; b < resultList.length; b++) {
-                        if (resultList[b].fileName === pathRelativeSplit[0]) {
+                        if (resultList[b].name === pathRelativeSplit[0]) {
                             isAlreadyInList = true;
 
                             break;
@@ -875,7 +880,7 @@ export const uploadedSkillRead = (mcpSessionId: string, extension: string): Prom
                         const detail = await fileDetail(pathFileList[a], undefined, false);
 
                         resultList.push({
-                            fileName: pathRelativeSplit[0],
+                            name: pathRelativeSplit[0],
                             baseName: detail.baseName,
                             mimeType: detail.mimeType,
                             extension: detail.extension,

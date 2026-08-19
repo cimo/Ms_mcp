@@ -9,19 +9,19 @@ export interface IlocaleConfiguration {
 }
 
 export interface IfileDetail {
-    fileName: string;
+    name: string;
     baseName: string;
-    mimeType: string;
-    extension: string;
-    category: string;
     size: string;
     dateModified: string;
+    extension: string;
+    category: string;
+    mimeType: string;
 }
 
 export interface IfileDetailSignature {
-    mimeType: string;
     extension: string;
     category: string;
+    mimeType: string;
     magicByteList?: {
         offset: number;
         bytes: number[];

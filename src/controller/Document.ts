@@ -68,7 +68,7 @@ export default class Document {
                     .then(async (resultControllerUploadList) => {
                         if (resultControllerUploadList.length === 0) {
                             helperSrc.responseBody(
-                                JSON.stringify({ state: "ko", message: "", data: `${folderJoin}/${fileDetail.fileName}` }),
+                                JSON.stringify({ state: "ko", message: "", data: `${folderJoin}/${fileDetail.name}` }),
                                 "",
                                 response,
                                 200
@@ -77,11 +77,11 @@ export default class Document {
                             if (fileDetail.category === "document") {
                                 await this.toolDocument
                                     .execute()
-                                    .content({ fileName: fileDetail.fileName, searchInput: "" }, { sessionId: mcpSessionId });
+                                    .content({ fileName: fileDetail.name, searchInput: "" }, { sessionId: mcpSessionId });
                             }
 
                             helperSrc.responseBody(
-                                JSON.stringify({ state: "ok", message: "", data: `${folderJoin}/${fileDetail.fileName}` }),
+                                JSON.stringify({ state: "ok", message: "", data: `${folderJoin}/${fileDetail.name}` }),
                                 "",
                                 response,
                                 200
@@ -127,7 +127,7 @@ export default class Document {
             } else {
                 const pathDirname = await helperSrc.findPathDirnameRecursive(
                     `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`,
-                    fileDetail.fileName
+                    fileDetail.name
                 );
 
                 let inputExtension = "";
@@ -136,14 +136,14 @@ export default class Document {
                 if (fileDetail.category === "document") {
                     if (fileDetail.extension === "pdf") {
                         inputExtension = fileDetail.extension;
-                        inputFileName = fileDetail.fileName;
+                        inputFileName = fileDetail.name;
                     } else {
                         inputExtension = "pdf";
                         inputFileName = `converted.${inputExtension}`;
                     }
                 } else if (fileDetail.category === "image") {
                     inputExtension = fileDetail.extension;
-                    inputFileName = fileDetail.fileName;
+                    inputFileName = fileDetail.name;
                 }
 
                 helperSrc.findPathFileRecursive(pathDirname, inputExtension).then((pathFileList) => {
@@ -218,15 +218,15 @@ export default class Document {
                         helperSrc.responseBody("", "ko", response, 500);
                     } else {
                         if (fileDetail.baseName) {
-                            if ((await helperSrc.findPathDirnameRecursive(pathDocument, fileDetail.fileName)) === "") {
-                                await this.toolRag.delete().content({ fileName: fileDetail.fileName }, { sessionId: mcpSessionId });
+                            if ((await helperSrc.findPathDirnameRecursive(pathDocument, fileDetail.name)) === "") {
+                                await this.toolRag.delete().content({ fileName: fileDetail.name }, { sessionId: mcpSessionId });
                             }
                         } else {
                             for (const pathFile of pathFileList) {
                                 const fileDetail = await helperSrc.fileDetail(pathFile);
 
-                                if ((await helperSrc.findPathDirnameRecursive(pathDocument, fileDetail.fileName)) === "") {
-                                    await this.toolRag.delete().content({ fileName: fileDetail.fileName }, { sessionId: mcpSessionId });
+                                if ((await helperSrc.findPathDirnameRecursive(pathDocument, fileDetail.name)) === "") {
+                                    await this.toolRag.delete().content({ fileName: fileDetail.name }, { sessionId: mcpSessionId });
                                 }
                             }
                         }
@@ -255,7 +255,14 @@ export default class Document {
                 const nameOld = fileDetailOld.baseName ? fileDetailOld.baseName : Path.basename(pathItem);
 
                 const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
-                const pathNew = pathItem.replaceAll(nameOld, name);
+
+                let pathNew = "";
+
+                if (fileDetailOld.baseName) {
+                    pathNew = Path.join(Path.dirname(Path.dirname(pathItem)), name, `${name}.${fileDetailOld.extension}`);
+                } else {
+                    pathNew = Path.join(Path.dirname(pathItem), name);
+                }
 
                 if (name === "" || nameOld === name) {
                     helperSrc.responseBody(JSON.stringify({ state: "ok", message: "" }), "", response, 200);
@@ -278,7 +285,7 @@ export default class Document {
                         fileOrFolderRename = await helperSrc.fileOrFolderRename(
                             `${pathDocument}${Path.dirname(pathItem)}/`,
                             `${pathDocument}${Path.dirname(pathNew)}/`,
-                            fileDetailOld.fileName,
+                            fileDetailOld.name,
                             `${name}.${fileDetailOld.extension}`
                         );
                     } else {

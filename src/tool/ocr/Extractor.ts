@@ -67,7 +67,7 @@ export const execute = (mcpSessionId: string, fileName: string, searchText: stri
 
         const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
 
-        const fileReadStream = await helperSrc.fileReadStream(`${pathDocument}${fileDetail.fileName}`);
+        const fileReadStream = await helperSrc.fileReadStream(`${pathDocument}${fileDetail.name}`);
 
         if (!Buffer.isBuffer(fileReadStream)) {
             helperSrc.writeLog(`Extractor.ts - execute() - fileReadStream()`, fileReadStream.toString());
@@ -76,7 +76,7 @@ export const execute = (mcpSessionId: string, fileName: string, searchText: stri
             const blob = new Blob([buffer], { type: fileDetail.mimeType });
 
             const formData = new FormData();
-            formData.append("file", blob, fileDetail.fileName);
+            formData.append("file", blob, fileDetail.name);
             formData.append("searchText", searchText);
 
             const stdout = await apiExtract(formData);

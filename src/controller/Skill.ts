@@ -32,7 +32,7 @@ export default class Skill {
             const fileDetail = await helperSrc.fileDetail(fileNameDecode);
 
             if (fileDetail.extension === "zip" && !/^[A-Za-z0-9_]+$/.test(fileDetail.baseName)) {
-                helperSrc.responseBody(JSON.stringify({ state: "ko", message: "", data: `/${fileDetail.fileName}` }), "", response, 200);
+                helperSrc.responseBody(JSON.stringify({ state: "ko", message: "", data: `/${fileDetail.name}` }), "", response, 200);
 
                 return;
             }
@@ -46,9 +46,9 @@ export default class Skill {
                     .execute(request, true, true, pathSkill)
                     .then((resultControllerUploadList) => {
                         if (resultControllerUploadList.length === 0) {
-                            helperSrc.responseBody(JSON.stringify({ state: "ko", message: "", data: `/${fileDetail.fileName}` }), "", response, 200);
+                            helperSrc.responseBody(JSON.stringify({ state: "ko", message: "", data: `/${fileDetail.name}` }), "", response, 200);
                         } else {
-                            const zip = new AdmZip(`${pathSkill}${fileDetail.baseName}/${fileDetail.fileName}`);
+                            const zip = new AdmZip(`${pathSkill}${fileDetail.baseName}/${fileDetail.name}`);
                             const entryList = zip.getEntries();
 
                             let isSkillMd = false;
@@ -71,7 +71,7 @@ export default class Skill {
                                 zip.extractAllTo(`${pathSkill}${fileDetail.baseName}`, true);
                             }
 
-                            helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: `/${fileDetail.fileName}` }), "", response, 200);
+                            helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: `/${fileDetail.name}` }), "", response, 200);
                         }
                     })
                     .catch((error: Error) => {

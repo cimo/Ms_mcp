@@ -54,7 +54,7 @@ const configBase = {
                 embeddedLanguageFormatting: "auto",
                 htmlWhitespaceSensitivity: "css",
                 quoteProps: "as-needed",
-                semicolons: true,
+                semi: true,
                 singleQuote: false,
                 trailingComma: "none",
                 endOfLine: "lf"

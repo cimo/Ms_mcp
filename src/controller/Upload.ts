@@ -22,7 +22,7 @@ export default class Upload {
             if (formData.name === "file") {
                 const fileDetail = await helperSrc.fileDetail(formData.fileName, formData.buffer);
 
-                if (fileDetail.fileName === "" || fileDetail.mimeType === "" || fileDetail.size === "") {
+                if (fileDetail.name === "" || fileDetail.mimeType === "" || fileDetail.size === "") {
                     result += "File input empty.";
                 } else if (!helperSrc.fileCheckMimeType(fileDetail.mimeType)) {
                     result += "Mime type are not allowed.";
@@ -75,7 +75,7 @@ export default class Upload {
                             const fileNameDecode = isDecode ? decodeURIComponent(formData.fileName) : formData.fileName;
                             const fileDetail = await helperSrc.fileDetail(fileNameDecode, formData.buffer);
                             const path = `${pathValue}${fileDetail.baseName}/`;
-                            const pathFile = `${path}${fileDetail.fileName}`;
+                            const pathFile = `${path}${fileDetail.name}`;
 
                             Fs.mkdir(path, { recursive: true }, (error) => {
                                 if (error) {

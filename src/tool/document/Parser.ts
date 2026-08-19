@@ -91,11 +91,11 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
 
         const pathDirname = await helperSrc.findPathDirnameRecursive(
             `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`,
-            fileDetail.fileName
+            fileDetail.name
         );
 
         if (fileDetail.extension !== "pdf") {
-            const fileReadStream = await helperSrc.fileReadStream(`${pathDirname}${fileDetail.fileName}`);
+            const fileReadStream = await helperSrc.fileReadStream(`${pathDirname}${fileDetail.name}`);
 
             if (!Buffer.isBuffer(fileReadStream)) {
                 helperSrc.writeLog(`Parser.ts - execute() - no pdf - fileReadStream()`, fileReadStream.toString());
@@ -104,18 +104,22 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
                 const blob = new Blob([buffer], { type: fileDetail.mimeType });
 
                 const formData = new FormData();
-                formData.append("file", blob, fileDetail.fileName);
+                formData.append("file", blob, fileDetail.name);
 
                 const stdout = await apiToPdf(formData);
 
                 if (stdout !== "ko") {
-                    await helperSrc.fileWriteStream(`${pathDirname}converted.pdf`, Buffer.from(stdout, "base64"));
+                    const fileWriteStream = await helperSrc.fileWriteStream(`${pathDirname}converted.pdf`, Buffer.from(stdout, "base64"));
+
+                    if (typeof fileWriteStream !== "boolean") {
+                        helperSrc.writeLog(`Parser.ts - execute() - fileWriteStream()`, fileWriteStream.toString());
+                    }
                 }
             }
         }
 
-        await apiDocumentParser("/layout", `${pathDirname}${fileDetail.fileName}`, pathDirname);
-        const engineData = await apiDocumentParser("/engine", `${pathDirname}${fileDetail.fileName}`, `${pathDirname}result.md`);
+        await apiDocumentParser("/layout", `${pathDirname}${fileDetail.name}`, pathDirname);
+        const engineData = await apiDocumentParser("/engine", `${pathDirname}${fileDetail.name}`, `${pathDirname}result.md`);
 
         if (engineData !== "ko") {
             resultObject = {
