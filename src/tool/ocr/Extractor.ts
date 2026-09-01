@@ -65,9 +65,9 @@ export const execute = (mcpSessionId: string, fileName: string, searchText: stri
 
         const fileDetail = await helperSrc.fileDetail(fileName);
 
-        const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/${fileDetail.baseName}/`;
+        const pathWorkspace = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/${fileDetail.baseName}/`;
 
-        const fileReadStream = await helperSrc.fileReadStream(`${pathDocument}${fileDetail.name}`);
+        const fileReadStream = await helperSrc.fileReadStream(`${pathWorkspace}${fileDetail.name}`);
 
         if (!Buffer.isBuffer(fileReadStream)) {
             helperSrc.writeLog(`Extractor.ts - execute() - fileReadStream()`, fileReadStream.toString());

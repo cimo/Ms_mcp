@@ -22,7 +22,7 @@ export interface Idata {
     skillName: string;
 }
 
-export interface IdataDatabaseQuery {
+export interface IdatabaseQuery {
     id: number;
     name: string;
     description: string;

@@ -77,7 +77,7 @@ export default class Upload {
                             const path = `${pathValue}${fileDetail.baseName}/`;
                             const pathFile = `${path}${fileDetail.name}`;
 
-                            Fs.mkdir(path, { recursive: true }, (error) => {
+                            Fs.mkdir(path, { recursive: true }, async (error) => {
                                 if (error) {
                                     helperSrc.writeLog("Upload.ts - execute() - request.on() - mkdir() - Error", error.message);
 
@@ -85,13 +85,11 @@ export default class Upload {
 
                                     return;
                                 } else {
-                                    Fs.access(pathFile, Fs.constants.F_OK, (errorAccess) => {
-                                        if (isFileExists && !errorAccess) {
-                                            resolve([]);
+                                    const isExists = await helperSrc.fileOrFolderExists(pathFile);
 
-                                            return;
-                                        }
-
+                                    if (isFileExists && isExists) {
+                                        resolve([]);
+                                    } else {
                                         helperSrc.fileWriteStream(pathFile, formData.buffer).then((resultFileWriteStream) => {
                                             if (typeof resultFileWriteStream !== "boolean" || !resultFileWriteStream) {
                                                 reject(new Error("Write failed."));
@@ -103,7 +101,7 @@ export default class Upload {
                                                 return;
                                             }
                                         });
-                                    });
+                                    }
                                 }
                             });
 

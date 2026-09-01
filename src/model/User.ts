@@ -15,16 +15,11 @@ export interface Idata {
     isDelete: boolean;
 }
 
-export interface IdataDatabaseQuery {
+export interface IdatabaseQuery {
     id: number;
     email: string;
     name: string;
     surname: string;
     password: string;
     mcp_session_id: string | null;
-}
-
-export interface IdataLoginSession {
-    mcpSessionId: string;
-    message: string;
 }

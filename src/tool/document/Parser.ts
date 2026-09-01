@@ -90,7 +90,7 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
         const fileDetail = await helperSrc.fileDetail(fileName);
 
         const pathDirname = await helperSrc.findPathDirnameRecursive(
-            `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`,
+            `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/`,
             fileDetail.name
         );
 

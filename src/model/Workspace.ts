@@ -1,4 +1,4 @@
-export interface IapiListBody {
+export interface IapiBody {
     folderJoin: string;
 }
 
@@ -7,7 +7,7 @@ export interface IapiReadBody {
 }
 
 export interface IapiDeleteBody {
-    pathItem: string;
+    pathList: string[];
 }
 
 export interface IapiRenameBody {

@@ -10,15 +10,22 @@ const drawCursor = async (mcpSessionId: string, buffer: Buffer): Promise<void> =
     const pathFile = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/screenshot.jpg`;
 
     const directory = Path.dirname(pathFile);
-    Fs.mkdirSync(directory, { recursive: true });
 
-    const cursor = Buffer.from(`<svg width="20" height="20"><circle cx="5" cy="5" r="5" fill="red"/></svg>`);
+    Fs.mkdir(directory, { recursive: true }, async (error) => {
+        if (error) {
+            helperSrc.writeLog("Display.ts - drawCursor() - Fs.mkdir()", error.toString());
 
-    const mousePosition = await mouse.getPosition();
+            return;
+        }
 
-    sharp(buffer)
-        .composite([{ input: cursor, top: mousePosition.y, left: mousePosition.x }])
-        .toFile(pathFile);
+        const cursor = Buffer.from(`<svg width="20" height="20"><circle cx="5" cy="5" r="5" fill="red"/></svg>`);
+
+        const mousePosition = await mouse.getPosition();
+
+        sharp(buffer)
+            .composite([{ input: cursor, top: mousePosition.y, left: mousePosition.x }])
+            .toFile(pathFile);
+    });
 };
 
 export const screenshot = async (mcpSessionId: string): Promise<string> => {

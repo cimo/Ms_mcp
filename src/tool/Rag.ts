@@ -105,7 +105,7 @@ export default class Rag {
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const pathFileList = await helperSrc.readAllLevelPathFileRecursive(
-                    `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${extra.sessionId}/document/`
+                    `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${extra.sessionId}/workspace/`
                 );
 
                 if (pathFileList.length === 0) {

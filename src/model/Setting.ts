@@ -9,16 +9,16 @@ export interface Illm {
 
 export interface IapiUpdateBody {
     id: number;
-    llm: Illm[];
+    llmList: Illm[];
 }
 
 export interface Idata {
     id: number;
-    llm: Illm[];
+    llmList: Illm[];
     isDelete: boolean;
 }
 
-export interface IdataDatabaseQuery {
+export interface IdatabaseQuery {
     id: number;
     llm: Illm[];
 }

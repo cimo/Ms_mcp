@@ -1757,9 +1757,9 @@ class Engine:
 """
 
     def _htmlGenerate(self, database, mcpSessionId):
-        pathDocument = f"{self.pathFileInput}{mcpSessionId}/document/"
+        pathWorkspace = f"{self.pathFileInput}{mcpSessionId}/workspace/"
 
-        if not os.path.isdir(pathDocument):
+        if not os.path.isdir(pathWorkspace):
             return
 
         colorObject = {
@@ -1832,7 +1832,7 @@ class Engine:
         html = self._htmlTemplate()
         html = html.replace("__NODE_DATA__", json.dumps(nodeList, ensure_ascii=False)).replace("__EDGE_DATA__", json.dumps(edgeList, ensure_ascii=False)).replace("__JS_VIS__", visScript)
 
-        with open(f"{pathDocument}rag_graph.html", "w", encoding="utf-8") as file:
+        with open(f"{pathWorkspace}rag_graph.html", "w", encoding="utf-8") as file:
             file.write(html)
 
     def store(self, mcpSessionId, fileName):
@@ -1848,8 +1848,8 @@ class Engine:
 
         fileNameOnly = fileName.split("/")[-1]
 
-        pathDocument = f"{self.pathFileInput}{mcpSessionId}/document/"
-        pathCurrent = f"{pathDocument}{os.path.dirname(fileName)}/"
+        pathWorkspace = f"{self.pathFileInput}{mcpSessionId}/workspace/"
+        pathCurrent = f"{pathWorkspace}{os.path.dirname(fileName)}/"
 
         fileIdStored = self._logicFileSelect(database, mcpSessionId, fileNameOnly)
 

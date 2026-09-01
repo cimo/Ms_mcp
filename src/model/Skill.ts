@@ -3,5 +3,5 @@ export interface IapiReadBody {
 }
 
 export interface IapiDeleteBody {
-    fileName: string;
+    fileNameList: string[];
 }

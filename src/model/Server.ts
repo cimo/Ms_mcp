@@ -6,8 +6,15 @@ import { ChildProcess } from "child_process";
 import ControllerRuntime from "../controller/Runtime.js";
 
 export interface IapiLoginBody {
+    mode: string;
     username: string;
     password: string;
+}
+
+export interface IdataLoginSession {
+    message: string;
+    adUrl?: string;
+    mcpSessionId?: string;
 }
 
 export interface Icors {

@@ -86,14 +86,14 @@ export default class Setting {
         if (mcpSessionId !== "") {
             resultObject = await database.pool
                 .query(`SELECT id, llm FROM "${mcpSessionId}_setting" WHERE id = 1 AND NOT delete ORDER BY id ASC;`)
-                .then((queryResult: Pg.QueryResult<modelSetting.IdataDatabaseQuery>) => {
+                .then((queryResult: Pg.QueryResult<modelSetting.IdatabaseQuery>) => {
                     const dataObject = {} as modelSetting.Idata;
 
                     if (queryResult.rows.length > 0) {
                         const queryRow = queryResult.rows[0];
 
                         dataObject.id = queryRow.id;
-                        dataObject.llm = queryRow.llm;
+                        dataObject.llmList = queryRow.llm;
                     }
 
                     return dataObject;
@@ -140,7 +140,7 @@ export default class Setting {
 
                     if (settingList.length > 0) {
                         for (const setting of settingList) {
-                            await this.tableInsert(mcpSessionId, setting.id, setting.llm, setting.isDelete);
+                            await this.tableInsert(mcpSessionId, setting.id, setting.llmList, setting.isDelete);
                         }
 
                         isResult = true;
@@ -153,29 +153,30 @@ export default class Setting {
     };
 
     api = (): void => {
-        this.app.get("/api/setting-read", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.get("/api/setting-query", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("Setting.ts - api() - get(/api/setting-read) - Error", "Missing or invalid header.");
+                helperSrc.writeLog("Setting.ts - api() - get(/api/setting-query) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
             } else {
                 const setting = await this.tableSelect(mcpSessionId);
 
                 if (Object.keys(setting).length === 0) {
-                    helperSrc.responseBody("", "ko", response, 500);
+                    helperSrc.writeLog("Setting.ts - api() - get(/api/setting-query) - tableSelect()", "Failed to read.");
+
+                    helperSrc.responseBody({ state: "ko", message: "Failed to read." }, response, 500);
                 } else {
                     helperSrc.responseBody(
-                        JSON.stringify({
+                        {
                             state: "ok",
                             message: "",
                             data: {
                                 id: setting.id,
-                                llm: setting.llm
+                                llmList: setting.llmList
                             }
-                        }),
-                        "",
+                        },
                         response,
                         200
                     );
@@ -188,24 +189,26 @@ export default class Setting {
             const body = request.body as modelSetting.IapiUpdateBody;
 
             const id = body.id;
-            const llmList = body.llm;
+            const llmList = body.llmList;
 
             if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Setting.ts - api() - post(/api/setting-update) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
             } else {
-                const checkMessageList = this.checkField(llmList);
+                const errorMessageList = this.checkField(llmList);
 
-                if (checkMessageList.length > 0) {
-                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: checkMessageList }), "", response, 200);
+                if (errorMessageList.length > 0) {
+                    helperSrc.responseBody({ state: "ko", message: errorMessageList }, response, 200);
                 } else {
                     const isTableUpdate = await this.tableUpdate(mcpSessionId, id, llmList);
 
                     if (!isTableUpdate) {
-                        helperSrc.responseBody("", "ko", response, 500);
+                        helperSrc.writeLog("Setting.ts - api() - post(/api/setting-update) - tableUpdate()", "Failed to update.");
+
+                        helperSrc.responseBody({ state: "ko", message: "Failed to update." }, response, 500);
                     } else {
-                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "Setting updated successfully." }), "", response, 200);
+                        helperSrc.responseBody({ state: "ok", message: "Setting updated successfully." }, response, 200);
                     }
                 }
             }

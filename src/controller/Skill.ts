@@ -15,6 +15,16 @@ export default class Skill {
     private controllerUpload: ControllerUpload;
 
     // Method
+    private checkField = (name: string): string[] => {
+        const resultList: string[] = [];
+
+        if (!/^[A-Za-z0-9_]+$/.test(name)) {
+            resultList.push("Name: Can only contain uppercase, lowercase, number and underscore.");
+        }
+
+        return resultList;
+    };
+
     constructor(app: Express.Express, limiter: RateLimitRequestHandler) {
         this.app = app;
         this.limiter = limiter;
@@ -31,68 +41,82 @@ export default class Skill {
             const fileNameDecode = decodeURIComponent(typeof fileNameEncode === "string" ? fileNameEncode : "");
             const fileDetail = await helperSrc.fileDetail(fileNameDecode);
 
-            if (fileDetail.extension === "zip" && !/^[A-Za-z0-9_]+$/.test(fileDetail.baseName)) {
-                helperSrc.responseBody(JSON.stringify({ state: "ko", message: "", data: `/${fileDetail.name}` }), "", response, 200);
-
-                return;
-            }
-
             if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("Skill.ts - api() - post(/api/skill-upload) - Error", `${response}`);
+                helperSrc.writeLog("Skill.ts - api() - post(/api/skill-upload) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header.", data: fileDetail.name }, response, 500);
             } else {
-                this.controllerUpload
-                    .execute(request, true, true, pathSkill)
-                    .then((resultControllerUploadList) => {
-                        if (resultControllerUploadList.length === 0) {
-                            helperSrc.responseBody(JSON.stringify({ state: "ko", message: "", data: `/${fileDetail.name}` }), "", response, 200);
-                        } else {
-                            const zip = new AdmZip(`${pathSkill}${fileDetail.baseName}/${fileDetail.name}`);
-                            const entryList = zip.getEntries();
+                const errorMessageList = this.checkField(fileDetail.baseName);
 
-                            let isSkillMd = false;
-                            let isAssetFolder = false;
-                            let isScriptFolder = false;
+                if (fileDetail.extension !== "zip") {
+                    errorMessageList.push("Only zip file is allowed.");
+                }
 
-                            for (let a = 0; a < entryList.length; a++) {
-                                const entry = entryList[a];
+                if (errorMessageList.length > 0) {
+                    helperSrc.responseBody({ state: "ko", message: errorMessageList, data: fileDetail.name }, response, 200);
+                } else {
+                    this.controllerUpload
+                        .execute(request, true, true, pathSkill)
+                        .then((resultControllerUploadList) => {
+                            if (resultControllerUploadList.length === 0) {
+                                helperSrc.writeLog("Skill.ts - api() - post(/api/skill-upload) - execute() - then()", "Failed to upload.");
 
-                                if (entry.entryName === "skill.md") {
-                                    isSkillMd = true;
-                                } else if (entry.entryName === "asset/") {
-                                    isAssetFolder = true;
-                                } else if (entry.entryName === "script/") {
-                                    isScriptFolder = true;
+                                helperSrc.responseBody({ state: "ko", message: "Failed to upload.", data: fileDetail.name }, response, 500);
+                            } else {
+                                const zip = new AdmZip(`${pathSkill}${fileDetail.baseName}/${fileDetail.name}`);
+                                const entryList = zip.getEntries();
+
+                                let isSkillMd = false;
+                                let isAssetFolder = false;
+                                let isScriptFolder = false;
+
+                                for (let a = 0; a < entryList.length; a++) {
+                                    const entry = entryList[a];
+
+                                    if (entry.entryName === "skill.md") {
+                                        isSkillMd = true;
+                                    } else if (entry.entryName === "asset/") {
+                                        isAssetFolder = true;
+                                    } else if (entry.entryName === "script/") {
+                                        isScriptFolder = true;
+                                    }
+                                }
+
+                                if (!isSkillMd || !isAssetFolder || !isScriptFolder) {
+                                    helperSrc.fileOrFolderDelete(`${pathSkill}${fileDetail.baseName}`);
+
+                                    helperSrc.responseBody(
+                                        { state: "ko", message: "Invalid file and folder structure.", data: fileDetail.name },
+                                        response,
+                                        200
+                                    );
+                                } else {
+                                    zip.extractAllTo(`${pathSkill}${fileDetail.baseName}`, true);
+
+                                    helperSrc.responseBody({ state: "ok", message: "", data: fileDetail.name }, response, 200);
                                 }
                             }
+                        })
+                        .catch((error: Error) => {
+                            helperSrc.writeLog("Skill.ts - api() - post(/api/skill-upload) - execute() - catch()", error.message);
 
-                            if (isSkillMd && isAssetFolder && isScriptFolder) {
-                                zip.extractAllTo(`${pathSkill}${fileDetail.baseName}`, true);
-                            }
-
-                            helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: `/${fileDetail.name}` }), "", response, 200);
-                        }
-                    })
-                    .catch((error: Error) => {
-                        helperSrc.writeLog("Skill.ts - api() - post(/api/skill-upload) - execute() - catch()", error.message);
-
-                        helperSrc.responseBody("", "ko", response, 500);
-                    });
+                            helperSrc.responseBody({ state: "ko", message: "Failed to upload.", data: fileDetail.name }, response, 500);
+                        });
+                }
             }
         });
 
-        this.app.get("/api/skill-list", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.get("/api/skill-retrieve", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("Skill.ts - api() - get(/api/skill-list) - Error", "Missing or invalid header.");
+                helperSrc.writeLog("Skill.ts - api() - get(/api/skill-retrieve) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
             } else {
-                const fileDetailList = await helperSrc.uploadedSkillRead(mcpSessionId, "*");
+                const detailList = await helperSrc.retrieveSkill(mcpSessionId, "*");
 
-                helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: fileDetailList }), "", response, 200);
+                helperSrc.responseBody({ state: "ok", message: "", data: detailList }, response, 200);
             }
         });
 
@@ -105,45 +129,17 @@ export default class Skill {
             if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Skill.ts - api() - post(/api/skill-read) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
             } else {
-                const pathSkill = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/${fileName}/`;
+                const pathSkill = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/${fileName}/skill.md`;
 
-                helperSrc.findPathFileRecursive(pathSkill, "md").then((pathFileList) => {
-                    let isFound = false;
+                helperSrc.fileReadStream(pathSkill).then((resultFileReadStream) => {
+                    if (!Buffer.isBuffer(resultFileReadStream)) {
+                        helperSrc.writeLog("Skill.ts - api() - post(/api/skill-read) - fileReadStream()", resultFileReadStream.toString());
 
-                    for (let a = 0; a < pathFileList.length; a++) {
-                        const pathFile = pathFileList[a];
-
-                        if (pathFile.endsWith("skill.md")) {
-                            isFound = true;
-
-                            helperSrc.fileReadStream(pathFile).then((resultFileReadStream) => {
-                                if (!Buffer.isBuffer(resultFileReadStream)) {
-                                    helperSrc.writeLog(
-                                        "Skill.ts - api() - post(/api/skill-read) - fileReadStream()",
-                                        resultFileReadStream.toString()
-                                    );
-
-                                    helperSrc.responseBody("", "ko", response, 500);
-                                } else {
-                                    helperSrc.responseBody(
-                                        JSON.stringify({ state: "ok", message: "", data: resultFileReadStream.toString("base64") }),
-                                        "",
-                                        response,
-                                        200
-                                    );
-                                }
-                            });
-
-                            break;
-                        }
-                    }
-
-                    if (!isFound) {
-                        helperSrc.writeLog("Skill.ts - api() - post(/api/skill-read) - Error", "File not found.");
-
-                        helperSrc.responseBody("", "ko", response, 500);
+                        helperSrc.responseBody({ state: "ko", message: "Failed to read." }, response, 500);
+                    } else {
+                        helperSrc.responseBody({ state: "ok", message: "", data: resultFileReadStream.toString("base64") }, response, 200);
                     }
                 });
             }
@@ -153,24 +149,28 @@ export default class Skill {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body as modelSkill.IapiDeleteBody;
 
-            const fileName = body.fileName;
+            const fileNameList = body.fileNameList;
 
             if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Skill.ts - api() - post(/api/skill-delete) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
             } else {
-                const pathSkill = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/${fileName}/`;
+                for (const fileName of fileNameList) {
+                    const pathSkill = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/skill/${fileName}/`;
 
-                const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(pathSkill);
+                    const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(pathSkill);
 
-                if (typeof fileOrFolderDelete !== "boolean") {
-                    helperSrc.writeLog("Skill.ts - api() - post(/api/skill-delete) - fileOrFolderDelete()", fileOrFolderDelete.toString());
+                    if (typeof fileOrFolderDelete !== "boolean") {
+                        helperSrc.writeLog("Skill.ts - api() - post(/api/skill-delete) - fileOrFolderDelete()", fileOrFolderDelete.toString());
 
-                    helperSrc.responseBody("", "ko", response, 500);
-                } else {
-                    helperSrc.responseBody("ok", "", response, 200);
+                        helperSrc.responseBody({ state: "ko", message: "Failed to delete." }, response, 500);
+
+                        return;
+                    }
                 }
+
+                helperSrc.responseBody({ state: "ok", message: "" }, response, 200);
             }
         });
     };

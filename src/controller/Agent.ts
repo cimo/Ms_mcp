@@ -85,7 +85,7 @@ export default class Agent {
         if (mcpSessionId !== "") {
             resultList = await database.pool
                 .query(`SELECT id, name, description, skill_name FROM "${mcpSessionId}_agent" WHERE NOT delete ORDER BY id ASC;`)
-                .then((queryResult: Pg.QueryResult<modelAgent.IdataDatabaseQuery>) => {
+                .then((queryResult: Pg.QueryResult<modelAgent.IdatabaseQuery>) => {
                     const dataList: modelAgent.Idata[] = [];
 
                     for (let a = 0; a < queryResult.rows.length; a++) {
@@ -168,19 +168,21 @@ export default class Agent {
             if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Agent.ts - api() - post(/api/agent-create) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
             } else {
-                const checkMessageList = this.checkField(name, description, skillName);
+                const errorMessageList = this.checkField(name, description, skillName);
 
-                if (checkMessageList.length > 0) {
-                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: checkMessageList }), "", response, 200);
+                if (errorMessageList.length > 0) {
+                    helperSrc.responseBody({ state: "ko", message: errorMessageList }, response, 200);
                 } else {
                     const isTableInsert = await this.tableInsert(mcpSessionId, name, description, skillName);
 
                     if (!isTableInsert) {
-                        helperSrc.responseBody("", "ko", response, 500);
+                        helperSrc.writeLog("Agent.ts - api() - post(/api/agent-create) - tableInsert()", "Failed to create.");
+
+                        helperSrc.responseBody({ state: "ko", message: "Failed to create." }, response, 500);
                     } else {
-                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "Agent created successfully." }), "", response, 200);
+                        helperSrc.responseBody({ state: "ok", message: "Agent created successfully." }, response, 200);
                     }
                 }
             }
@@ -198,35 +200,37 @@ export default class Agent {
             if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Agent.ts - api() - post(/api/agent-update) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
             } else {
-                const checkMessageList = this.checkField(name, description, skillName);
+                const errorMessageList = this.checkField(name, description, skillName);
 
-                if (checkMessageList.length > 0) {
-                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: checkMessageList }), "", response, 200);
+                if (errorMessageList.length > 0) {
+                    helperSrc.responseBody({ state: "ko", message: errorMessageList }, response, 200);
                 } else {
                     const isTableUpdate = await this.tableUpdate(mcpSessionId, id, name, description, skillName);
 
                     if (!isTableUpdate) {
-                        helperSrc.responseBody("", "ko", response, 500);
+                        helperSrc.writeLog("Agent.ts - api() - post(/api/agent-update) - tableUpdate()", "Failed to update.");
+
+                        helperSrc.responseBody({ state: "ko", message: "Failed to update." }, response, 500);
                     } else {
-                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "Agent updated successfully." }), "", response, 200);
+                        helperSrc.responseBody({ state: "ok", message: "Agent updated successfully." }, response, 200);
                     }
                 }
             }
         });
 
-        this.app.get("/api/agent-list", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.get("/api/agent-retrieve", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("Agent.ts - api() - get(/api/agent-list) - Error", "Missing or invalid header.");
+                helperSrc.writeLog("Agent.ts - api() - get(/api/agent-retrieve) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
             } else {
                 const agentList = await this.tableSelect(mcpSessionId);
 
-                helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: agentList }), "", response, 200);
+                helperSrc.responseBody({ state: "ok", message: "", data: agentList }, response, 200);
             }
         });
 
@@ -239,14 +243,16 @@ export default class Agent {
             if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Agent.ts - api() - post(/api/agent-delete) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
             } else {
                 const isTableDelete = await this.tableDelete(mcpSessionId, id);
 
                 if (!isTableDelete) {
-                    helperSrc.responseBody("", "ko", response, 500);
+                    helperSrc.writeLog("Agent.ts - api() - post(/api/agent-delete) - tableDelete()", "Failed to delete.");
+
+                    helperSrc.responseBody({ state: "ko", message: "Failed to delete." }, response, 500);
                 } else {
-                    helperSrc.responseBody("ok", "", response, 200);
+                    helperSrc.responseBody({ state: "ok", message: "" }, response, 200);
                 }
             }
         });

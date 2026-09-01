@@ -573,6 +573,20 @@ export const fileOrFolderRename = (
     });
 };
 
+export const fileOrFolderExists = (path: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+        Fs.access(path, Fs.constants.F_OK, (error) => {
+            if (error) {
+                resolve(false);
+
+                return;
+            }
+
+            resolve(true);
+        });
+    });
+};
+
 export const keepProcess = (): void => {
     const eventList = ["uncaughtException", "unhandledRejection"];
 
@@ -592,16 +606,14 @@ export const ansiEscapeDelete = (text: string): string => {
 };
 
 export const findPathFileRecursive = (path: string, extension: string): Promise<string[]> => {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
         const resultList: string[] = [];
 
-        Fs.access(path, Fs.constants.F_OK, (errorAccess) => {
-            if (errorAccess) {
-                resolve(resultList);
+        const isExists = await fileOrFolderExists(path);
 
-                return;
-            }
-
+        if (!isExists) {
+            resolve(resultList);
+        } else {
             Fs.readdir(path, (errorReadDir, dataList) => {
                 if (errorReadDir) {
                     resolve(resultList);
@@ -644,7 +656,7 @@ export const findPathFileRecursive = (path: string, extension: string): Promise<
 
                 next();
             });
-        });
+        }
     });
 };
 
@@ -669,16 +681,14 @@ export const findPathDirnameRecursive = async (path: string, fileName: string): 
 };
 
 export const readFirstLevelRecursive = (path: string, extension: string, pathPrevious?: string): Promise<string[]> => {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
         const resultList: string[] = [];
 
-        Fs.access(path, Fs.constants.F_OK, (errorAccess) => {
-            if (errorAccess) {
-                resolve(resultList);
+        const isExists = await fileOrFolderExists(path);
 
-                return;
-            }
-
+        if (!isExists) {
+            resolve(resultList);
+        } else {
             Fs.readdir(path, (errorReadDir, dataList) => {
                 if (errorReadDir) {
                     resolve(resultList);
@@ -727,7 +737,7 @@ export const readFirstLevelRecursive = (path: string, extension: string, pathPre
 
                 next();
             });
-        });
+        }
     });
 };
 
@@ -796,28 +806,28 @@ export const headerBearerToken = (request: Request): string => {
     return authorization && authorization.startsWith("Bearer ") ? authorization.substring(7) : "";
 };
 
-export const responseBody = (stdoutValue: string, stderrValue: string | Error, response: Response, mode: number): void => {
-    const responseBody: modelHelperSrc.IapiResponse = { response: { stdout: stdoutValue, stderr: stderrValue } };
+export const responseBody = (actionOperation: modelHelperSrc.IactionOperation, response: Response, mode: number): void => {
+    const responseBody: modelHelperSrc.IapiMcpResponse = { response: actionOperation };
 
     response.status(mode).send(responseBody);
 };
 
-export const uploadedDocumentRead = (mcpSessionId: string, extension: string, folderJoin?: string): Promise<modelHelperSrc.IfileDetail[]> => {
+export const retrieveWorkspaceItem = (mcpSessionId: string, extension: string, folderJoin?: string): Promise<modelHelperSrc.IfileDetail[]> => {
     return new Promise<modelHelperSrc.IfileDetail[]>((resolve) => {
-        let pathDocument = `${PATH_ROOT}${PATH_FILE}input/${mcpSessionId}/document/`;
+        let pathWorkspace = `${PATH_ROOT}${PATH_FILE}input/${mcpSessionId}/workspace/`;
 
         if (folderJoin) {
-            pathDocument = `${pathDocument}${folderJoin}/`;
+            pathWorkspace = `${pathWorkspace}${folderJoin}/`;
         }
 
-        readFirstLevelRecursive(pathDocument, extension).then(async (pathList) => {
+        readFirstLevelRecursive(pathWorkspace, extension).then(async (pathList) => {
             const resultList: modelHelperSrc.IfileDetail[] = [];
 
             for (let a = 0; a < pathList.length; a++) {
                 const isFolderFirstLevel = pathList[a].endsWith("/");
                 const path = isFolderFirstLevel ? pathList[a].slice(0, -1) : pathList[a];
 
-                const pathRelative = path.replace(pathDocument, "");
+                const pathRelative = path.replace(pathWorkspace, "");
                 const pathRelativeSplit = pathRelative.split("/");
 
                 const isFileNameMatchedFolder = pathRelativeSplit.length > 1 && pathRelativeSplit[1].startsWith(pathRelativeSplit[0]);
@@ -854,7 +864,7 @@ export const uploadedDocumentRead = (mcpSessionId: string, extension: string, fo
     });
 };
 
-export const uploadedSkillRead = (mcpSessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
+export const retrieveSkill = (mcpSessionId: string, extension: string): Promise<modelHelperSrc.IfileDetail[]> => {
     return new Promise<modelHelperSrc.IfileDetail[]>((resolve) => {
         const pathSkill = `${PATH_ROOT}${PATH_FILE}input/${mcpSessionId}/skill/`;
 

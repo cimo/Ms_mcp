@@ -33,10 +33,10 @@ export default class Rag {
             if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Rag.ts - api() - post(/api/rag-start) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
             } else {
                 const pathFileList = await helperSrc.readAllLevelPathFileRecursive(
-                    `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`
+                    `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/`
                 );
 
                 const documentList: string[] = [];
@@ -51,10 +51,10 @@ export default class Rag {
                     }
                 }
 
-                if (pathFileList.length === 0) {
-                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: "No documents found for RAG." }), "", response, 200);
+                if (documentList.length === 0) {
+                    helperSrc.responseBody({ state: "ko", message: "No documents found for RAG." }, response, 200);
                 } else {
-                    helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: documentList }), "", response, 200);
+                    helperSrc.responseBody({ state: "ok", message: "", data: documentList }, response, 200);
                 }
             }
         });
@@ -65,19 +65,20 @@ export default class Rag {
 
             const pathFile = body.pathFile;
 
+            const pathWorkspace = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/`;
+
             if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Rag.ts - api() - post(/api/rag-check) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
             } else {
                 const fileDetail = await helperSrc.fileDetail(pathFile);
 
-                const pathDocument = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/`;
-
-                const pathCurrent = fileDetail.baseName ? `${pathDocument}${Path.dirname(pathFile)}/` : `${pathDocument}${pathFile}`;
+                const pathCurrent = fileDetail.baseName ? `${pathWorkspace}${Path.dirname(pathFile)}/` : `${pathWorkspace}${pathFile}`;
 
                 helperSrc.findPathFileRecursive(pathCurrent, "*").then((pathFileList) => {
                     let state = "ongoing";
+                    let message = "";
 
                     for (let a = 0; a < pathFileList.length; a++) {
                         const pathFile = pathFileList[a];
@@ -88,12 +89,13 @@ export default class Rag {
                             break;
                         } else if (pathFile.endsWith(".fail")) {
                             state = "failed";
+                            message = "Failed to process the document.";
 
                             break;
                         }
                     }
 
-                    helperSrc.responseBody(JSON.stringify({ state, message: "" }), "", response, 200);
+                    helperSrc.responseBody({ state, message }, response, 200);
                 });
             }
         });
@@ -104,22 +106,17 @@ export default class Rag {
             if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("Rag.ts - api() - get(/api/rag-graph) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
             } else {
-                const pathFile = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/document/rag_graph.html`;
+                const pathFile = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/rag_graph.html`;
 
                 helperSrc.fileReadStream(pathFile).then((resultFileReadStream) => {
                     if (!Buffer.isBuffer(resultFileReadStream)) {
                         helperSrc.writeLog("Rag.ts - api() - get(/api/rag-graph) - fileReadStream()", resultFileReadStream.toString());
 
-                        helperSrc.responseBody("", "ko", response, 500);
+                        helperSrc.responseBody({ state: "ko", message: "Failed to read." }, response, 500);
                     } else {
-                        helperSrc.responseBody(
-                            JSON.stringify({ state: "ok", message: "", data: resultFileReadStream.toString("utf-8") }),
-                            "",
-                            response,
-                            200
-                        );
+                        helperSrc.responseBody({ state: "ok", message: "", data: resultFileReadStream.toString("utf-8") }, response, 200);
                     }
                 });
             }

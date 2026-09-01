@@ -7,6 +7,7 @@ import { Ca } from "@cimo/authentication/dist/src/Main.js";
 // Source
 import * as helperSrc from "../HelperSrc.js";
 import * as database from "../Database.js";
+import * as modelServer from "../model/Server.js";
 import * as modelUser from "../model/User.js";
 
 export default class User {
@@ -15,22 +16,50 @@ export default class User {
     private limiter: RateLimitRequestHandler;
 
     // Method
-    private passwordHash = (password: string): string => {
-        const salt = Crypto.randomBytes(16).toString("hex");
-        const hash = Crypto.scryptSync(password, salt, 64).toString("hex");
+    private passwordScrypt = (password: string, salt: string): Promise<string | Error> => {
+        return new Promise((resolve) => {
+            Crypto.scrypt(password, salt, 64, (error, derivedKey) => {
+                if (error) {
+                    helperSrc.writeLog("User.ts - passwordScrypt() - Crypto.scrypt()", error.message);
 
-        return `${salt}:${hash}`;
+                    resolve(error);
+
+                    return;
+                }
+
+                resolve(derivedKey.toString("hex"));
+            });
+        });
     };
 
-    private passwordVerify = (password: string, passwordUser: string): boolean => {
+    private passwordHash = async (password: string): Promise<string> => {
+        let result = "";
+
+        const salt = Crypto.randomBytes(16).toString("hex");
+        const hash = await this.passwordScrypt(password, salt);
+
+        if (!(hash instanceof Error)) {
+            result = `${salt}:${hash}`;
+        }
+
+        return result;
+    };
+
+    private passwordVerify = async (passwordInput: string, passwordDatabase: string | null): Promise<boolean> => {
         let isResult = false;
 
-        const passwordUserSplit = passwordUser.split(":");
+        if (passwordDatabase === null) {
+            return isResult;
+        }
 
-        if (passwordUserSplit.length === 2) {
-            const hash = Crypto.scryptSync(password, passwordUserSplit[0], 64).toString("hex");
+        const passwordDatabaseSplit = passwordDatabase.split(":");
 
-            isResult = Crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(passwordUserSplit[1], "hex"));
+        if (passwordDatabaseSplit.length === 2) {
+            const hash = await this.passwordScrypt(passwordInput, passwordDatabaseSplit[0]);
+
+            if (!(hash instanceof Error)) {
+                isResult = Crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(passwordDatabaseSplit[1], "hex"));
+            }
         }
 
         return isResult;
@@ -39,18 +68,18 @@ export default class User {
     private checkField = (name: string, surname: string): string[] => {
         const resultList: string[] = [];
 
-        if (!/^[A-Za-z0-9_]+$/.test(name)) {
-            resultList.push("Name: Can only contain letter, number and underscore.");
+        if (!/^[A-Za-z0-9_ ]+$/.test(name)) {
+            resultList.push("Name: Can only contain letter, number, underscore and space.");
         }
 
-        if (!/^[A-Za-z0-9_]+$/.test(surname)) {
-            resultList.push("Surname: Can only contain letter, number and underscore.");
+        if (!/^[A-Za-z0-9_ ]+$/.test(surname)) {
+            resultList.push("Surname: Can only contain letter, number, underscore and space.");
         }
 
         return resultList;
     };
 
-    private tableInsert = (
+    private tableInsert = async (
         id: number,
         email: string,
         name: string,
@@ -59,7 +88,7 @@ export default class User {
         mcpSessionId: string | null,
         isDelete: boolean
     ): Promise<boolean> => {
-        const hash = password === "" ? null : this.passwordHash(password);
+        const hash = password === "" ? null : await this.passwordHash(password);
 
         return database.pool
             .query(
@@ -76,56 +105,6 @@ export default class User {
             });
     };
 
-    private tableUpdate = (id: number, name: string, surname: string, password: string, mcpSessionId: string): Promise<boolean> => {
-        const hash = password === "" ? null : this.passwordHash(password);
-
-        return database.pool
-            .query(`UPDATE "user" SET name = $1, surname = $2, password = COALESCE($3, password), mcp_session_id = NULLIF($4, '') WHERE id = $5;`, [
-                name,
-                surname,
-                hash,
-                mcpSessionId,
-                id
-            ])
-            .then(() => {
-                return true;
-            })
-            .catch((error: Error) => {
-                helperSrc.writeLog("User.ts - tableUpdate() - catch()", error.message);
-
-                return false;
-            });
-    };
-
-    private tableSelect = (email: string, mcpSessionId: string): Promise<modelUser.Idata> => {
-        return database.pool
-            .query(
-                `SELECT id, email, name, surname, password, mcp_session_id FROM "user" WHERE (email = $1 OR mcp_session_id = $2) AND NOT delete ORDER BY id ASC;`,
-                [email, mcpSessionId]
-            )
-            .then((queryResult: Pg.QueryResult<modelUser.IdataDatabaseQuery>) => {
-                const resultObject = {} as modelUser.Idata;
-
-                if (queryResult.rows.length > 0) {
-                    const queryRow = queryResult.rows[0];
-
-                    resultObject.id = queryRow.id;
-                    resultObject.email = queryRow.email;
-                    resultObject.name = queryRow.name;
-                    resultObject.surname = queryRow.surname;
-                    resultObject.password = queryRow.password;
-                    resultObject.mcpSessionId = queryRow.mcp_session_id;
-                }
-
-                return resultObject;
-            })
-            .catch((error: Error) => {
-                helperSrc.writeLog("User.ts - tableSelect() - catch()", error.message);
-
-                return {} as modelUser.Idata;
-            });
-    };
-
     constructor(app: Express.Express, limiter: RateLimitRequestHandler) {
         this.app = app;
         this.limiter = limiter;
@@ -136,7 +115,7 @@ export default class User {
 
         const isQuery = await database.pool
             .query(
-                `CREATE TABLE IF NOT EXISTS "user" (id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, surname TEXT NOT NULL, password TEXT NOT NULL, mcp_session_id TEXT UNIQUE, delete BOOLEAN NOT NULL);`
+                `CREATE TABLE IF NOT EXISTS "user" (id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, surname TEXT NOT NULL, password TEXT, mcp_session_id TEXT UNIQUE, delete BOOLEAN NOT NULL);`
             )
             .then(() => {
                 return true;
@@ -166,8 +145,55 @@ export default class User {
         return isResult;
     };
 
-    loginSessionVerify = async (username: string, password: string): Promise<modelUser.IdataLoginSession> => {
-        const resultObject = {} as modelUser.IdataLoginSession;
+    tableUpdate = async (id: number, name: string, surname: string, password: string, mcpSessionId: string): Promise<boolean> => {
+        const hash = password === "" ? null : await this.passwordHash(password);
+
+        return database.pool
+            .query(
+                `UPDATE "user" SET name = $1, surname = $2, password = CASE WHEN password IS NULL THEN NULL ELSE COALESCE($3, password) END, mcp_session_id = NULLIF($4, '') WHERE id = $5;`,
+                [name, surname, hash, mcpSessionId, id]
+            )
+            .then(() => {
+                return true;
+            })
+            .catch((error: Error) => {
+                helperSrc.writeLog("User.ts - tableUpdate() - catch()", error.message);
+
+                return false;
+            });
+    };
+
+    tableSelect = (email: string, mcpSessionId: string): Promise<modelUser.Idata> => {
+        return database.pool
+            .query(
+                `SELECT id, email, name, surname, password, mcp_session_id FROM "user" WHERE (LOWER(email) = LOWER($1) OR mcp_session_id = $2) AND NOT delete ORDER BY id ASC;`,
+                [email, mcpSessionId]
+            )
+            .then((queryResult: Pg.QueryResult<modelUser.IdatabaseQuery>) => {
+                const resultObject = {} as modelUser.Idata;
+
+                if (queryResult.rows.length > 0) {
+                    const queryRow = queryResult.rows[0];
+
+                    resultObject.id = queryRow.id;
+                    resultObject.email = queryRow.email;
+                    resultObject.name = queryRow.name;
+                    resultObject.surname = queryRow.surname;
+                    resultObject.password = queryRow.password;
+                    resultObject.mcpSessionId = queryRow.mcp_session_id;
+                }
+
+                return resultObject;
+            })
+            .catch((error: Error) => {
+                helperSrc.writeLog("User.ts - tableSelect() - catch()", error.message);
+
+                return {} as modelUser.Idata;
+            });
+    };
+
+    loginBasicSessionVerify = async (username: string, password: string): Promise<modelServer.IdataLoginSession> => {
+        const resultObject = {} as modelServer.IdataLoginSession;
 
         if (username === "" || password === "") {
             resultObject.mcpSessionId = "";
@@ -179,7 +205,7 @@ export default class User {
                 resultObject.mcpSessionId = "";
                 resultObject.message = "Incorrect username.";
             } else {
-                if (!this.passwordVerify(password, user.password)) {
+                if (!(await this.passwordVerify(password, user.password))) {
                     resultObject.mcpSessionId = "";
                     resultObject.message = "Incorrect password.";
                 } else {
@@ -200,21 +226,23 @@ export default class User {
     };
 
     api = (): void => {
-        this.app.get("/api/user-read", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.get("/api/user-query", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("User.ts - api() - get(/api/user-info) - Error", "Missing or invalid header.");
+                helperSrc.writeLog("User.ts - api() - get(/api/user-query) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
             } else {
                 const user = await this.tableSelect("", mcpSessionId);
 
                 if (Object.keys(user).length === 0) {
-                    helperSrc.responseBody("", "ko", response, 500);
+                    helperSrc.writeLog("User.ts - api() - get(/api/user-query) - tableSelect()", "Failed to read.");
+
+                    helperSrc.responseBody({ state: "ko", message: "Failed to read." }, response, 500);
                 } else {
                     helperSrc.responseBody(
-                        JSON.stringify({
+                        {
                             state: "ok",
                             message: "",
                             data: {
@@ -223,8 +251,7 @@ export default class User {
                                 name: user.name,
                                 surname: user.surname
                             }
-                        }),
-                        "",
+                        },
                         response,
                         200
                     );
@@ -244,19 +271,21 @@ export default class User {
             if (typeof mcpSessionId !== "string") {
                 helperSrc.writeLog("User.ts - api() - post(/api/user-update) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody("", "ko", response, 500);
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
             } else {
-                const checkMessageList = this.checkField(name, surname);
+                const errorMessageList = this.checkField(name, surname);
 
-                if (checkMessageList.length > 0) {
-                    helperSrc.responseBody(JSON.stringify({ state: "ko", message: checkMessageList }), "", response, 200);
+                if (errorMessageList.length > 0) {
+                    helperSrc.responseBody({ state: "ko", message: errorMessageList }, response, 200);
                 } else {
                     const isTableUpdate = await this.tableUpdate(id, name, surname, password, mcpSessionId);
 
                     if (!isTableUpdate) {
-                        helperSrc.responseBody("", "ko", response, 500);
+                        helperSrc.writeLog("User.ts - api() - post(/api/user-update) - tableUpdate()", "Failed to update.");
+
+                        helperSrc.responseBody({ state: "ko", message: "Failed to update." }, response, 500);
                     } else {
-                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "User updated successfully." }), "", response, 200);
+                        helperSrc.responseBody({ state: "ok", message: "User updated successfully." }, response, 200);
                     }
                 }
             }

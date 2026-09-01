@@ -12,10 +12,11 @@ import { Cc } from "@cimo/cronjob/dist/src/Main.js";
 import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import ControllerUser from "./User.js";
+import ControllerMicrosoft from "./Microsoft.js";
 import ControllerAgent from "./Agent.js";
 import ControllerSetting from "./Setting.js";
 import ControllerTool from "./Tool.js";
-import ControllerDocument from "./Document.js";
+import ControllerWorkspace from "./Workspace.js";
 import ControllerRag from "./Rag.js";
 import ControllerSkill from "./Skill.js";
 import ControllerXvfb from "./Xvfb.js";
@@ -27,7 +28,29 @@ export default class Server {
     private app: Express.Express;
     private sessionObject: Record<string, modelServer.Isession>;
 
+    private controllerTool: ControllerTool;
+    private controllerXvfb: ControllerXvfb;
+    private controllerSetting: ControllerSetting;
+    private controllerAgent: ControllerAgent;
+
     // Method
+    private loginRpc = async (request: Request, response: Response, mcpSessionId: string): Promise<void> => {
+        const loginRpc = await this.controllerTool.loginRpc(request, response, mcpSessionId);
+
+        if (loginRpc === "ko") {
+            helperSrc.writeLog("Server.ts - api() - post(/login) - Error", "Failed to login.");
+
+            helperSrc.responseBody({ state: "ko", message: "Failed to login." }, response, 500);
+        } else {
+            await this.controllerXvfb.start(mcpSessionId);
+
+            await this.controllerSetting.tableCreate(mcpSessionId);
+            await this.controllerAgent.tableCreate(mcpSessionId);
+
+            helperSrc.responseBody({ state: "ok", message: "", data: mcpSessionId }, response, 200);
+        }
+    };
+
     constructor() {
         this.corsOption = {
             originList: JSON.parse(helperSrc.URL_CORS_ORIGIN) as string[],
@@ -49,6 +72,11 @@ export default class Server {
         this.sessionObject = {};
 
         this.app = Express();
+
+        this.controllerTool = {} as ControllerTool;
+        this.controllerXvfb = {} as ControllerXvfb;
+        this.controllerSetting = {} as ControllerSetting;
+        this.controllerAgent = {} as ControllerAgent;
     }
 
     createSetting = (): void => {
@@ -103,18 +131,21 @@ export default class Server {
             controllerUser.api();
             await controllerUser.tableCreate();
 
-            const controllerSetting = new ControllerSetting(this.app, this.limiter);
-            controllerSetting.api();
+            const controllerMicrosoft = new ControllerMicrosoft(this.app, this.limiter, controllerUser, this.loginRpc);
+            controllerMicrosoft.api();
 
-            const controllerAgent = new ControllerAgent(this.app, this.limiter);
-            controllerAgent.api();
+            this.controllerSetting = new ControllerSetting(this.app, this.limiter);
+            this.controllerSetting.api();
 
-            const controllerTool = new ControllerTool(this.app, this.limiter, this.sessionObject);
-            controllerTool.api();
-            controllerTool.rpc();
+            this.controllerAgent = new ControllerAgent(this.app, this.limiter);
+            this.controllerAgent.api();
 
-            const controllerDocument = new ControllerDocument(this.app, this.limiter, this.sessionObject);
-            controllerDocument.api();
+            this.controllerTool = new ControllerTool(this.app, this.limiter, this.sessionObject);
+            this.controllerTool.api();
+            this.controllerTool.rpc();
+
+            const controllerWorkspace = new ControllerWorkspace(this.app, this.limiter, this.sessionObject);
+            controllerWorkspace.api();
 
             const controllerRag = new ControllerRag(this.app, this.limiter, this.sessionObject);
             controllerRag.api();
@@ -122,7 +153,7 @@ export default class Server {
             const controllerSkill = new ControllerSkill(this.app, this.limiter);
             controllerSkill.api();
 
-            const controllerXvfb = new ControllerXvfb(this.sessionObject);
+            this.controllerXvfb = new ControllerXvfb(this.sessionObject);
 
             helperSrc.writeLog("Server.ts - createServer() - listen() - Port", helperSrc.SERVER_PORT);
 
@@ -135,53 +166,70 @@ export default class Server {
             });
 
             this.app.get("/info", (request: modelServer.Irequest, response: Response) => {
-                helperSrc.responseBody(`Client ip: ${request.clientIp || ""}`, "", response, 200);
+                helperSrc.responseBody({ state: "ok", message: "", data: `Client ip: ${request.clientIp || ""}` }, response, 200);
             });
 
             this.app.post("/login", this.limiter, async (request: Request, response: Response) => {
                 Ca.writeCookie(`${helperSrc.LABEL}_authentication`, response);
 
+                const mcpBearerToken = request.headers["mcp-bearer-token"];
                 const body = request.body as modelServer.IapiLoginBody;
 
-                const loginSession = await controllerUser.loginSessionVerify(body.username, body.password);
+                if (typeof mcpBearerToken !== "string") {
+                    helperSrc.writeLog("Server.ts - api() - post(/api/login) - Error", "Missing or invalid header.");
 
-                if (loginSession.mcpSessionId === "" && loginSession.message !== "") {
-                    helperSrc.responseBody(
-                        JSON.stringify({ state: "ko", message: loginSession.message, data: loginSession.mcpSessionId }),
-                        "",
-                        response,
-                        200
-                    );
-                } else if (loginSession.mcpSessionId !== "" && loginSession.message === "") {
-                    const loginRpc = await controllerTool.loginRpc(response, loginSession.mcpSessionId);
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
+                } else {
+                    let loginSession = {} as modelServer.IdataLoginSession;
 
-                    if (loginRpc === "ko") {
-                        helperSrc.responseBody("", "ko", response, 500);
+                    if (helperSrc.ENV_NAME.toLowerCase() === "local" || helperSrc.ENV_NAME.toLowerCase() === "dev") {
+                        if (body.mode === "basic") {
+                            loginSession = await controllerUser.loginBasicSessionVerify(body.username, body.password);
+                        } else if (body.mode === "ad") {
+                            loginSession = await controllerMicrosoft.loginWithAuthenticationCode(mcpBearerToken);
+                        }
                     } else {
-                        await controllerXvfb.start(loginSession.mcpSessionId);
+                        loginSession = await controllerMicrosoft.loginWithAuthenticationCode(mcpBearerToken);
+                    }
 
-                        await controllerSetting.tableCreate(loginSession.mcpSessionId);
-                        await controllerAgent.tableCreate(loginSession.mcpSessionId);
+                    if (loginSession.message !== "") {
+                        helperSrc.responseBody({ state: "ko", message: loginSession.message }, response, 200);
 
-                        helperSrc.responseBody(JSON.stringify({ state: "ok", message: "", data: loginSession.mcpSessionId }), "", response, 200);
+                        return;
+                    } else if (loginSession.mcpSessionId && loginSession.mcpSessionId !== "") {
+                        await this.loginRpc(request, response, loginSession.mcpSessionId);
+                    } else if (loginSession.adUrl && loginSession.adUrl !== "") {
+                        helperSrc.responseBody({ state: "ok", message: "", data: loginSession.adUrl }, response, 200);
                     }
                 }
             });
 
             this.app.get("/logout", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-                const resultRpc = await controllerTool.logoutRpc(request);
+                const mcpBearerToken = request.headers["mcp-bearer-token"];
 
-                Ca.deleteCookie(`${helperSrc.LABEL}_authentication`, request, response);
+                if (typeof mcpBearerToken !== "string") {
+                    helperSrc.writeLog("Server.ts - api() - get(/logout) - Error", "Missing or invalid header.");
 
-                if (resultRpc === "") {
-                    helperSrc.responseBody("", "ko", response, 500);
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
                 } else {
-                    await controllerXvfb.stop(resultRpc);
+                    controllerMicrosoft.logout(mcpBearerToken);
 
-                    helperSrc.responseBody("ok", "", response, 200);
+                    const logoutRpc = await this.controllerTool.logoutRpc(request);
+
+                    Ca.deleteCookie(`${helperSrc.LABEL}_authentication`, request, response);
+
+                    if (logoutRpc === "") {
+                        helperSrc.writeLog("Server.ts - api() - get(/logout) - Error", "Failed to logout.");
+
+                        helperSrc.responseBody({ state: "ko", message: "Failed to logout." }, response, 500);
+                    } else {
+                        await this.controllerXvfb.stop(logoutRpc);
+
+                        helperSrc.responseBody({ state: "ok", message: "" }, response, 200);
+                    }
+
+                    delete this.sessionObject[logoutRpc];
                 }
-
-                delete this.sessionObject[resultRpc];
             });
         });
     };
