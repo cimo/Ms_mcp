@@ -807,7 +807,7 @@ export const headerBearerToken = (request: Request): string => {
 };
 
 export const responseBody = (actionOperation: modelHelperSrc.IactionOperation, response: Response, mode: number): void => {
-    const responseBody: modelHelperSrc.IapiMcpResponse = { response: actionOperation };
+    const responseBody: modelHelperSrc.IapiResponse = { response: actionOperation };
 
     response.status(mode).send(responseBody);
 };

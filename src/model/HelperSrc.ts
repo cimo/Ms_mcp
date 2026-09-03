@@ -40,13 +40,6 @@ export interface IactionOperation {
     data?: unknown;
 }
 
-export interface IapiMcpResponse {
-    response: IactionOperation;
-}
-
 export interface IapiResponse {
-    response: {
-        stdout: string;
-        stderr: string | Error;
-    };
+    response: IactionOperation;
 }

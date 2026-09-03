@@ -35,9 +35,8 @@ const apiCheck = async (mode: string, target: string): Promise<string> => {
         )
         .then((resultApi) => {
             const data = resultApi.data;
-            const stdout = data.response.stdout;
 
-            return Buffer.from(stdout, "base64").toString("utf-8");
+            return Buffer.from(data.response.data as string, "base64").toString("utf-8");
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Scanner.ts - apiCheck() - catch()", error.message);

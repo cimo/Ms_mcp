@@ -30,7 +30,7 @@ const apiToPdf = async (formData: FormData): Promise<string> => {
         .then((resultApi) => {
             const data = resultApi.data;
 
-            return data.response.stdout;
+            return data.response.data as string;
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Parser.ts - apiToPdf() - catch()", error.message);

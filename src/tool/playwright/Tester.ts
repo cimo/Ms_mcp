@@ -31,9 +31,8 @@ const apiListTest = async (): Promise<string> => {
         })
         .then((resultApi) => {
             const data = resultApi.data;
-            const stdout = JSON.parse(data.response.stdout);
 
-            return stdout;
+            return JSON.parse(data.response.data as string);
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Test.ts - apiListTest() - catch()", error.message);
@@ -59,9 +58,8 @@ const apiRun = async (file: string, browser = "desktop_chrome"): Promise<string>
 
         .then((resultApi) => {
             const data = resultApi.data;
-            const stdout = JSON.parse(data.response.stdout);
 
-            return stdout;
+            return JSON.parse(data.response.data as string);
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Test.ts - apiRun() - catch()", error.message);
@@ -85,9 +83,8 @@ const apiListVideo = async (video: string): Promise<string> => {
         )
         .then((resultApi) => {
             const data = resultApi.data;
-            const stdout = JSON.parse(data.response.stdout);
 
-            return stdout;
+            return JSON.parse(data.response.data as string);
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Test.ts - apiListVideo() - catch()", error.message);

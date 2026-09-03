@@ -29,7 +29,7 @@ const apiExtract = async (formData: FormData): Promise<string> => {
         .then((resultApi) => {
             const data = resultApi.data;
 
-            return data.response.stdout;
+            return data.response.data as string;
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Extractor.ts - apiExtract() - catch()", error.message);
