@@ -32,7 +32,7 @@ export default class Ocr {
 
         const config = {
             description: ["Extract data from an image."].join("\n"),
-            example: ["- In the file 'Image.jpg' search 'Test'."].join("\n"),
+            example: ["- Scan the file 'Image.jpg'.", "- In the file 'Image.jpg' search 'Test'."].join("\n"),
             inputInstruction: [
                 "You MUST build the json schema using ONLY the following parameters:",
                 `Parameter 1 - fileName: ${this.inputSchema.shape.fileName.description}`,
