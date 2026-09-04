@@ -1,7 +1,8 @@
+import Fs from "fs";
 import Express, { Request, Response } from "express";
 import { RateLimitRequestHandler } from "express-rate-limit";
 import { Ca } from "@cimo/authentication/dist/src/Main.js";
-import AdmZip from "adm-zip";
+import { unzip } from "fflate";
 
 // Source
 import * as helperSrc from "../HelperSrc.js";
@@ -63,38 +64,114 @@ export default class Skill {
 
                                 helperSrc.responseBody({ state: "ko", message: "Failed to upload.", data: fileDetail.name }, response, 500);
                             } else {
-                                const zip = new AdmZip(`${pathSkill}${fileDetail.baseName}/${fileDetail.name}`);
-                                const entryList = zip.getEntries();
+                                Fs.readFile(`${pathSkill}${fileDetail.baseName}/${fileDetail.name}`, (errorReadFile, buffer) => {
+                                    if (errorReadFile) {
+                                        helperSrc.writeLog("Skill.ts - api() - post(/api/skill-upload) - readFile()", errorReadFile.message);
 
-                                let isSkillMd = false;
-                                let isAssetFolder = false;
-                                let isScriptFolder = false;
+                                        helperSrc.responseBody({ state: "ko", message: "Failed to upload.", data: fileDetail.name }, response, 500);
 
-                                for (let a = 0; a < entryList.length; a++) {
-                                    const entry = entryList[a];
-
-                                    if (entry.entryName === "skill.md") {
-                                        isSkillMd = true;
-                                    } else if (entry.entryName === "asset/") {
-                                        isAssetFolder = true;
-                                    } else if (entry.entryName === "script/") {
-                                        isScriptFolder = true;
+                                        return;
                                     }
-                                }
 
-                                if (!isSkillMd || !isAssetFolder || !isScriptFolder) {
-                                    helperSrc.fileOrFolderDelete(`${pathSkill}${fileDetail.baseName}`);
+                                    unzip(buffer, (error: Error | null, zip: Record<string, Uint8Array>) => {
+                                        if (error) {
+                                            helperSrc.writeLog("Skill.ts - api() - post(/api/skill-upload) - unzip()", error.message);
 
-                                    helperSrc.responseBody(
-                                        { state: "ko", message: "Invalid file and folder structure.", data: fileDetail.name },
-                                        response,
-                                        200
-                                    );
-                                } else {
-                                    zip.extractAllTo(`${pathSkill}${fileDetail.baseName}`, true);
+                                            helperSrc.responseBody(
+                                                { state: "ko", message: "Failed to upload.", data: fileDetail.name },
+                                                response,
+                                                500
+                                            );
 
-                                    helperSrc.responseBody({ state: "ok", message: "", data: fileDetail.name }, response, 200);
-                                }
+                                            return;
+                                        }
+
+                                        const entryList = Object.keys(zip);
+
+                                        let isSkillMd = false;
+                                        let isAssetFolder = false;
+                                        let isScriptFolder = false;
+
+                                        for (let a = 0; a < entryList.length; a++) {
+                                            const entry = entryList[a];
+
+                                            if (entry === "skill.md") {
+                                                isSkillMd = true;
+                                            } else if (entry === "asset/") {
+                                                isAssetFolder = true;
+                                            } else if (entry === "script/") {
+                                                isScriptFolder = true;
+                                            }
+                                        }
+
+                                        if (!isSkillMd || !isAssetFolder || !isScriptFolder) {
+                                            helperSrc.fileOrFolderDelete(`${pathSkill}${fileDetail.baseName}`);
+
+                                            helperSrc.responseBody(
+                                                { state: "ko", message: "Invalid file and folder structure.", data: fileDetail.name },
+                                                response,
+                                                200
+                                            );
+                                        } else {
+                                            const next = (a: number): void => {
+                                                if (a >= entryList.length) {
+                                                    helperSrc.responseBody({ state: "ok", message: "", data: fileDetail.name }, response, 200);
+
+                                                    return;
+                                                }
+
+                                                const entry = entryList[a];
+                                                const pathEntry = `${pathSkill}${fileDetail.baseName}/${entry}`;
+
+                                                if (entry.endsWith("/")) {
+                                                    Fs.mkdir(pathEntry, { recursive: true }, () => next(a + 1));
+                                                } else {
+                                                    Fs.mkdir(
+                                                        pathEntry.substring(0, pathEntry.lastIndexOf("/")),
+                                                        { recursive: true },
+                                                        (errorMkdir) => {
+                                                            if (errorMkdir) {
+                                                                helperSrc.writeLog(
+                                                                    "Skill.ts - api() - post(/api/skill-upload) - mkdir()",
+                                                                    errorMkdir.message
+                                                                );
+
+                                                                helperSrc.responseBody(
+                                                                    { state: "ko", message: "Failed to upload.", data: fileDetail.name },
+                                                                    response,
+                                                                    500
+                                                                );
+
+                                                                return;
+                                                            }
+
+                                                            Fs.writeFile(pathEntry, zip[entry], (errorWriteFile) => {
+                                                                if (errorWriteFile) {
+                                                                    helperSrc.writeLog(
+                                                                        "Skill.ts - api() - post(/api/skill-upload) - writeFile()",
+                                                                        errorWriteFile.message
+                                                                    );
+
+                                                                    helperSrc.responseBody(
+                                                                        { state: "ko", message: "Failed to upload.", data: fileDetail.name },
+                                                                        response,
+                                                                        500
+                                                                    );
+
+                                                                    return;
+                                                                }
+
+                                                                next(a + 1);
+                                                            });
+                                                        }
+                                                    );
+                                                }
+                                            };
+
+                                            next(0);
+                                        }
+                                    });
+                                });
                             }
                         })
                         .catch((error: Error) => {
