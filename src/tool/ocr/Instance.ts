@@ -6,10 +6,9 @@ import * as helperSrc from "../../HelperSrc.js";
 import * as model from "./Model.js";
 
 const protocol = helperSrc.localeFromEnvName() === "jp" ? "https" : "http";
+const requestContext = new AsyncLocalStorage<model.IinstanceContext>();
 
 export const api = new Cr(`${protocol}://${helperSrc.DOMAIN}:1045`);
-
-const requestContext = new AsyncLocalStorage<model.IinstanceContext>();
 
 export const runWithContext = <T>(callback: () => Promise<T>): Promise<T> => {
     return requestContext.run({}, callback);

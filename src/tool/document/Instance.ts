@@ -6,10 +6,10 @@ import * as helperSrc from "../../HelperSrc.js";
 import * as model from "./Model.js";
 
 const protocol = helperSrc.localeFromEnvName() === "jp" ? "https" : "http";
+const requestContext = new AsyncLocalStorage<model.IinstanceContext>();
 
 export const api = new Cr(`${protocol}://${helperSrc.DOMAIN}:1043`);
-
-const requestContext = new AsyncLocalStorage<model.IinstanceContext>();
+export const apiDocumentParser = new Cr(helperSrc.URL_API_ONNX_DP);
 
 export const runWithContext = <T>(callback: () => Promise<T>): Promise<T> => {
     return requestContext.run({}, callback);
@@ -50,6 +50,23 @@ api.setResponseInterceptor((response: Response) => {
         }
     }
 
+    if (response.status === 403 || response.status === 500) {
+        helperSrc.writeLog("Instance.ts - setResponseInterceptor() - Error", response.status.toString());
+    }
+
+    return response;
+});
+
+apiDocumentParser.setRequestInterceptor((config: RequestInit) => {
+    return {
+        ...config,
+        headers: {
+            ...config.headers
+        }
+    };
+});
+
+apiDocumentParser.setResponseInterceptor((response: Response) => {
     if (response.status === 403 || response.status === 500) {
         helperSrc.writeLog("Instance.ts - setResponseInterceptor() - Error", response.status.toString());
     }

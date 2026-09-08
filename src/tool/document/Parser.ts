@@ -1,6 +1,5 @@
 // Source
 import * as helperSrc from "../../HelperSrc.js";
-import * as instanceDocumentParser from "./InstanceDocumentParser.js";
 import * as instance from "./Instance.js";
 import * as modelHelperSrc from "../../model/HelperSrc.js";
 import * as model from "./Model.js";
@@ -59,7 +58,7 @@ const apiLogout = async (): Promise<string> => {
 };
 
 const apiDocumentParser = async (path: string, pathInput: string, pathOutput: string): Promise<string> => {
-    return instanceDocumentParser.api
+    return instance.apiDocumentParser
         .post<unknown>(
             path,
             {
