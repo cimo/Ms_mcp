@@ -1,6 +1,4 @@
 import sys
-sys.dont_write_bytecode = True
-
 import os
 import re
 import glob
@@ -14,7 +12,10 @@ import xml.etree.ElementTree
 import cv2
 import numpy
 
+sys.dont_write_bytecode = True
 sys.path.append(f"{os.path.dirname(__file__)}/..")
+
+# Source
 from helper import onnxSessionBuild
 
 class Pdf:

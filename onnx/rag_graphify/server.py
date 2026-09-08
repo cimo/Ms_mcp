@@ -1,6 +1,4 @@
 import sys
-sys.dont_write_bytecode = True
-
 import os
 import json
 import time
@@ -8,6 +6,8 @@ import signal
 import socket
 import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+sys.dont_write_bytecode = True
 
 # Source
 from engine import Engine

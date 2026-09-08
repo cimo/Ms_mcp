@@ -1,6 +1,4 @@
 import sys
-sys.dont_write_bytecode = True
-
 import os
 import re
 import time
@@ -10,11 +8,12 @@ import numpy
 import sentencepiece
 from sentencepiece import sentencepiece_model_pb2 as sentencepieceModel
 
-# Source
-from database import Database
-
+sys.dont_write_bytecode = True
 sys.path.append(f"{os.path.dirname(__file__)}/..")
+
+# Source
 from helper import onnxSessionBuild
+from database import Database
 
 class Engine:
     def _utilWideCheck(self, character):

@@ -1,6 +1,4 @@
 import sys
-sys.dont_write_bytecode = True
-
 import os
 import glob
 import shutil
@@ -10,6 +8,8 @@ import signal
 import socket
 import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+sys.dont_write_bytecode = True
 
 # Source
 from layout import Pdf, Office

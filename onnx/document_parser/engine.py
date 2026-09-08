@@ -1,12 +1,12 @@
 import sys
-sys.dont_write_bytecode = True
-
 import os
 import re
 import math
 import time
 import json
 import unicodedata
+
+sys.dont_write_bytecode = True
 
 class Markdown:
     class PdfReader:
