@@ -35,9 +35,9 @@ export default class Document {
             description: ["Parse document and extract data."].join("\n"),
             example: ["- In the file 'Document.docx' search 'Test'."].join("\n"),
             inputInstruction: [
-                "You MUST build the json schema using ONLY the following parameters:",
-                `Parameter 1 - fileName: ${this.inputSchema.shape.fileName.description}`,
-                `Parameter 2 - searchInput: ${this.inputSchema.shape.searchInput.description}`
+                "You can receive ONLY 1 instruction (is impossible have more instructions on the same time) from the user prompt:",
+                "Number 1 is used for parsing the document and extracting data.",
+                `1. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - fileName: ${this.inputSchema.shape.fileName.description}, Parameter 2 - searchInput: ${this.inputSchema.shape.searchInput.description}`
             ].join("\n"),
             inputSchema: this.inputSchema
         };

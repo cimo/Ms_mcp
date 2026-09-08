@@ -28,7 +28,7 @@ export default class Browser {
 
         const config = {
             description: ["Open the browser chrome application."].join("\n"),
-            example: [""].join("\n"),
+            example: [].join("\n"),
             inputInstruction: [].join("\n"),
             inputSchema: this.inputSchemaChrome
         };

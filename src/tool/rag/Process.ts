@@ -71,8 +71,8 @@ export const databaseStore = async (mcpSessionId: string, fileName: string): Pro
     return apiStore({ mcpSessionId, fileName });
 };
 
-export const databaseSearch = async (mcpSessionId: string, prompt: string, entityList: string[], rowList: number[]): Promise<string> => {
-    const result = await apiSearch({ mcpSessionId, prompt, entityList, rowList });
+export const databaseSearch = async (mcpSessionId: string, prompt: string, entityList: string[], rowList?: number[]): Promise<string> => {
+    const result = await apiSearch({ mcpSessionId, prompt, entityList, rowList: rowList ? rowList : [] });
 
     return JSON.stringify(result);
 };

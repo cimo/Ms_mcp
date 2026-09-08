@@ -7,7 +7,8 @@ const apiLogin = async (): Promise<string> => {
     return instance.api
         .get<modelHelperSrc.IapiResponse>("/login", {
             headers: {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                Accept: "application/json"
             }
         })
         .then((resultApi) => {
@@ -26,7 +27,8 @@ const apiListTest = async (): Promise<string> => {
     return instance.api
         .get<modelHelperSrc.IapiResponse>("/api/list-test", {
             headers: {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                Accept: "application/json"
             }
         })
         .then((resultApi) => {
@@ -47,7 +49,8 @@ const apiRun = async (file: string, browser = "desktop_chrome"): Promise<string>
             "/api/run",
             {
                 headers: {
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    Accept: "application/json"
                 }
             },
             {
@@ -74,7 +77,8 @@ const apiListVideo = async (video: string): Promise<string> => {
             "/api/list-video",
             {
                 headers: {
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    Accept: "application/json"
                 }
             },
             {
@@ -97,7 +101,8 @@ const apiLogout = async (): Promise<string> => {
     return instance.api
         .get<modelHelperSrc.IapiResponse>("/logout", {
             headers: {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                Accept: "application/json"
             }
         })
         .then((resultApi) => {

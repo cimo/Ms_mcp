@@ -59,7 +59,7 @@ export default class Rag {
 
         const config = {
             description: ["Store file content in the vector database."].join("\n"),
-            example: [""].join("\n"),
+            example: [].join("\n"),
             inputInstruction: [].join("\n"),
             inputSchema: this.inputSchemaStore
         };
@@ -90,12 +90,13 @@ export default class Rag {
 
         const config = {
             description: ["Search text in the vector database."].join("\n"),
-            example: ["- Which document talk about: 'XXX'."].join("\n"),
+            example: ["- Which document talk about: 'XXX'.", "- What 'Data.xlsx' have in column B row 2?"].join("\n"),
             inputInstruction: [
-                "You MUST build the json schema using ONLY the following parameters:",
-                `Parameter 1 - prompt: ${this.inputSchemaSearch.shape.prompt.description}`,
-                `Parameter 2 - entity: ${this.inputSchemaSearch.shape.entity.description}`,
-                `Parameter 3 - row: ${this.inputSchemaSearch.shape.row.description}`
+                "You can receive ONLY 2 instructions (is impossible have more instructions on the same time) from the user prompt:",
+                "Number 1 is used for querying the RAG database for search specific content.",
+                "Number 2 is used for querying the RAG database for search specific content only in column and row.",
+                `1. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - prompt: ${this.inputSchemaSearch.shape.prompt.description}, Parameter 2 - entity: ${this.inputSchemaSearch.shape.entity.description}`,
+                `2. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - prompt: ${this.inputSchemaSearch.shape.prompt.description}, Parameter 2 - entity: ${this.inputSchemaSearch.shape.entity.description}, Parameter 3 - row: ${this.inputSchemaSearch.shape.row.description}`
             ].join("\n"),
             inputSchema: this.inputSchemaSearch
         };
@@ -140,7 +141,7 @@ export default class Rag {
 
         const config = {
             description: ["Delete the table from the vector database."].join("\n"),
-            example: [""].join("\n"),
+            example: [].join("\n"),
             inputInstruction: [].join("\n"),
             inputSchema: this.inputSchemaDelete
         };

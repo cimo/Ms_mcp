@@ -49,10 +49,13 @@ export default class Playwright {
                 "- Show the video about: 'Test'"
             ].join("\n"),
             inputInstruction: [
-                "You can receive ONLY 3 instructions (is impossible have more instructions on the same time) from the user prompt: number 1 is used for return the test list, number 2 is used for execute the test, number 3 is used for return the video list. For every request, extract arguments from the current prompt only, do not reuse file/video/browser from previous turns.",
-                `1. You MUST need to extract, from the user prompt, ONLY the following schema: Parameter 1 action: ${this.inputSchema.shape.action.description}`,
-                `2. You MUST need to extract, from the user prompt, ONLY the following schema: Parameter 1 action: ${this.inputSchema.shape.action.description}, Parameter 2 file: ${this.inputSchema.shape.file.description} and Parameter 3 browser: ${this.inputSchema.shape.browser.description}`,
-                `3. You MUST need to extract, from the user prompt, ONLY the following schema: Parameter 1 action: ${this.inputSchema.shape.action.description}, Parameter 2 video: ${this.inputSchema.shape.video.description}`
+                "You can receive ONLY 3 instructions (is impossible have more instructions on the same time) from the user prompt:",
+                "Number 1 is used for return the test list.",
+                "Number 2 is used for execute the test.",
+                "Number 3 is used for return the video list.",
+                `1. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - action: ${this.inputSchema.shape.action.description}`,
+                `2. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - action: ${this.inputSchema.shape.action.description}, Parameter 2 - file: ${this.inputSchema.shape.file.description}, Parameter 3 - browser: ${this.inputSchema.shape.browser.description}`,
+                `3. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - action: ${this.inputSchema.shape.action.description}, Parameter 2 - video: ${this.inputSchema.shape.video.description}`
             ].join("\n"),
             inputSchema: this.inputSchema
         };

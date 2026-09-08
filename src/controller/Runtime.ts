@@ -81,8 +81,8 @@ export default class Runtime {
         });
     }
 
-    async ocrExecute(mcpSessionId: string, fileName: string, searchText: string): Promise<string> {
-        return this.callRuntimeWorker(mcpSessionId, "ocrExecute", [fileName, searchText]).catch((error: Error) => {
+    async ocrExecute(mcpSessionId: string, fileName: string, searchText?: string): Promise<string> {
+        return this.callRuntimeWorker(mcpSessionId, "ocrExecute", [fileName, searchText ? searchText : ""]).catch((error: Error) => {
             helperSrc.writeLog("Runtime.ts - ocrExecute() - callRuntimeWorker() - catch()", error.message);
 
             return "ko";

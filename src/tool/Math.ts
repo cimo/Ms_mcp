@@ -31,8 +31,9 @@ export default class Math {
             description: ["Evaluate a math expression."].join("\n"),
             example: ["- Calculate this expression: 1 + 2 * 3"].join("\n"),
             inputInstruction: [
-                "You MUST build the json schema using ONLY the following parameters:",
-                `Parameter 1 - prompt: ${this.inputSchema.shape.prompt.description}`
+                "You can receive ONLY 1 instruction (is impossible have more instructions on the same time) from the user prompt:",
+                "Number 1 is used for evaluating a math expression.",
+                `1. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - prompt: ${this.inputSchema.shape.prompt.description}`
             ].join("\n"),
             inputSchema: this.inputSchema
         };

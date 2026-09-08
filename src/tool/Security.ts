@@ -38,9 +38,9 @@ export default class Security {
                 "- Scan with the mode 'repository' the target 'https://github.com/cimo/Ms_cronjob'"
             ].join("\n"),
             inputInstruction: [
-                "You MUST build the json schema using ONLY the following parameters:",
-                `Parameter 1 - mode: ${this.inputSchema.shape.mode.description}`,
-                `Parameter 2 - target: ${this.inputSchema.shape.target.description}`
+                "You can receive ONLY 1 instruction (is impossible have more instructions on the same time) from the user prompt:",
+                "Number 1 is used for performing a security scan on a docker image or git repository.",
+                `1. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - mode: ${this.inputSchema.shape.mode.description}, Parameter 2 - target: ${this.inputSchema.shape.target.description}`
             ].join("\n"),
             inputSchema: this.inputSchema
         };

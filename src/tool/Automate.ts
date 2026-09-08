@@ -32,7 +32,7 @@ export default class Automate {
 
         const config = {
             description: ["Take display screenshot and return the image in base64."].join("\n"),
-            example: [""].join("\n"),
+            example: [].join("\n"),
             inputInstruction: [].join("\n"),
             inputSchema: this.inputSchemaScrreenshot
         };
@@ -67,7 +67,7 @@ export default class Automate {
 
         const config = {
             description: ["Move mouse cursor to specific coordinates."].join("\n"),
-            example: [""].join("\n"),
+            example: [].join("\n"),
             inputInstruction: [].join("\n"),
             inputSchema: this.inputSchemaMouseMove
         };
@@ -106,7 +106,7 @@ export default class Automate {
 
         const config = {
             description: ["Click the specific mouse button."].join("\n"),
-            example: [""].join("\n"),
+            example: [].join("\n"),
             inputInstruction: [].join("\n"),
             inputSchema: this.inputSchemaMouseClick
         };
