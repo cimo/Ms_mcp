@@ -20,7 +20,7 @@
         "@cimo/authentication": "1.1.42",
         "@cimo/environment": "1.0.32",
         "@cimo/cronjob": "1.0.20",
-        "@cimo/form-data_parser": "1.1.50",
+        "@cimo/form-data_parser": "1.1.51",
         "@cimo/request": "1.7.49",
         "express": "5.2.1",
         "express-rate-limit": "8.6.2",
