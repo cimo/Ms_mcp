@@ -1,5 +1,16 @@
 import os
+
+stderrFileDescriptor = os.dup(2)
+nullFileDescriptor = os.open(os.devnull, os.O_WRONLY)
+
+os.dup2(nullFileDescriptor, 2)
+
 import onnxruntime
+
+os.dup2(stderrFileDescriptor, 2)
+
+os.close(nullFileDescriptor)
+os.close(stderrFileDescriptor)
 
 def onnxSessionBuild(pathModel):
     option = onnxruntime.SessionOptions()
