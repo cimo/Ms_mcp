@@ -5,7 +5,7 @@ import * as modelHelperSrc from "../../model/HelperSrc.js";
 import * as model from "./Model.js";
 
 const apiLogin = async (): Promise<string> => {
-    return instance.api
+    return instance.apiFileConverter
         .get<modelHelperSrc.IapiResponse>("/login", {
             headers: {
                 "Content-Type": "application/json"
@@ -24,7 +24,7 @@ const apiLogin = async (): Promise<string> => {
 };
 
 const apiToPdf = async (formData: FormData): Promise<string> => {
-    return instance.api
+    return instance.apiFileConverter
         .post<modelHelperSrc.IapiResponse>("/api/toPdf", {}, formData)
         .then((resultApi) => {
             const data = resultApi.data;
@@ -39,7 +39,7 @@ const apiToPdf = async (formData: FormData): Promise<string> => {
 };
 
 const apiLogout = async (): Promise<string> => {
-    return instance.api
+    return instance.apiFileConverter
         .get<modelHelperSrc.IapiResponse>("/logout", {
             headers: {
                 "Content-Type": "application/json"

@@ -37,7 +37,6 @@ export default class Ocr {
                 "You can receive ONLY 2 instructions (is impossible have more instructions on the same time) from the user prompt:",
                 "Number 1 is used for extracting text from an image file.",
                 "Number 2 is used for searching text within an image file.",
-                "You MUST build the json schema using ONLY the following parameters:",
                 `1. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - fileName: ${this.inputSchema.shape.fileName.description}`,
                 `2. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - fileName: ${this.inputSchema.shape.fileName.description}, Parameter 2 - searchText: ${this.inputSchema.shape.searchText.description}`
             ].join("\n"),

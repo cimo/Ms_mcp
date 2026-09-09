@@ -44,9 +44,9 @@ export default class Playwright {
         const config = {
             description: ["Automate web test."].join("\n"),
             example: [
-                "- Show the available test",
-                "- Execute this test: 'Test.spec.ts' with this browser: 'desktop_chrome'",
-                "- Show the video about: 'Test'"
+                "- Show the available test.",
+                "- Execute this test: 'Test.spec.ts' with this browser: 'desktop_chrome'.",
+                "- Show the video about: 'Test'."
             ].join("\n"),
             inputInstruction: [
                 "You can receive ONLY 3 instructions (is impossible have more instructions on the same time) from the user prompt:",

@@ -8,14 +8,14 @@ import * as model from "./Model.js";
 const protocol = helperSrc.localeFromEnvName() === "jp" ? "https" : "http";
 const requestContext = new AsyncLocalStorage<model.IinstanceContext>();
 
-export const api = new Cr(`${protocol}://${helperSrc.DOMAIN}:1043`);
+export const apiFileConverter = new Cr(`${protocol}://${helperSrc.DOMAIN}:1043`);
 export const apiDocumentParser = new Cr(helperSrc.URL_API_ONNX_DP);
 
 export const runWithContext = <T>(callback: () => Promise<T>): Promise<T> => {
     return requestContext.run({}, callback);
 };
 
-api.setRequestInterceptor((config: RequestInit) => {
+apiFileConverter.setRequestInterceptor((config: RequestInit) => {
     const store = requestContext.getStore();
     const cookie = store && store.cookie ? store.cookie : "";
 
@@ -28,7 +28,7 @@ api.setRequestInterceptor((config: RequestInit) => {
     };
 });
 
-api.setResponseInterceptor((response: Response) => {
+apiFileConverter.setResponseInterceptor((response: Response) => {
     const store = requestContext.getStore();
     const cookie = response.headers.get("set-cookie");
 
