@@ -5,6 +5,7 @@ import * as helperSrc from "../HelperSrc.js";
 import * as modelServer from "../model/Server.js";
 import * as modelTool from "../model/Tool.js";
 import * as securityScanner from "./security/Scanner.js";
+import * as securityAntivirus from "./security/Antivirus.js";
 
 export default class Security {
     // Variable
@@ -24,7 +25,11 @@ export default class Security {
             target: z
                 .union([z.string(), z.number(), z.array(z.string()), z.null()])
                 .default("")
-                .describe("Is the docker tag or url repository that the user is asking to check.")
+                .describe("Is the docker tag or url repository that the user is asking to check."),
+            fileName: z
+                .union([z.string(), z.number(), z.array(z.string()), z.null()])
+                .default("")
+                .describe("Is the file that the user is asking to check.")
         });
     }
 
@@ -34,13 +39,16 @@ export default class Security {
         const config = {
             description: ["Perform a security scan on the docker tag image or repository."].join("\n"),
             example: [
-                "- Scan with the mode 'image' the target 'cimo001/ms_cronjob:1.0.0'",
-                "- Scan with the mode 'repository' the target 'https://github.com/cimo/Ms_cronjob'"
+                "- Scan with the mode 'image' the target 'cimo001/ms_cronjob:1.0.0'.",
+                "- Scan with the mode 'repository' the target 'https://github.com/cimo/Ms_cronjob'.",
+                "- Scan the file 'Image.jpg'."
             ].join("\n"),
             inputInstruction: [
-                "You can receive ONLY 1 instruction (is impossible have more instructions on the same time) from the user prompt:",
+                "You can receive ONLY 2 instructions (is impossible have more instructions on the same time) from the user prompt:",
                 "Number 1 is used for performing a security scan on a docker image or git repository.",
-                `1. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - mode: ${this.inputSchema.shape.mode.description}, Parameter 2 - target: ${this.inputSchema.shape.target.description}`
+                "Number 2 is used for performing a security scan on a file.",
+                `1. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - mode: ${this.inputSchema.shape.mode.description}, Parameter 2 - target: ${this.inputSchema.shape.target.description}`,
+                `2. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - fileName: ${this.inputSchema.shape.fileName.description}`
             ].join("\n"),
             inputSchema: this.inputSchema
         };
@@ -49,7 +57,18 @@ export default class Security {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultExecute = await securityScanner.execute(helperSrc.zodText(argument.mode), helperSrc.zodText(argument.target));
+                let resultExecute = "";
+
+                const mode = helperSrc.zodText(argument.mode);
+                const target = helperSrc.zodText(argument.target);
+                const fileName = helperSrc.zodText(argument.fileName);
+
+                if (mode && target && !fileName) {
+                    resultExecute = await securityScanner.execute(mode, target);
+                } else if (!mode && !target && fileName) {
+                    resultExecute = await securityAntivirus.execute(extra.sessionId, fileName);
+                }
+
                 result = JSON.stringify({ name, result: resultExecute });
             }
 

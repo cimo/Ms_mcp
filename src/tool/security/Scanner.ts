@@ -4,7 +4,7 @@ import * as instance from "./Instance.js";
 import * as modelHelperSrc from "../../model/HelperSrc.js";
 
 const apiLogin = async (): Promise<string> => {
-    return instance.api
+    return instance.apiScanner
         .get<modelHelperSrc.IapiResponse>("/login", {
             headers: {
                 "Content-Type": "application/json"
@@ -23,7 +23,7 @@ const apiLogin = async (): Promise<string> => {
 };
 
 const apiCheck = async (mode: string, target: string): Promise<string> => {
-    return instance.api
+    return instance.apiScanner
         .post<modelHelperSrc.IapiResponse>(
             "/api/check",
             {
@@ -46,7 +46,7 @@ const apiCheck = async (mode: string, target: string): Promise<string> => {
 };
 
 const apiLogout = async (): Promise<string> => {
-    return instance.api
+    return instance.apiScanner
         .get<modelHelperSrc.IapiResponse>("/logout", {
             headers: {
                 "Content-Type": "application/json"
