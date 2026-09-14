@@ -67,6 +67,27 @@ const apiDelete = async (bodyObject: model.IapiDeleteBody): Promise<string> => {
         });
 };
 
+const apiHtmlGenerate = async (bodyObject: model.IapiHtmlGenerateBody): Promise<string> => {
+    return instance.api
+        .post<string>(
+            "/html-generate",
+            {
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            },
+            bodyObject
+        )
+        .then((resultApi) => {
+            return resultApi.data;
+        })
+        .catch((error: Error) => {
+            helperSrc.writeLog("Process.ts - apiHtmlGenerate() - catch()", error.message);
+
+            return "";
+        });
+};
+
 export const databaseStore = async (mcpSessionId: string, fileName: string): Promise<string> => {
     return apiStore({ mcpSessionId, fileName });
 };
@@ -79,4 +100,8 @@ export const databaseSearch = async (mcpSessionId: string, prompt: string, entit
 
 export const databaseDelete = async (mcpSessionId: string, fileName: string): Promise<string> => {
     return apiDelete({ mcpSessionId, fileName });
+};
+
+export const htmlGenerate = async (mcpSessionId: string): Promise<string> => {
+    return apiHtmlGenerate({ mcpSessionId });
 };

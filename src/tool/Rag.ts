@@ -13,6 +13,7 @@ export default class Rag {
     inputSchemaStore;
     inputSchemaSearch;
     inputSchemaDelete;
+    inputSchemaHtmlGenerate;
 
     // Method
     constructor(sessionObject: Record<string, modelServer.Isession>) {
@@ -52,6 +53,8 @@ export default class Rag {
                 .default("")
                 .describe("File name.")
         });
+
+        this.inputSchemaHtmlGenerate = z.object({});
     }
 
     store = (): modelTool.Irpc<typeof this.inputSchemaStore> => {
@@ -152,6 +155,37 @@ export default class Rag {
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
                 const resultDelete = await ragProcess.databaseDelete(extra.sessionId, helperSrc.zodText(argument.fileName));
                 result = JSON.stringify({ name, result: resultDelete });
+            }
+
+            return {
+                content: [
+                    {
+                        type: "text" as const,
+                        text: result
+                    }
+                ]
+            };
+        };
+
+        return { name, config, content };
+    };
+
+    htmlGenerate = (): modelTool.Irpc<typeof this.inputSchemaHtmlGenerate> => {
+        const name = "rag_html_generate";
+
+        const config = {
+            description: ["Generate the RAG graph HTML file."].join("\n"),
+            example: [].join("\n"),
+            inputInstruction: [].join("\n"),
+            inputSchema: this.inputSchemaHtmlGenerate
+        };
+
+        const content = async (_: z.infer<typeof this.inputSchemaHtmlGenerate>, extra: { sessionId?: string }) => {
+            let result = "";
+
+            if (extra.sessionId && this.sessionObject[extra.sessionId]) {
+                const resultHtmlGenerate = await ragProcess.htmlGenerate(extra.sessionId);
+                result = JSON.stringify({ name, result: resultHtmlGenerate });
             }
 
             return {

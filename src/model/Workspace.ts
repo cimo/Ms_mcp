@@ -24,3 +24,7 @@ export interface IapiFolderMoveBody {
     pathList: string[];
     folderJoin: string;
 }
+
+export interface IragDatabaseQuery {
+    id: number;
+}

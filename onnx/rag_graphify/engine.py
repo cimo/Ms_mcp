@@ -2056,6 +2056,15 @@ class Engine:
 
         return result
 
+    def htmlGenerate(self, mcpSessionId):
+        database = Database()
+
+        database.execute("SELECT pg_advisory_lock(hashtext(%s))", (mcpSessionId,))
+
+        self._htmlGenerate(database, mcpSessionId)
+
+        database.close()
+
     def __init__(self):
         PATH_ROOT = os.environ["PATH_ROOT"]
         PATH_FILE = os.environ["MS_M_PATH_FILE"]

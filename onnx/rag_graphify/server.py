@@ -15,6 +15,13 @@ from engine import Engine
 class HandlerHttpRequest(BaseHTTPRequestHandler):
     engine = Engine()
 
+    def _routeHtmlGenerate(self, text):
+        payload = json.loads(text)
+
+        mcpSessionId = payload.get("mcpSessionId")
+
+        return self.engine.htmlGenerate(mcpSessionId)
+
     def _routeDelete(self, text):
         payload = json.loads(text)
 
@@ -54,6 +61,8 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
             result = self._routeSearch(text)
         elif self.path == "/delete":
             result = self._routeDelete(text)
+        elif self.path == "/html/generate":
+            result = self._routeHtmlGenerate(text)
 
         body = json.dumps(result, ensure_ascii=False).encode("utf-8")
 

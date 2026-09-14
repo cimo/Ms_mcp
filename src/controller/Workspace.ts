@@ -2,10 +2,12 @@ import Fs from "fs";
 import Path from "path";
 import Express, { Request, Response } from "express";
 import { RateLimitRequestHandler } from "express-rate-limit";
+import Pg from "pg";
 import { Ca } from "@cimo/authentication/dist/src/Main.js";
 
 // Source
 import * as helperSrc from "../HelperSrc.js";
+import * as database from "../Database.js";
 import * as modelServer from "../model/Server.js";
 import * as modelWorkspace from "../model/Workspace.js";
 import ControllerUpload from "./Upload.js";
@@ -31,6 +33,53 @@ export default class Workspace {
         }
 
         return resultList;
+    };
+
+    private ragUpdateNormalize = (name: string): string => {
+        return name.normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ");
+    };
+
+    private ragTableUpdate = async (mcpSessionId: string, fileNameOld: string, fileNameNew: string): Promise<boolean> => {
+        let isResult = false;
+
+        if (mcpSessionId !== "") {
+            const fileId = await database.pool
+                .query(`UPDATE "${mcpSessionId}_rag_file" SET name = $1 WHERE name = $2 RETURNING id;`, [fileNameNew, fileNameOld])
+                .then((queryResult: Pg.QueryResult<modelWorkspace.IragDatabaseQuery>) => {
+                    let result = 0;
+
+                    if (queryResult.rows.length > 0) {
+                        const queryRow = queryResult.rows[0];
+
+                        result = queryRow.id;
+                    }
+
+                    return result;
+                })
+                .catch((error: Error) => {
+                    helperSrc.writeLog("Workspace.ts - ragTableUpdate() - catch()", error.message);
+
+                    return 0;
+                });
+
+            if (fileId > 0) {
+                isResult = await database.pool
+                    .query(
+                        `UPDATE "${mcpSessionId}_rag_node" SET name = $1, name_normalized = $2 WHERE file_id = $3 AND name = $4 AND type = 'file';`,
+                        [fileNameNew, this.ragUpdateNormalize(fileNameNew), fileId, fileNameOld]
+                    )
+                    .then(() => {
+                        return true;
+                    })
+                    .catch((error: Error) => {
+                        helperSrc.writeLog("Workspace.ts - ragTableUpdate() - catch()", error.message);
+
+                        return false;
+                    });
+            }
+        }
+
+        return isResult;
     };
 
     constructor(app: Express.Express, limiter: RateLimitRequestHandler, sessionObject: Record<string, modelServer.Isession>) {
@@ -275,11 +324,21 @@ export default class Workspace {
                         fileOrFolderRename = await helperSrc.fileOrFolderRename(`${pathWorkspace}${pathItem}`, `${pathWorkspace}${pathNew}`);
                     }
 
+                    const isRagTableUpdate = await this.ragTableUpdate(mcpSessionId, fileDetailOld.name, `${name}.${fileDetailOld.extension}`);
+
+                    if (isRagTableUpdate) {
+                        await this.toolRag.htmlGenerate().content({}, { sessionId: mcpSessionId });
+                    }
+
                     if (typeof fileOrFolderRename !== "boolean") {
                         helperSrc.writeLog(
                             "Workspace.ts - api() - post(/api/workspace-rename) - fileOrFolderRename()",
                             fileOrFolderRename.toString()
                         );
+
+                        helperSrc.responseBody({ state: "ko", message: "Failed to rename." }, response, 500);
+                    } else if (!isRagTableUpdate) {
+                        helperSrc.writeLog("Workspace.ts - api() - post(/api/workspace-rename) - ragTableUpdate()", "Failed to rename.");
 
                         helperSrc.responseBody({ state: "ko", message: "Failed to rename." }, response, 500);
                     } else {

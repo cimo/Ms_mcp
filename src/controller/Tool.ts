@@ -152,6 +152,7 @@ export default class Tool {
         server.registerTool(this.toolRag.store().name, this.toolRag.store().config, this.toolRag.store().content);
         server.registerTool(this.toolRag.search().name, this.toolRag.search().config, this.toolRag.search().content);
         server.registerTool(this.toolRag.delete().name, this.toolRag.delete().config, this.toolRag.delete().content);
+        server.registerTool(this.toolRag.htmlGenerate().name, this.toolRag.htmlGenerate().config, this.toolRag.htmlGenerate().content);
         server.registerTool(this.toolBrowser.execute().name, this.toolBrowser.execute().config, this.toolBrowser.execute().content);
         server.registerTool(this.toolDocument.execute().name, this.toolDocument.execute().config, this.toolDocument.execute().content);
         server.registerTool(this.toolMath.execute().name, this.toolMath.execute().config, this.toolMath.execute().content);

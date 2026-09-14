@@ -14,3 +14,7 @@ export interface IapiDeleteBody extends Record<string, unknown> {
     mcpSessionId: string;
     fileName: string;
 }
+
+export interface IapiHtmlGenerateBody extends Record<string, unknown> {
+    mcpSessionId: string;
+}
