@@ -35,11 +35,9 @@ export default class Runtime {
                         reject(new Error("Data error."));
 
                         return;
-                    } else if (data.result) {
-                        resolve(data.result);
-
-                        return;
                     }
+
+                    resolve(data.result as string);
                 }
             };
 

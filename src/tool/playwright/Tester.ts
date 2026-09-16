@@ -135,9 +135,9 @@ const apiLogout = async (): Promise<string> => {
         });
 };
 
-export const execute = (action: string, file?: string, video?: string, browser?: string): Promise<string> => {
+export const execute = (action: string, file?: string, video?: string, browser?: string): Promise<unknown> => {
     return instance.runWithContext(async () => {
-        let result = "";
+        let result: unknown = "";
 
         await apiLogin();
 
@@ -147,6 +147,12 @@ export const execute = (action: string, file?: string, video?: string, browser?:
             result = await apiRun(file, browser);
         } else if (action === "listVideo" && video) {
             result = await apiListVideo(video);
+        }
+
+        if (result === "ko") {
+            helperSrc.writeLog("Tester.ts - execute() - api()", "Service not available.");
+
+            result = { message: "Service not available." };
         }
 
         await apiLogout();

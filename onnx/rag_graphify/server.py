@@ -61,7 +61,7 @@ class HandlerHttpRequest(BaseHTTPRequestHandler):
             result = self._routeSearch(text)
         elif self.path == "/delete":
             result = self._routeDelete(text)
-        elif self.path == "/html/generate":
+        elif self.path == "/html-generate":
             result = self._routeHtmlGenerate(text)
 
         body = json.dumps(result, ensure_ascii=False).encode("utf-8")

@@ -4,6 +4,8 @@ import * as instance from "./Instance.js";
 import * as model from "./Model.js";
 
 // Method
+const messageNotAvailable = "Service not available.";
+
 const apiStore = async (bodyObject: model.IapiStoreBody): Promise<string> => {
     return instance.api
         .post<string>(
@@ -89,19 +91,49 @@ const apiHtmlGenerate = async (bodyObject: model.IapiHtmlGenerateBody): Promise<
 };
 
 export const databaseStore = async (mcpSessionId: string, fileName: string): Promise<string> => {
-    return apiStore({ mcpSessionId, fileName });
+    const result = await apiStore({ mcpSessionId, fileName });
+
+    if (result === "") {
+        helperSrc.writeLog("Process.ts - databaseStore() - apiStore()", "Service not available.");
+
+        return messageNotAvailable;
+    }
+
+    return result;
 };
 
 export const databaseSearch = async (mcpSessionId: string, prompt: string, entityList: string[], rowList?: number[]): Promise<string> => {
     const result = await apiSearch({ mcpSessionId, prompt, entityList, rowList: rowList ? rowList : [] });
 
+    if (result === "") {
+        helperSrc.writeLog("Process.ts - databaseSearch() - apiSearch()", "Service not available.");
+
+        return JSON.stringify({ message: messageNotAvailable });
+    }
+
     return JSON.stringify(result);
 };
 
 export const databaseDelete = async (mcpSessionId: string, fileName: string): Promise<string> => {
-    return apiDelete({ mcpSessionId, fileName });
+    const result = await apiDelete({ mcpSessionId, fileName });
+
+    if (result === "") {
+        helperSrc.writeLog("Process.ts - databaseDelete() - apiDelete()", "Service not available.");
+
+        return messageNotAvailable;
+    }
+
+    return result;
 };
 
 export const htmlGenerate = async (mcpSessionId: string): Promise<string> => {
-    return apiHtmlGenerate({ mcpSessionId });
+    const result = await apiHtmlGenerate({ mcpSessionId });
+
+    if (result === "") {
+        helperSrc.writeLog("Process.ts - htmlGenerate() - apiHtmlGenerate()", "Service not available.");
+
+        return messageNotAvailable;
+    }
+
+    return result;
 };

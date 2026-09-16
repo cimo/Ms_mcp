@@ -89,6 +89,7 @@ const apiDocumentParser = async (path: string, pathInput: string, pathOutput: st
 export const execute = (mcpSessionId: string, fileName: string, searchInput: string): Promise<string> => {
     return instance.runWithContext(async () => {
         let resultObject = {} as model.Iparse;
+        let message = "";
 
         await apiLogin();
 
@@ -104,6 +105,8 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
 
             if (!Buffer.isBuffer(fileReadStream)) {
                 helperSrc.writeLog(`Parser.ts - execute() - no pdf - fileReadStream()`, fileReadStream.toString());
+
+                message = "The file was not found in the workspace, check the name and try again.";
             } else {
                 const buffer = Buffer.from(fileReadStream);
                 const blob = new Blob([buffer], { type: fileDetail.mimeType });
@@ -113,7 +116,11 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
 
                 const stdout = await apiToPdf(formData);
 
-                if (stdout !== "ko") {
+                if (stdout === "ko") {
+                    helperSrc.writeLog(`Parser.ts - execute() - apiToPdf()`, "Service not available.");
+
+                    message = "Service not available.";
+                } else {
                     const fileWriteStream = await helperSrc.fileWriteStream(`${pathDirname}converted.pdf`, Buffer.from(stdout, "base64"));
 
                     if (typeof fileWriteStream !== "boolean") {
@@ -123,13 +130,28 @@ export const execute = (mcpSessionId: string, fileName: string, searchInput: str
             }
         }
 
-        await apiDocumentParser("/layout", `${pathDirname}${fileDetail.name}`, pathDirname);
-        const engineData = await apiDocumentParser("/engine", `${pathDirname}${fileDetail.name}`, `${pathDirname}result.md`);
+        if (message === "") {
+            await apiDocumentParser("/layout", `${pathDirname}${fileDetail.name}`, pathDirname);
+            const engineData = await apiDocumentParser("/engine", `${pathDirname}${fileDetail.name}`, `${pathDirname}result.md`);
 
-        if (engineData !== "ko") {
+            if (engineData === "ko") {
+                helperSrc.writeLog(`Parser.ts - execute() - apiDocumentParser()`, "Service not available.");
+
+                message = "Service not available.";
+            } else {
+                resultObject = {
+                    fileName,
+                    searchInput,
+                    message
+                };
+            }
+        }
+
+        if (message !== "") {
             resultObject = {
-                fileName,
-                searchInput
+                fileName: "",
+                searchInput: "",
+                message
             };
         }
 

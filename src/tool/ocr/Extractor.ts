@@ -74,6 +74,8 @@ export const execute = (mcpSessionId: string, fileName: string): Promise<string>
 
         if (!Buffer.isBuffer(fileReadStream)) {
             helperSrc.writeLog(`Extractor.ts - execute() - fileReadStream()`, fileReadStream.toString());
+
+            result = "The file was not found in the workspace, check the name and try again.";
         } else {
             const buffer = Buffer.from(fileReadStream);
             const blob = new Blob([buffer], { type: fileDetail.mimeType });
@@ -83,7 +85,11 @@ export const execute = (mcpSessionId: string, fileName: string): Promise<string>
 
             const stdout = await apiExtract(formData);
 
-            if (stdout !== "ko") {
+            if (stdout === "ko") {
+                helperSrc.writeLog(`Extractor.ts - execute() - apiExtract()`, "Service not available.");
+
+                result = "Service not available.";
+            } else {
                 result = stdout;
             }
         }

@@ -76,6 +76,12 @@ export const execute = (mode: string, target: string): Promise<string> => {
 
         result = await apiCheck(mode, target);
 
+        if (result === "ko") {
+            helperSrc.writeLog("Scanner.ts - execute() - apiCheck()", "Service not available.");
+
+            result = "Service not available.";
+        }
+
         await apiLogout();
 
         return result;

@@ -75,7 +75,11 @@ export const execute = (mcpSessionId: string, fileName: string): Promise<string>
 
         const fileReadStream = await helperSrc.fileReadStream(`${pathDirname}${fileDetail.name}`);
 
-        if (Buffer.isBuffer(fileReadStream)) {
+        if (!Buffer.isBuffer(fileReadStream)) {
+            helperSrc.writeLog("Antivirus.ts - execute() - fileReadStream()", fileReadStream.toString());
+
+            result = "The file was not found in the workspace, check the name and try again.";
+        } else {
             const buffer = Buffer.from(fileReadStream);
             const blob = new Blob([buffer], { type: fileDetail.mimeType });
 
@@ -83,6 +87,12 @@ export const execute = (mcpSessionId: string, fileName: string): Promise<string>
             formData.append("file", blob, fileDetail.name);
 
             result = await apiCheck(formData);
+
+            if (result === "ko") {
+                helperSrc.writeLog("Antivirus.ts - execute() - apiCheck()", "Service not available.");
+
+                result = "Service not available.";
+            }
         }
 
         await apiLogout();

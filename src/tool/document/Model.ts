@@ -5,4 +5,5 @@ export interface IinstanceContext {
 export interface Iparse {
     fileName: string;
     searchInput: string;
+    message: string;
 }
