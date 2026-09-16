@@ -34,6 +34,12 @@ const apiListTest = async (): Promise<string> => {
         .then((resultApi) => {
             const data = resultApi.data;
 
+            if (data.response.state !== "ok") {
+                helperSrc.writeLog("Test.ts - apiListTest() - Error", data.response.message as string);
+
+                return "ko";
+            }
+
             return JSON.parse(data.response.data as string);
         })
         .catch((error: Error) => {
@@ -62,6 +68,12 @@ const apiRun = async (file: string, browser = "desktop_chrome"): Promise<string>
         .then((resultApi) => {
             const data = resultApi.data;
 
+            if (data.response.state !== "ok") {
+                helperSrc.writeLog("Test.ts - apiRun() - Error", data.response.message as string);
+
+                return "ko";
+            }
+
             return JSON.parse(data.response.data as string);
         })
         .catch((error: Error) => {
@@ -87,6 +99,12 @@ const apiListVideo = async (video: string): Promise<string> => {
         )
         .then((resultApi) => {
             const data = resultApi.data;
+
+            if (data.response.state !== "ok") {
+                helperSrc.writeLog("Test.ts - apiListVideo() - Error", data.response.message as string);
+
+                return "ko";
+            }
 
             return JSON.parse(data.response.data as string);
         })

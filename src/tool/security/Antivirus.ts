@@ -28,6 +28,10 @@ const apiCheck = async (formData: FormData): Promise<string> => {
         .then((resultApi) => {
             const data = resultApi.data;
 
+            if (data.response.state !== "ok") {
+                return data.response.message as string;
+            }
+
             return data.response.data as string;
         })
         .catch((error: Error) => {

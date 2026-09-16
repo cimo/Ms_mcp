@@ -2,7 +2,6 @@
 import * as helperSrc from "../../HelperSrc.js";
 import * as instance from "./Instance.js";
 import * as modelHelperSrc from "../../model/HelperSrc.js";
-import * as model from "./Model.js";
 
 const apiLogin = async (): Promise<string> => {
     return instance.api
@@ -29,7 +28,11 @@ const apiExtract = async (formData: FormData): Promise<string> => {
         .then((resultApi) => {
             const data = resultApi.data;
 
-            return data.response.data as string;
+            if (data.response.state !== "ok") {
+                return data.response.message as string;
+            }
+
+            return Buffer.from(data.response.data as string, "base64").toString("utf-8");
         })
         .catch((error: Error) => {
             helperSrc.writeLog("Extractor.ts - apiExtract() - catch()", error.message);
@@ -57,9 +60,9 @@ const apiLogout = async (): Promise<string> => {
         });
 };
 
-export const execute = (mcpSessionId: string, fileName: string, searchText: string): Promise<string> => {
+export const execute = (mcpSessionId: string, fileName: string): Promise<string> => {
     return instance.runWithContext(async () => {
-        let resultObject = { uniqueId: "", layoutList: [], itemList: [] } as model.IapiExtractResponse;
+        let result = "";
 
         await apiLogin();
 
@@ -77,17 +80,16 @@ export const execute = (mcpSessionId: string, fileName: string, searchText: stri
 
             const formData = new FormData();
             formData.append("file", blob, fileDetail.name);
-            formData.append("searchText", searchText);
 
             const stdout = await apiExtract(formData);
 
             if (stdout !== "ko") {
-                resultObject = JSON.parse(stdout) as model.IapiExtractResponse;
+                result = stdout;
             }
         }
 
         await apiLogout();
 
-        return JSON.stringify(resultObject);
+        return result;
     });
 };

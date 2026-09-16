@@ -36,6 +36,10 @@ const apiCheck = async (mode: string, target: string): Promise<string> => {
         .then((resultApi) => {
             const data = resultApi.data;
 
+            if (data.response.state !== "ok") {
+                return data.response.message as string;
+            }
+
             return Buffer.from(data.response.data as string, "base64").toString("utf-8");
         })
         .catch((error: Error) => {
