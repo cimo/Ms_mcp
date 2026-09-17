@@ -14,7 +14,6 @@ interface Iitem {
         x: number;
         y: number;
     };
-    isMatch: boolean;
 }
 
 export interface IinstanceContext {

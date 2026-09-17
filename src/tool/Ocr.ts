@@ -19,11 +19,7 @@ export default class Ocr {
             fileName: z
                 .union([z.string(), z.number(), z.array(z.string()), z.null()])
                 .default("")
-                .describe("Is the word ending with the image file extension."),
-            searchText: z
-                .union([z.string(), z.number(), z.array(z.string()), z.null()])
-                .default("")
-                .describe("Is the word/phrase that the user is asking to search.")
+                .describe("Is the word ending with the image file extension.")
         });
     }
 
@@ -32,13 +28,11 @@ export default class Ocr {
 
         const config = {
             description: ["Extract the content of a file in markdown format."].join("\n"),
-            example: ["- Scan the file 'Image.jpg'.", "- In the file 'Image.jpg' search 'Test'."].join("\n"),
+            example: ["- Scan the file 'Image.jpg'."].join("\n"),
             inputInstruction: [
-                "You can receive ONLY 2 instructions (is impossible have more instructions on the same time) from the user prompt:",
+                "You can receive ONLY 1 instruction from the user prompt:",
                 "Number 1 is used for extracting text from a file.",
-                "Number 2 is used for searching text within a file.",
-                `1. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - fileName: ${this.inputSchema.shape.fileName.description}`,
-                `2. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - fileName: ${this.inputSchema.shape.fileName.description}, Parameter 2 - searchText: ${this.inputSchema.shape.searchText.description}`
+                `1. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - fileName: ${this.inputSchema.shape.fileName.description}`
             ].join("\n"),
             inputSchema: this.inputSchema
         };

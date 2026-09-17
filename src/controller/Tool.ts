@@ -351,7 +351,7 @@ export default class Tool {
                         while (itemCount === 0 && count <= 2) {
                             await runtime.automateScreenshot(mcpSessionId);
 
-                            result = await runtime.ocrExecute(mcpSessionId, "screenshot.jpg", "");
+                            result = await runtime.ocrExecute(mcpSessionId, "screenshot.jpg");
 
                             itemCount = (JSON.parse(result) as modelToolOcr.IapiExtractResponse).itemList.length;
 
