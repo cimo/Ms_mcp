@@ -29,8 +29,13 @@ echo -e "\nExecute container."
 if [ "${parameter2}" = "build-up" ]
 then
     docker compose -f "docker-compose.yaml" --env-file "./env/${parameter1}.env" --env-file "./env/${parameter1}.secret.env" build --no-cache &&
-    docker compose -f "docker-compose.yaml" --env-file "./env/${parameter1}.env" --env-file "./env/${parameter1}.secret.env" up --detach --pull always
+    docker compose -f "docker-compose.yaml" --env-file "./env/${parameter1}.env" --env-file "./env/${parameter1}.secret.env" up --detach --pull always --force-recreate
 elif [ "${parameter2}" = "up" ]
 then
-    docker compose -f "docker-compose.yaml" --env-file "./env/${parameter1}.env" --env-file "./env/${parameter1}.secret.env" up --detach --pull always
+    docker compose -f "docker-compose.yaml" --env-file "./env/${parameter1}.env" --env-file "./env/${parameter1}.secret.env" up --detach --pull always --force-recreate
+fi
+
+if [ "${parameter2}" = "build-up" ] || [ "${parameter2}" = "up" ]
+then
+    docker compose -f "docker-compose.yaml" --env-file "./env/${parameter1}.env" --env-file "./env/${parameter1}.secret.env" exec -u root -T "${projectName}_ms_mcp" update-ca-certificates
 fi
