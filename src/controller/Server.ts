@@ -154,6 +154,7 @@ export default class Server {
             controllerSkill.api();
 
             this.controllerXvfb = new ControllerXvfb(this.sessionObject);
+            await this.controllerXvfb.orphanCheck();
 
             helperSrc.writeLog("Server.ts - createServer() - listen() - Port", helperSrc.SERVER_PORT);
 
@@ -205,30 +206,25 @@ export default class Server {
             });
 
             this.app.get("/logout", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
                 const mcpBearerToken = request.headers["mcp-bearer-token"];
 
-                if (typeof mcpBearerToken !== "string") {
+                if (typeof mcpSessionId !== "string" || typeof mcpBearerToken !== "string") {
                     helperSrc.writeLog("Server.ts - api() - get(/logout) - Error", "Missing or invalid header.");
 
                     helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
                 } else {
                     controllerMicrosoft.logout(mcpBearerToken);
 
-                    const logoutRpc = await this.controllerTool.logoutRpc(request);
+                    this.controllerTool.logoutRpc(mcpSessionId);
 
                     Ca.deleteCookie(`${helperSrc.LABEL}_authentication`, request, response);
 
-                    if (logoutRpc === "") {
-                        helperSrc.writeLog("Server.ts - api() - get(/logout) - Error", "Failed to logout.");
+                    await this.controllerXvfb.stop(mcpSessionId);
 
-                        helperSrc.responseBody({ state: "ko", message: "Failed to logout." }, response, 500);
-                    } else {
-                        await this.controllerXvfb.stop(logoutRpc);
+                    delete this.sessionObject[mcpSessionId];
 
-                        helperSrc.responseBody({ state: "ok", message: "" }, response, 200);
-                    }
-
-                    delete this.sessionObject[logoutRpc];
+                    helperSrc.responseBody({ state: "ok", message: "" }, response, 200);
                 }
             });
         });

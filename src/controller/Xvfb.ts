@@ -9,6 +9,8 @@ export default class Xvfb {
     // Variable
     private sessionObject: Record<string, modelServer.Isession>;
 
+    private orphanCheckSecond = 600;
+
     // Method
     private lastDisplay = (): number => {
         let result = 0;
@@ -29,6 +31,44 @@ export default class Xvfb {
     constructor(sessionObject: Record<string, modelServer.Isession>) {
         this.sessionObject = sessionObject;
     }
+
+    private orphanKill = async (): Promise<void> => {
+        const displayList: number[] = [];
+
+        const sessionList = Object.values(this.sessionObject);
+
+        for (let a = 0; a < sessionList.length; a++) {
+            const session = sessionList[a];
+
+            if (typeof session.display === "number") {
+                displayList.push(session.display);
+            }
+        }
+
+        const execution = await helperSrc.executionTerminal(`pgrep -af "Xvfb :"`);
+
+        const lineList = execution.stdout.split("\n");
+
+        for (let a = 0; a < lineList.length; a++) {
+            const lineMatch = /^(\d+) Xvfb :(\d+)/.exec(lineList[a]);
+
+            if (lineMatch && !displayList.includes(parseInt(lineMatch[2]))) {
+                helperSrc.writeLog("Xvfb.ts - orphanKill()", `Display: ${lineMatch[2]} - Pid: ${lineMatch[1]}`);
+
+                await helperSrc.executionTerminal(`kill ${lineMatch[1]}`);
+
+                await helperSrc.executionTerminal(`rm -rf /tmp/.X${lineMatch[2]}-lock`);
+            }
+        }
+    };
+
+    orphanCheck = async (): Promise<void> => {
+        await this.orphanKill();
+
+        setInterval(async () => {
+            await this.orphanKill();
+        }, this.orphanCheckSecond * 1000);
+    };
 
     start = async (mcpSessionId: string): Promise<void> => {
         const session = this.sessionObject[mcpSessionId];

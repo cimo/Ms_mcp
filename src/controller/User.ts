@@ -226,7 +226,7 @@ export default class User {
     };
 
     api = (): void => {
-        this.app.get("/api/user-query", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.get("/api/user-query", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId !== "string") {

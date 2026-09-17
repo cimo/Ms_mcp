@@ -102,46 +102,9 @@ export default class Tool {
         }
     };
 
-    logoutRpc = async (request: Request): Promise<string> => {
-        const mcpSessionId = request.headers["mcp-session-id"];
-        const mcpCookie = request.headers["mcp-cookie"];
-
-        if (typeof mcpSessionId !== "string" || typeof mcpCookie !== "string") {
-            return "ko";
-        } else {
-            return instance.api
-                .post<unknown>(
-                    "/rpc",
-                    {
-                        headers: {
-                            "Content-Type": "application/json",
-                            Accept: "application/json, text/event-stream",
-                            "mcp-session-id": mcpSessionId,
-                            "mcp-cookie": mcpCookie
-                        }
-                    },
-                    {
-                        jsonrpc: "2.0",
-                        id: 1,
-                        method: "terminate",
-                        params: {
-                            protocolVersion: "2025-06-18",
-                            capabilities: {},
-                            clientInfo: {
-                                name: "curl",
-                                version: "1.0"
-                            }
-                        }
-                    }
-                )
-                .then(() => {
-                    return mcpSessionId;
-                })
-                .catch((error: Error) => {
-                    helperSrc.writeLog("Tool.ts - logoutRpc() - catch()", error.message);
-
-                    return "";
-                });
+    logoutRpc = (mcpSessionId: string): void => {
+        if (this.sessionObject[mcpSessionId] && this.sessionObject[mcpSessionId].rpc) {
+            this.sessionObject[mcpSessionId].rpc.close();
         }
     };
 
