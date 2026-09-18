@@ -24,35 +24,6 @@ then
     python3 -m pip install onnxruntime-openvino==1.24.1
 fi
 
-# Onnx - document_parser
-pathModel="/home/app/onnx/document_parser/model/"
-urlModel="https://huggingface.co/cimo001/paddle/resolve/main/PP-DocLayout_plus-L/"
-
-mkdir -p "${pathModel}"
-
-modelList=(
-    "onnx/pp-docLayout_plus-l.onnx"
-)
-
-for model in "${modelList[@]}"
-do
-    fileName=$(basename "${model}")
-
-    if [ ! -f "${pathModel}${fileName}" ]
-    then
-        echo "Download document_parser PP-DocLayout_plus-L: ${fileName}"
-
-        if ! curl -fsSL "${urlModel}${model}" -o "${pathModel}${fileName}"
-        then
-            echo "Skip document_parser PP-DocLayout_plus-L - ${fileName}: download failed."
-
-            rm -f "${pathModel}${fileName}"
-        fi
-    fi
-done
-
-python3 "${PATH_ROOT}onnx/document_parser/server.py" >> "${PATH_ROOT}${MS_M_PATH_LOG}document_parser.log" 2>&1 &
-
 # Onnx - rag_graphify - embeddinggemma-300m
 pathModel="/home/app/onnx/rag_graphify/model/embeddinggemma-300m/"
 urlModel="https://huggingface.co/cimo001/embeddinggemma-300m/resolve/main/"

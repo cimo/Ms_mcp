@@ -2,6 +2,7 @@ import Express, { Request, Response, NextFunction } from "express";
 import rateLimit, { RateLimitRequestHandler } from "express-rate-limit";
 import CookieParser from "cookie-parser";
 import Cors from "cors";
+import Compression from "http-compression";
 import * as Http from "http";
 import * as Https from "https";
 import Fs from "fs";
@@ -83,6 +84,7 @@ export default class Server {
         Ca.setCookieNameCustom("mcp-cookie");
 
         this.app.set("trust proxy", "loopback");
+        this.app.use(Compression());
         this.app.use(Express.json());
         this.app.use(Express.urlencoded({ extended: true }));
         this.app.use(CookieParser());

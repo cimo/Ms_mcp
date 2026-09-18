@@ -17,7 +17,7 @@ export const runWithContext = <T>(callback: () => Promise<T>): Promise<T> => {
 
 apiScanner.setRequestInterceptor((config: RequestInit) => {
     const store = requestContext.getStore();
-    const cookie = store && store.cookie ? store.cookie : "";
+    const cookie = store && store.cookieScanner ? store.cookieScanner : "";
 
     return {
         ...config,
@@ -42,11 +42,11 @@ apiScanner.setResponseInterceptor((response: Response) => {
         }
 
         if (cookieValue) {
-            store.cookie = cookieSplit;
+            store.cookieScanner = cookieSplit;
         }
 
         if (response.url.endsWith("/logout")) {
-            delete store.cookie;
+            delete store.cookieScanner;
         }
     }
 
@@ -59,7 +59,7 @@ apiScanner.setResponseInterceptor((response: Response) => {
 
 apiAntivirus.setRequestInterceptor((config: RequestInit) => {
     const store = requestContext.getStore();
-    const cookie = store && store.cookie ? store.cookie : "";
+    const cookie = store && store.cookieAntivirus ? store.cookieAntivirus : "";
 
     return {
         ...config,
@@ -84,11 +84,11 @@ apiAntivirus.setResponseInterceptor((response: Response) => {
         }
 
         if (cookieValue) {
-            store.cookie = cookieSplit;
+            store.cookieAntivirus = cookieSplit;
         }
 
         if (response.url.endsWith("/logout")) {
-            delete store.cookie;
+            delete store.cookieAntivirus;
         }
     }
 

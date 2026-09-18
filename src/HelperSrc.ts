@@ -39,7 +39,6 @@ export const MIME_TYPE = Ce.checkVariable("MS_M_MIME_TYPE") || (process.env["MS_
 export const FILE_SIZE_MB = Ce.checkVariable("MS_M_FILE_SIZE_MB") || (process.env["MS_M_FILE_SIZE_MB"] as string);
 
 // Custom
-export const URL_API_ONNX_DP = Ce.checkVariable("MS_M_URL_API_ONNX_DP") || (process.env["MS_M_URL_API_ONNX_DP"] as string);
 export const URL_API_ONNX_RG = Ce.checkVariable("MS_M_URL_API_ONNX_RG") || (process.env["MS_M_URL_API_ONNX_RG"] as string);
 export const DB_NAME = Ce.checkVariable("DB_NAME") || (process.env["DB_NAME"] as string);
 export const DB_HOST = Ce.checkVariable("DB_HOST") || (process.env["DB_HOST"] as string);

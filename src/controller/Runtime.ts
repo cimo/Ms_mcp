@@ -78,12 +78,4 @@ export default class Runtime {
             return "ko";
         });
     }
-
-    async ocrExecute(mcpSessionId: string, fileName: string): Promise<string> {
-        return this.callRuntimeWorker(mcpSessionId, "ocrExecute", [fileName]).catch((error: Error) => {
-            helperSrc.writeLog("Runtime.ts - ocrExecute() - callRuntimeWorker() - catch()", error.message);
-
-            return "ko";
-        });
-    }
 }

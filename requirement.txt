@@ -3,5 +3,3 @@ numpy==2.4.3
 psycopg2-binary==2.9.10
 pgvector==0.3.6
 sentencepiece==0.2.1
-# document_parser
-opencv-python-headless==4.13.0.92

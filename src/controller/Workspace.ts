@@ -11,7 +11,7 @@ import * as database from "../Database.js";
 import * as modelServer from "../model/Server.js";
 import * as modelWorkspace from "../model/Workspace.js";
 import ControllerUpload from "./Upload.js";
-import ToolDocument from "../tool/Document.js";
+import ControllerDocument from "./Document.js";
 import ToolRag from "../tool/Rag.js";
 
 export default class Workspace {
@@ -20,8 +20,8 @@ export default class Workspace {
     private limiter: RateLimitRequestHandler;
     private sessionObject: Record<string, modelServer.Isession>;
     private controllerUpload: ControllerUpload;
+    private controllerDocument: ControllerDocument;
 
-    private toolDocument: ToolDocument;
     private toolRag: ToolRag;
 
     // Method
@@ -87,8 +87,8 @@ export default class Workspace {
         this.limiter = limiter;
         this.sessionObject = sessionObject;
         this.controllerUpload = new ControllerUpload();
+        this.controllerDocument = new ControllerDocument();
 
-        this.toolDocument = new ToolDocument(this.sessionObject);
         this.toolRag = new ToolRag(this.sessionObject);
     }
 
@@ -122,13 +122,26 @@ export default class Workspace {
 
                             helperSrc.responseBody({ state: "ko", message: "Failed to upload.", data: pathFile }, response, 500);
                         } else {
-                            if (fileDetail.category === "document") {
-                                await this.toolDocument
-                                    .execute()
-                                    .content({ fileName: fileDetail.name, searchInput: "" }, { sessionId: mcpSessionId });
+                            let message = "";
+
+                            if (fileDetail.category === "document" || fileDetail.category === "image") {
+                                message = await this.controllerDocument.execute(fileDetail, `${pathWorkspace}${fileDetail.baseName}/`);
                             }
 
-                            helperSrc.responseBody({ state: "ok", message: "", data: pathFile }, response, 200);
+                            if (message !== "") {
+                                const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(`${pathWorkspace}${fileDetail.baseName}`);
+
+                                if (typeof fileOrFolderDelete !== "boolean") {
+                                    helperSrc.writeLog(
+                                        "Workspace.ts - api() - post(/api/workspace-upload) - fileOrFolderDelete()",
+                                        fileOrFolderDelete.toString()
+                                    );
+                                }
+
+                                helperSrc.responseBody({ state: "ko", message, data: pathFile }, response, 200);
+                            } else {
+                                helperSrc.responseBody({ state: "ok", message: "", data: pathFile }, response, 200);
+                            }
                         }
                     })
                     .catch((error: Error) => {

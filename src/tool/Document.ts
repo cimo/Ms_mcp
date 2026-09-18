@@ -20,11 +20,7 @@ export default class Document {
             fileName: z
                 .union([z.string(), z.number(), z.array(z.string()), z.null()])
                 .default("")
-                .describe("Is the word ending with the document file extension."),
-            searchInput: z
-                .union([z.string(), z.number(), z.array(z.string()), z.null()])
-                .default("")
-                .describe("Is the word/phrase that the user is asking to look/find/search.")
+                .describe("Is the word ending with the document or image file extension.")
         });
     }
 
@@ -32,12 +28,12 @@ export default class Document {
         const name = "document_parser";
 
         const config = {
-            description: ["Parse document and extract data."].join("\n"),
+            description: ["Read the content of a file in markdown format."].join("\n"),
             example: ["- In the file 'Document.docx' search 'Test'."].join("\n"),
             inputInstruction: [
-                "You can receive ONLY 1 instruction (is impossible have more instructions on the same time) from the user prompt:",
-                "Number 1 is used for parsing the document and extracting data.",
-                `1. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - fileName: ${this.inputSchema.shape.fileName.description}, Parameter 2 - searchInput: ${this.inputSchema.shape.searchInput.description}`
+                "You can receive ONLY 1 instruction from the user prompt:",
+                "Number 1 is used for reading the content of a file.",
+                `1. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - fileName: ${this.inputSchema.shape.fileName.description}`
             ].join("\n"),
             inputSchema: this.inputSchema
         };
@@ -46,12 +42,8 @@ export default class Document {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultExecute = await documentParser.execute(
-                    extra.sessionId,
-                    helperSrc.zodText(argument.fileName),
-                    helperSrc.zodText(argument.searchInput)
-                );
-                result = JSON.stringify({ name, result: JSON.parse(resultExecute) });
+                const resultExecute = await documentParser.execute(extra.sessionId, helperSrc.zodText(argument.fileName));
+                result = JSON.stringify({ name, result: resultExecute });
             }
 
             return {

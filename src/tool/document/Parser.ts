@@ -1,162 +1,20 @@
 // Source
 import * as helperSrc from "../../HelperSrc.js";
-import * as instance from "./Instance.js";
-import * as modelHelperSrc from "../../model/HelperSrc.js";
-import * as model from "./Model.js";
 
-const apiLogin = async (): Promise<string> => {
-    return instance.apiFileConverter
-        .get<modelHelperSrc.IapiResponse>("/login", {
-            headers: {
-                "Content-Type": "application/json"
-            }
-        })
-        .then((resultApi) => {
-            const data = resultApi.data;
+export const execute = async (mcpSessionId: string, fileName: string): Promise<string> => {
+    const pathWorkspace = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/`;
 
-            return JSON.stringify(data, null, 2);
-        })
-        .catch((error: Error) => {
-            helperSrc.writeLog("Parser.ts - apiLogin() - catch()", error.message);
+    const fileDetail = await helperSrc.fileDetail(fileName);
 
-            return "ko";
-        });
-};
+    const pathDirname = await helperSrc.findPathDirnameRecursive(pathWorkspace, fileDetail.name);
 
-const apiToPdf = async (formData: FormData): Promise<string> => {
-    return instance.apiFileConverter
-        .post<modelHelperSrc.IapiResponse>("/api/toPdf", {}, formData)
-        .then((resultApi) => {
-            const data = resultApi.data;
+    const fileReadStream = await helperSrc.fileReadStream(`${pathDirname}result.md`);
 
-            if (data.response.state !== "ok") {
-                helperSrc.writeLog("Parser.ts - apiToPdf() - Error", data.response.message as string);
+    if (!Buffer.isBuffer(fileReadStream)) {
+        helperSrc.writeLog("Parser.ts - execute() - fileReadStream()", fileReadStream.toString());
 
-                return "ko";
-            }
+        return "The file was not found in the workspace, check the name and try again.";
+    }
 
-            return data.response.data as string;
-        })
-        .catch((error: Error) => {
-            helperSrc.writeLog("Parser.ts - apiToPdf() - catch()", error.message);
-
-            return "ko";
-        });
-};
-
-const apiLogout = async (): Promise<string> => {
-    return instance.apiFileConverter
-        .get<modelHelperSrc.IapiResponse>("/logout", {
-            headers: {
-                "Content-Type": "application/json"
-            }
-        })
-        .then((resultApi) => {
-            const data = resultApi.data;
-
-            return JSON.stringify(data, null, 2);
-        })
-        .catch((error: Error) => {
-            helperSrc.writeLog("Parser.ts - apiLogout() - catch()", error.message);
-
-            return "ko";
-        });
-};
-
-const apiDocumentParser = async (path: string, pathInput: string, pathOutput: string): Promise<string> => {
-    return instance.apiDocumentParser
-        .post<unknown>(
-            path,
-            {
-                headers: {
-                    "Content-Type": "application/json"
-                }
-            },
-            { pathInput, pathOutput }
-        )
-        .then((resultApi) => {
-            const data = resultApi.data;
-
-            return JSON.stringify(data, null, 2);
-        })
-        .catch((error: Error) => {
-            helperSrc.writeLog("Parser.ts - apiDocumentParser() - catch()", error.message);
-
-            return "ko";
-        });
-};
-
-export const execute = (mcpSessionId: string, fileName: string, searchInput: string): Promise<string> => {
-    return instance.runWithContext(async () => {
-        let resultObject = {} as model.Iparse;
-        let message = "";
-
-        await apiLogin();
-
-        const fileDetail = await helperSrc.fileDetail(fileName);
-
-        const pathDirname = await helperSrc.findPathDirnameRecursive(
-            `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/`,
-            fileDetail.name
-        );
-
-        if (fileDetail.extension !== "pdf") {
-            const fileReadStream = await helperSrc.fileReadStream(`${pathDirname}${fileDetail.name}`);
-
-            if (!Buffer.isBuffer(fileReadStream)) {
-                helperSrc.writeLog(`Parser.ts - execute() - no pdf - fileReadStream()`, fileReadStream.toString());
-
-                message = "The file was not found in the workspace, check the name and try again.";
-            } else {
-                const buffer = Buffer.from(fileReadStream);
-                const blob = new Blob([buffer], { type: fileDetail.mimeType });
-
-                const formData = new FormData();
-                formData.append("file", blob, fileDetail.name);
-
-                const stdout = await apiToPdf(formData);
-
-                if (stdout === "ko") {
-                    helperSrc.writeLog(`Parser.ts - execute() - apiToPdf()`, "Service not available.");
-
-                    message = "Service not available.";
-                } else {
-                    const fileWriteStream = await helperSrc.fileWriteStream(`${pathDirname}converted.pdf`, Buffer.from(stdout, "base64"));
-
-                    if (typeof fileWriteStream !== "boolean") {
-                        helperSrc.writeLog(`Parser.ts - execute() - fileWriteStream()`, fileWriteStream.toString());
-                    }
-                }
-            }
-        }
-
-        if (message === "") {
-            await apiDocumentParser("/layout", `${pathDirname}${fileDetail.name}`, pathDirname);
-            const engineData = await apiDocumentParser("/engine", `${pathDirname}${fileDetail.name}`, `${pathDirname}result.md`);
-
-            if (engineData === "ko") {
-                helperSrc.writeLog(`Parser.ts - execute() - apiDocumentParser()`, "Service not available.");
-
-                message = "Service not available.";
-            } else {
-                resultObject = {
-                    fileName,
-                    searchInput,
-                    message
-                };
-            }
-        }
-
-        if (message !== "") {
-            resultObject = {
-                fileName: "",
-                searchInput: "",
-                message
-            };
-        }
-
-        await apiLogout();
-
-        return JSON.stringify(resultObject);
-    });
+    return fileReadStream.toString("utf-8");
 };

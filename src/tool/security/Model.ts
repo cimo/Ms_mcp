@@ -1,3 +1,4 @@
 export interface IinstanceContext {
-    cookie?: string;
+    cookieScanner?: string;
+    cookieAntivirus?: string;
 }

@@ -9,12 +9,10 @@ import * as helperSrc from "../HelperSrc.js";
 import * as instance from "../Instance.js";
 import * as modelServer from "../model/Server.js";
 import * as modelTool from "../model/Tool.js";
-import * as modelToolOcr from "../tool/ocr/Model.js";
 import ToolAutomate from "../tool/Automate.js";
 import ToolBrowser from "../tool/Browser.js";
 import ToolDocument from "../tool/Document.js";
 import ToolMath from "../tool/Math.js";
-import ToolOcr from "../tool/Ocr.js";
 import ToolRag from "../tool/Rag.js";
 import ToolSecurity from "../tool/Security.js";
 import ToolPlaywright from "../tool/Playwright.js";
@@ -32,7 +30,6 @@ export default class Tool {
     private toolBrowser: ToolBrowser;
     private toolDocument: ToolDocument;
     private toolMath: ToolMath;
-    private toolOcr: ToolOcr;
     private toolRag: ToolRag;
     private toolSecurity: ToolSecurity;
     private toolPlaywright: ToolPlaywright;
@@ -50,7 +47,6 @@ export default class Tool {
         this.toolBrowser = new ToolBrowser(this.sessionObject);
         this.toolDocument = new ToolDocument(this.sessionObject);
         this.toolMath = new ToolMath(this.sessionObject);
-        this.toolOcr = new ToolOcr(this.sessionObject);
         this.toolRag = new ToolRag(this.sessionObject);
         this.toolSecurity = new ToolSecurity(this.sessionObject);
         this.toolPlaywright = new ToolPlaywright(this.sessionObject);
@@ -119,7 +115,6 @@ export default class Tool {
         server.registerTool(this.toolBrowser.execute().name, this.toolBrowser.execute().config, this.toolBrowser.execute().content);
         server.registerTool(this.toolDocument.execute().name, this.toolDocument.execute().config, this.toolDocument.execute().content);
         server.registerTool(this.toolMath.execute().name, this.toolMath.execute().config, this.toolMath.execute().content);
-        server.registerTool(this.toolOcr.execute().name, this.toolOcr.execute().config, this.toolOcr.execute().content);
         server.registerTool(this.toolSecurity.execute().name, this.toolSecurity.execute().config, this.toolSecurity.execute().content);
         server.registerTool(this.toolPlaywright.execute().name, this.toolPlaywright.execute().config, this.toolPlaywright.execute().content);
     };
@@ -204,14 +199,6 @@ export default class Tool {
                         description: this.toolRag.search().config.description,
                         example: this.toolRag.search().config.example,
                         inputInstruction: this.toolRag.search().config.inputInstruction
-                    },
-                    {
-                        name: this.toolOcr.execute().name,
-                        argumentObject: this.toolOcr.inputSchema.parse({}),
-                        icon: "ocr.svg",
-                        description: this.toolOcr.execute().config.description,
-                        example: this.toolOcr.execute().config.example,
-                        inputInstruction: this.toolOcr.execute().config.inputInstruction
                     },
                     {
                         name: this.toolDocument.execute().name,
@@ -326,7 +313,7 @@ export default class Tool {
 
                     helperSrc.responseBody({ state: "ko", message: "Runtime problem." }, response, 500);
                 } else {
-                    let result = JSON.stringify({ uniqueId: "", layoutList: [], itemList: [] } as modelToolOcr.IapiExtractResponse);
+                    const result = "";
 
                     if (Array.isArray(body.list)) {
                         for (let a = 0; a < body.list.length; a++) {
@@ -345,34 +332,7 @@ export default class Tool {
                             }*/
                         }
 
-                        let count = 0;
-                        let itemCount = 0;
-
-                        while (itemCount === 0 && count <= 2) {
-                            await runtime.automateScreenshot(mcpSessionId);
-
-                            result = await runtime.ocrExecute(mcpSessionId, "screenshot.jpg");
-
-                            itemCount = (JSON.parse(result) as modelToolOcr.IapiExtractResponse).itemList.length;
-
-                            await new Promise((resolve) => setTimeout(resolve, 3000));
-
-                            const pathFile = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/screenshot.jpg`;
-
-                            const fileOrFolderDelete = await helperSrc.fileOrFolderDelete(pathFile);
-
-                            if (typeof fileOrFolderDelete !== "boolean") {
-                                helperSrc.writeLog("Tool.ts - api() - post(/api/task-call) - fileOrFolderDelete()", fileOrFolderDelete.toString());
-                            }
-
-                            count++;
-                        }
-
-                        if (itemCount === 0 && count === 3) {
-                            result = "Data empty.";
-
-                            helperSrc.writeLog("Tool.ts - api() - post(/api/task-call) - Error", result);
-                        }
+                        // Todo: screenshot reading, the removed ocr tool returned the item list of the extracted text.
                     }
 
                     helperSrc.responseBody({ state: "ok", message: "", data: result }, response, 200);

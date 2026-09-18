@@ -4,7 +4,6 @@ import * as modelRuntime from "../model/Runtime.js";
 import * as automateDisplay from "../tool/automate/Display.js";
 import * as automateMouse from "../tool/automate/Mouse.js";
 import * as browserChrome from "../tool/browser/Chrome.js";
-import * as ocrExtractor from "../tool/ocr/Extractor.js";
 
 process.on("message", (data: modelRuntime.IdataWorkerMessage) => {
     let resultProcessObject = {} as modelRuntime.IdataHandler;
@@ -87,27 +86,6 @@ process.on("message", (data: modelRuntime.IdataWorkerMessage) => {
 
                 if (process.send) {
                     helperSrc.writeLog("RuntimeWorker.ts - process.on(message) - browserChrome - catch()", error.message);
-
-                    process.send(resultProcessObject);
-                }
-            });
-
-        return;
-    } else if (data.tool === "ocrExecute") {
-        ocrExtractor
-            .execute(data.mcpSessionId, data.argumentList[0] as string)
-            .then((result) => {
-                resultProcessObject = { id: data.id, result };
-
-                if (process.send) {
-                    process.send(resultProcessObject);
-                }
-            })
-            .catch((error: Error) => {
-                resultProcessObject = { ...resultProcessObject, error: `Process ${data.tool} failed.` };
-
-                if (process.send) {
-                    helperSrc.writeLog("RuntimeWorker.ts - process.on(message) - ocrExecute - catch()", error.message);
 
                     process.send(resultProcessObject);
                 }
