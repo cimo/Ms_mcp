@@ -214,6 +214,35 @@ export default class Workspace {
             }
         });
 
+        this.app.post("/api/workspace-parse", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+            const mcpSessionId = request.headers["mcp-session-id"];
+            const body = request.body as modelWorkspace.IapiParseBody;
+
+            const fileName = body.fileName;
+            const fileDetail = await helperSrc.fileDetail(fileName);
+
+            if (typeof mcpSessionId !== "string") {
+                helperSrc.writeLog("Workspace.ts - api() - post(/api/workspace-parse) - Error", "Missing or invalid header.");
+
+                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
+            } else {
+                const pathDirname = await helperSrc.findPathDirnameRecursive(
+                    `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/`,
+                    fileDetail.name
+                );
+
+                const fileWriteStream = await helperSrc.fileWriteStream(`${pathDirname}parse.txt`, Buffer.from(body.text, "utf-8"));
+
+                if (typeof fileWriteStream !== "boolean") {
+                    helperSrc.writeLog("Workspace.ts - api() - post(/api/workspace-parse) - fileWriteStream()", fileWriteStream.toString());
+
+                    helperSrc.responseBody({ state: "ko", message: "Failed to write." }, response, 200);
+                } else {
+                    helperSrc.responseBody({ state: "ok", message: "" }, response, 200);
+                }
+            }
+        });
+
         this.app.post("/api/workspace-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body as modelWorkspace.IapiDeleteBody;

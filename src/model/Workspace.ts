@@ -6,6 +6,11 @@ export interface IapiReadBody {
     fileName: string;
 }
 
+export interface IapiParseBody {
+    fileName: string;
+    text: string;
+}
+
 export interface IapiDeleteBody {
     pathList: string[];
 }
