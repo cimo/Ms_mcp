@@ -17,10 +17,12 @@ export default class Document {
         this.sessionObject = sessionObject;
 
         this.inputSchema = z.object({
-            fileName: z
-                .union([z.string(), z.number(), z.array(z.string()), z.null()])
-                .default("")
-                .describe("Is the word ending with the document or image file extension.")
+            fileNameList: z
+                .union([z.array(z.string()), z.string(), z.number(), z.null()])
+                .default([])
+                .describe(
+                    "Array of the words ending with the document or image file extension, one for each file named in the user prompt, in the order they appear."
+                )
         });
     }
 
@@ -28,12 +30,12 @@ export default class Document {
         const name = "document_parser";
 
         const config = {
-            description: ["Read the content of a file in markdown format."].join("\n"),
-            example: ["- In the file 'Document.docx' search 'Test'."].join("\n"),
+            description: ["Read the content of one or more files in markdown format."].join("\n"),
+            example: ["- In the file 'Xxx.docx' show how much is the total.", "- Compare 'Xxx.docx' with 'Report.pdf'."].join("\n"),
             inputInstruction: [
                 "You can receive ONLY 1 instruction from the user prompt:",
-                "Number 1 is used for reading the content of a file.",
-                `1. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - fileName: ${this.inputSchema.shape.fileName.description}`
+                "Number 1 is used for reading the content of one or more files.",
+                `1. From the user prompt, you MUST need to extract and build the json schema using ONLY the following parameters -> Parameter 1 - fileNameList: ${this.inputSchema.shape.fileNameList.description}`
             ].join("\n"),
             inputSchema: this.inputSchema
         };
@@ -42,7 +44,7 @@ export default class Document {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultExecute = await documentParser.execute(extra.sessionId, helperSrc.zodText(argument.fileName));
+                const resultExecute = await documentParser.execute(extra.sessionId, helperSrc.zodTextList(argument.fileNameList));
                 result = JSON.stringify({ name, result: resultExecute });
             }
 

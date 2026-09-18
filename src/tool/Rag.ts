@@ -31,7 +31,7 @@ export default class Rag {
                 .union([z.string(), z.number(), z.array(z.string()), z.null()])
                 .default("")
                 .describe(
-                    "The exact content to search, extracted from the user prompt: only the subject words, WITHOUT question or intent words. Words that refer to the documents or the collection being searched, rather than to the topic asked about, are intent words and MUST be excluded from the subject. Whatever remains after removing them IS the subject and MUST be the value exactly as written, even when it is a single word, unfamiliar or apparently meaningless: NEVER use an intent word as the value because the remaining subject looks empty or unknown to you."
+                    "The exact content to search, extracted from the user prompt: only the subject words, WITHOUT question or intent words. Question and intent words are ONLY the interrogative ones (who, what, when, where, which, why, how) and the words that refer to the documents or the collection being searched rather than to the topic asked about, and MUST be excluded from the subject. The words that say WHAT is asked about the entities (an action, a property, a date, an event, a place, a comparison) are part of the subject and MUST stay in the value exactly as written. Whatever remains after removing the question and intent words IS the subject and MUST be the value exactly as written, even when it is a single word, unfamiliar or apparently meaningless: NEVER use an intent word as the value because the remaining subject looks empty or unknown to you."
                 ),
             entity: z
                 .union([z.array(z.string()), z.string(), z.number(), z.null()])
@@ -93,7 +93,7 @@ export default class Rag {
 
         const config = {
             description: ["Search text in the vector database."].join("\n"),
-            example: ["- Which document talk about: 'XXX'.", "- What 'Data.xlsx' have in column B row 2?"].join("\n"),
+            example: ["- Which document talk about: 'XXX'.", "- What 'Xxx.xlsx' have in column B row 2?"].join("\n"),
             inputInstruction: [
                 "You can receive ONLY 2 instructions (is impossible have more instructions on the same time) from the user prompt:",
                 "Number 1 is used for querying the RAG database for search specific content.",
