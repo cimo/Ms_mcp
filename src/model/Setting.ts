@@ -1,4 +1,4 @@
-export interface Illm {
+export interface Iservice {
     id: number;
     name: string;
     module: string;
@@ -7,18 +7,28 @@ export interface Illm {
     selected: boolean;
 }
 
+export interface Iusage {
+    id: number;
+    name: string;
+    selected: boolean;
+}
+
+export interface Illm {
+    serviceList: Iservice[];
+    usageList: Iusage[];
+}
+
 export interface IapiUpdateBody {
     id: number;
-    llmList: Illm[];
+    llm: Illm;
 }
 
 export interface Idata {
     id: number;
-    llmList: Illm[];
-    isDelete: boolean;
+    llm: Illm;
 }
 
 export interface IdatabaseQuery {
     id: number;
-    llm: Illm[];
+    llm: Illm;
 }

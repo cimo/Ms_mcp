@@ -1,32 +1,45 @@
 [
     {
         "id": 1,
-        "llmList": [
-            {
-                "id": 1,
-                "name": "Local",
-                "module": "./LlmLlamaCpp",
-                "url": "https://host.docker.internal:1046",
-                "apiKey": "",
-                "selected": true
-            },
-            {
-                "id": 2,
-                "name": "Anthropic",
-                "module": "./LlmAnthropic",
-                "url": "https://api.anthropic.com/v1",
-                "apiKey": "",
-                "selected": false
-            },
-            {
-                "id": 3,
-                "name": "OpenAi",
-                "module": "./LlmOpenAi",
-                "url": "https://api.openai.com/v1",
-                "apiKey": "",
-                "selected": false
-            }
-        ],
-        "isDelete": false
+        "llm": {
+            "serviceList": [
+                {
+                    "id": 1,
+                    "name": "Local",
+                    "module": "./LlmLlamaCpp",
+                    "url": "",
+                    "apiKey": "",
+                    "selected": true
+                },
+                {
+                    "id": 2,
+                    "name": "Anthropic",
+                    "module": "./LlmAnthropic",
+                    "url": "https://api.anthropic.com/v1",
+                    "apiKey": "",
+                    "selected": false
+                },
+                {
+                    "id": 3,
+                    "name": "OpenAi",
+                    "module": "./LlmOpenAi",
+                    "url": "https://api.openai.com/v1",
+                    "apiKey": "",
+                    "selected": false
+                }
+            ],
+            "usageList": [
+                {
+                    "id": 1,
+                    "name": "Token",
+                    "selected": false
+                },
+                {
+                    "id": 2,
+                    "name": "Subscription",
+                    "selected": true
+                }
+            ]
+        }
     }
 ]
