@@ -31,7 +31,7 @@ export default class Document {
 
         const config = {
             description: ["Read the content of one or more files in markdown format."].join("\n"),
-            example: ["- In the file 'Xxx.docx' show how much is the total.", "- Compare 'Xxx.docx' with 'Report.pdf'."].join("\n"),
+            example: ["- In the file 'Xxx.docx' show how much is the total.", "- Compare 'Xxx1.docx' with 'Xxx2.pdf'."].join("\n"),
             inputInstruction: [
                 "You can receive ONLY 1 instruction from the user prompt:",
                 "Number 1 is used for reading the content of one or more files.",

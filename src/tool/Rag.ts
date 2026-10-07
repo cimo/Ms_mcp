@@ -93,7 +93,7 @@ export default class Rag {
 
         const config = {
             description: ["Search text in the vector database."].join("\n"),
-            example: ["- Which document talk about: 'XXX'.", "- What 'Xxx.xlsx' have in column B row 2?"].join("\n"),
+            example: ["- Which document talk about: 'xxx'.", "- What 'Xxx.xlsx' have in column B row 2?"].join("\n"),
             inputInstruction: [
                 "You can receive ONLY 2 instructions (is impossible have more instructions on the same time) from the user prompt:",
                 "Number 1 is used for querying the RAG database for search specific content.",
