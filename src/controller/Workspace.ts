@@ -22,6 +22,7 @@ export default class Workspace {
     private sessionObject: Record<string, modelServer.Isession>;
     private controllerUpload: ControllerUpload;
     private controllerDocument: ControllerDocument;
+    private pathProcessList: string[];
 
     private toolRag: ToolRag;
 
@@ -91,6 +92,7 @@ export default class Workspace {
         this.sessionObject = sessionObject;
         this.controllerUpload = new ControllerUpload();
         this.controllerDocument = new ControllerDocument();
+        this.pathProcessList = [];
 
         this.toolRag = new ToolRag(this.sessionObject);
     }
@@ -127,6 +129,14 @@ export default class Workspace {
                         pathWorkspace = `${pathWorkspace}${folderJoin}/`;
                     }
 
+                    const abortController = new AbortController();
+
+                    response.on("close", () => {
+                        if (!response.writableFinished) {
+                            abortController.abort();
+                        }
+                    });
+
                     this.controllerUpload
                         .execute(request, true, true, pathWorkspace)
                         .then(async (resultControllerUpload) => {
@@ -135,8 +145,12 @@ export default class Workspace {
                             } else {
                                 let resultDocument: modelHelperSrc.IactionOperation = { state: "ok", message: "" };
 
+                                const pathItem = `${pathWorkspace}${fileDetail.baseName}/`;
+
                                 if (fileDetail.category === "document" || fileDetail.category === "image") {
-                                    resultDocument = await this.controllerDocument.execute(fileDetail, `${pathWorkspace}${fileDetail.baseName}/`);
+                                    this.pathProcessList.push(pathItem);
+
+                                    resultDocument = await this.controllerDocument.execute(fileDetail, pathItem, abortController.signal);
                                 }
 
                                 if (resultDocument.state !== "ok") {
@@ -156,6 +170,12 @@ export default class Workspace {
                                     );
                                 } else {
                                     helperSrc.responseBody({ state: "ok", message: "", data: pathFile }, response, 200);
+                                }
+
+                                const indexPathProcess = this.pathProcessList.indexOf(pathItem);
+
+                                if (indexPathProcess !== -1) {
+                                    this.pathProcessList.splice(indexPathProcess, 1);
                                 }
                             }
                         })
@@ -189,7 +209,17 @@ export default class Workspace {
                 } else {
                     const detailList = await helperSrc.retrieveWorkspaceItem(mcpSessionId, "*", folderJoin);
 
-                    helperSrc.responseBody({ state: "ok", message: "", data: detailList }, response, 200);
+                    const pathRetrieve = folderJoin ? `${pathWorkspace}${folderJoin}/` : pathWorkspace;
+
+                    const detailVisibleList: modelHelperSrc.IfileDetail[] = [];
+
+                    for (let a = 0; a < detailList.length; a++) {
+                        if (!this.pathProcessList.includes(`${pathRetrieve}${detailList[a].baseName}/`)) {
+                            detailVisibleList.push(detailList[a]);
+                        }
+                    }
+
+                    helperSrc.responseBody({ state: "ok", message: "", data: detailVisibleList }, response, 200);
                 }
             }
         );

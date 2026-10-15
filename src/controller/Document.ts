@@ -28,9 +28,9 @@ export default class Document {
             });
     };
 
-    private apiToPdf = async (formData: FormData): Promise<modelHelperSrc.IactionOperation> => {
+    private apiToPdf = async (signal: AbortSignal, formData: FormData): Promise<modelHelperSrc.IactionOperation> => {
         return instance.apiFileConverter
-            .post<modelHelperSrc.IapiResponse>("/api/toPdf", {}, formData)
+            .post<modelHelperSrc.IapiResponse>("/api/toPdf", { signal }, formData)
             .then((resultApi) => {
                 const data = resultApi.data;
 
@@ -41,7 +41,9 @@ export default class Document {
                 return data.response;
             })
             .catch((error: Error) => {
-                helperSrc.writeLog("Document.ts - apiToPdf() - catch()", error.message);
+                if (!signal.aborted) {
+                    helperSrc.writeLog("Document.ts - apiToPdf() - catch()", error.message);
+                }
 
                 return { state: "error", message: "Service not available." };
             });
@@ -127,10 +129,43 @@ export default class Document {
             });
     };
 
-    private apiExtractResult = async (uniqueId: string): Promise<modelHelperSrc.IactionOperation> => {
+    private apiExtractCancel = async (uniqueId: string): Promise<modelHelperSrc.IactionOperation> => {
+        return instance.apiFileDataExtractor
+            .post<modelHelperSrc.IapiResponse>(
+                "/api/extract-cancel",
+                {
+                    headers: {
+                        "Content-Type": "application/json"
+                    }
+                },
+                { uniqueId }
+            )
+            .then((resultApi) => {
+                const data = resultApi.data;
+
+                if (data.response.state !== "ok") {
+                    helperSrc.writeLog("Document.ts - apiExtractCancel() - Error", data.response.message as string);
+                }
+
+                return data.response;
+            })
+            .catch((error: Error) => {
+                helperSrc.writeLog("Document.ts - apiExtractCancel() - catch()", error.message);
+
+                return { state: "error", message: "Service not available." };
+            });
+    };
+
+    private apiExtractResult = async (uniqueId: string, signal: AbortSignal): Promise<modelHelperSrc.IactionOperation> => {
         let resultExtractCheck = await this.apiExtractCheck(uniqueId);
 
         while (resultExtractCheck.state === "queued" || resultExtractCheck.state === "running") {
+            if (signal.aborted) {
+                await this.apiExtractCancel(uniqueId);
+
+                return { state: "ko", message: "Upload cancelled." };
+            }
+
             await new Promise((resolve) => setTimeout(resolve, 3 * 1000));
 
             resultExtractCheck = await this.apiExtractCheck(uniqueId);
@@ -206,7 +241,7 @@ export default class Document {
 
     constructor() {}
 
-    execute = (fileDetail: modelHelperSrc.IfileDetail, pathCurrent: string): Promise<modelHelperSrc.IactionOperation> => {
+    execute = (fileDetail: modelHelperSrc.IfileDetail, pathCurrent: string, signal: AbortSignal): Promise<modelHelperSrc.IactionOperation> => {
         return instance.runWithContext(async () => {
             const fileReadStream = await helperSrc.fileReadStream(`${pathCurrent}${fileDetail.name}`);
 
@@ -219,15 +254,23 @@ export default class Document {
             const buffer = Buffer.from(fileReadStream);
             const blob = new Blob([buffer], { type: fileDetail.mimeType });
 
+            if (signal.aborted) {
+                return { state: "ko", message: "Upload cancelled." };
+            }
+
             if (fileDetail.category === "document" && fileDetail.extension !== "pdf") {
                 const formDataFileConverter = new FormData();
                 formDataFileConverter.append("file", blob, fileDetail.name);
 
                 await this.apiFileConverterLogin();
 
-                const resultToPdf = await this.apiToPdf(formDataFileConverter);
+                const resultToPdf = await this.apiToPdf(signal, formDataFileConverter);
 
                 await this.apiFileConverterLogout();
+
+                if (signal.aborted) {
+                    return { state: "ko", message: "Upload cancelled." };
+                }
 
                 if (resultToPdf.state !== "ok") {
                     return resultToPdf;
@@ -251,10 +294,14 @@ export default class Document {
             let resultExtract = await this.apiExtract(formDataFileDataExtractor);
 
             if (resultExtract.state === "ok") {
-                resultExtract = await this.apiExtractResult(resultExtract.data as string);
+                resultExtract = await this.apiExtractResult(resultExtract.data as string, signal);
             }
 
             await this.apiFileDataExtractorLogout();
+
+            if (signal.aborted) {
+                return { state: "ko", message: "Upload cancelled." };
+            }
 
             if (resultExtract.state !== "ok") {
                 return resultExtract;

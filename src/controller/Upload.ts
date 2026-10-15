@@ -102,7 +102,15 @@ export default class Upload {
                             const path = `${pathValue}${fileDetail.baseName}/`;
                             const pathFile = `${path}${fileDetail.name}`;
 
-                            Fs.mkdir(path, { recursive: true }, async (error) => {
+                            const isExists = await helperSrc.fileOrFolderExists(path);
+
+                            if (isFileExists && isExists) {
+                                resolve({ formDataList: [], message: "File already exists." });
+
+                                return;
+                            }
+
+                            Fs.mkdir(path, { recursive: true }, (error) => {
                                 if (error) {
                                     helperSrc.writeLog("Upload.ts - execute() - request.on() - mkdir() - Error", error.message);
 
@@ -110,23 +118,17 @@ export default class Upload {
 
                                     return;
                                 } else {
-                                    const isExists = await helperSrc.fileOrFolderExists(pathFile);
+                                    helperSrc.fileWriteStream(pathFile, formData.buffer).then((resultFileWriteStream) => {
+                                        if (typeof resultFileWriteStream !== "boolean" || !resultFileWriteStream) {
+                                            reject(new Error("Write failed."));
 
-                                    if (isFileExists && isExists) {
-                                        resolve({ formDataList: [], message: "File already exists." });
-                                    } else {
-                                        helperSrc.fileWriteStream(pathFile, formData.buffer).then((resultFileWriteStream) => {
-                                            if (typeof resultFileWriteStream !== "boolean" || !resultFileWriteStream) {
-                                                reject(new Error("Write failed."));
+                                            return;
+                                        } else {
+                                            resolve({ formDataList, message: "" });
 
-                                                return;
-                                            } else {
-                                                resolve({ formDataList, message: "" });
-
-                                                return;
-                                            }
-                                        });
-                                    }
+                                            return;
+                                        }
+                                    });
                                 }
                             });
 
@@ -136,7 +138,13 @@ export default class Upload {
                 }
             });
 
-            request.on("error", (error: Error) => {
+            request.on("error", (error: NodeJS.ErrnoException) => {
+                if (error.code === "ECONNRESET") {
+                    resolve({ formDataList: [], message: "Upload aborted." });
+
+                    return;
+                }
+
                 helperSrc.writeLog("Upload.ts - execute() - request.on() - Error", error.message);
 
                 reject(new Error(error.message));

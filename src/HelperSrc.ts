@@ -785,7 +785,7 @@ export const executionFile = (argumentList: string[]): Promise<modelHelperSrc.Ie
     let process: ChildProcess;
 
     const promise = new Promise<modelHelperSrc.Iexecution>((resolve) => {
-        process = execFile("/bin/bash", argumentList, { encoding: "utf8" }, (error, stdout, stderr) => {
+        process = execFile("setsid", ["/bin/bash", ...argumentList], { encoding: "utf8" }, (error, stdout, stderr) => {
             resolve({ error, stdout, stderr });
         });
     });
