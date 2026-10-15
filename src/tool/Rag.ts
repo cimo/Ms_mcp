@@ -1,3 +1,4 @@
+import Path from "path";
 import { z } from "zod";
 
 // Source
@@ -71,8 +72,19 @@ export default class Rag {
             let result = "";
 
             if (extra.sessionId && this.sessionObject[extra.sessionId]) {
-                const resultStore = await ragProcess.databaseStore(extra.sessionId, helperSrc.zodText(argument.pathFile));
-                result = JSON.stringify({ name, result: resultStore });
+                const pathFile = helperSrc.zodText(argument.pathFile);
+
+                if (
+                    !helperSrc.checkPathChild(
+                        `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${extra.sessionId}/workspace/`,
+                        Path.dirname(pathFile)
+                    )
+                ) {
+                    result = JSON.stringify({ name, result: "Invalid path." });
+                } else {
+                    const resultStore = await ragProcess.databaseStore(extra.sessionId, pathFile);
+                    result = JSON.stringify({ name, result: resultStore });
+                }
             }
 
             return {

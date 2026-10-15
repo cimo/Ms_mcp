@@ -157,104 +157,128 @@ export default class Agent {
     };
 
     api = (): void => {
-        this.app.post("/api/agent-create", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelAgent.IapiCreateBody;
+        this.app.post(
+            "/api/agent-create",
+            this.limiter,
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            async (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
+                const body = request.body as modelAgent.IapiCreateBody;
 
-            const name = body.name;
-            const description = body.description;
-            const skillName = body.skillName;
+                const name = body.name;
+                const description = body.description;
+                const skillName = body.skillName;
 
-            if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("Agent.ts - api() - post(/api/agent-create) - Error", "Missing or invalid header.");
+                if (typeof mcpSessionId !== "string") {
+                    helperSrc.writeLog("Agent.ts - api() - post(/api/agent-create) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-            } else {
-                const errorMessageList = this.checkField(name, description, skillName);
-
-                if (errorMessageList.length > 0) {
-                    helperSrc.responseBody({ state: "ko", message: errorMessageList }, response, 200);
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
                 } else {
-                    const isTableInsert = await this.tableInsert(mcpSessionId, name, description, skillName);
+                    const errorMessageList = this.checkField(name, description, skillName);
 
-                    if (!isTableInsert) {
-                        helperSrc.writeLog("Agent.ts - api() - post(/api/agent-create) - tableInsert()", "Failed to create.");
-
-                        helperSrc.responseBody({ state: "ko", message: "Failed to create." }, response, 500);
+                    if (errorMessageList.length > 0) {
+                        helperSrc.responseBody({ state: "ko", message: errorMessageList }, response, 200);
                     } else {
-                        helperSrc.responseBody({ state: "ok", message: "Agent created successfully." }, response, 200);
+                        const isTableInsert = await this.tableInsert(mcpSessionId, name, description, skillName);
+
+                        if (!isTableInsert) {
+                            helperSrc.writeLog("Agent.ts - api() - post(/api/agent-create) - tableInsert()", "Failed to create.");
+
+                            helperSrc.responseBody({ state: "ko", message: "Failed to create." }, response, 500);
+                        } else {
+                            helperSrc.responseBody({ state: "ok", message: "Agent created successfully." }, response, 200);
+                        }
                     }
                 }
             }
-        });
+        );
 
-        this.app.post("/api/agent-update", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelAgent.IapiUpdateBody;
+        this.app.post(
+            "/api/agent-update",
+            this.limiter,
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            async (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
+                const body = request.body as modelAgent.IapiUpdateBody;
 
-            const id = body.id;
-            const name = body.name;
-            const description = body.description;
-            const skillName = body.skillName;
+                const id = body.id;
+                const name = body.name;
+                const description = body.description;
+                const skillName = body.skillName;
 
-            if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("Agent.ts - api() - post(/api/agent-update) - Error", "Missing or invalid header.");
+                if (typeof mcpSessionId !== "string") {
+                    helperSrc.writeLog("Agent.ts - api() - post(/api/agent-update) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-            } else {
-                const errorMessageList = this.checkField(name, description, skillName);
-
-                if (errorMessageList.length > 0) {
-                    helperSrc.responseBody({ state: "ko", message: errorMessageList }, response, 200);
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
                 } else {
-                    const isTableUpdate = await this.tableUpdate(mcpSessionId, id, name, description, skillName);
+                    const errorMessageList = this.checkField(name, description, skillName);
 
-                    if (!isTableUpdate) {
-                        helperSrc.writeLog("Agent.ts - api() - post(/api/agent-update) - tableUpdate()", "Failed to update.");
-
-                        helperSrc.responseBody({ state: "ko", message: "Failed to update." }, response, 500);
+                    if (errorMessageList.length > 0) {
+                        helperSrc.responseBody({ state: "ko", message: errorMessageList }, response, 200);
                     } else {
-                        helperSrc.responseBody({ state: "ok", message: "Agent updated successfully." }, response, 200);
+                        const isTableUpdate = await this.tableUpdate(mcpSessionId, id, name, description, skillName);
+
+                        if (!isTableUpdate) {
+                            helperSrc.writeLog("Agent.ts - api() - post(/api/agent-update) - tableUpdate()", "Failed to update.");
+
+                            helperSrc.responseBody({ state: "ko", message: "Failed to update." }, response, 500);
+                        } else {
+                            helperSrc.responseBody({ state: "ok", message: "Agent updated successfully." }, response, 200);
+                        }
                     }
                 }
             }
-        });
+        );
 
-        this.app.get("/api/agent-retrieve", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
+        this.app.get(
+            "/api/agent-retrieve",
+            this.limiter,
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            async (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
 
-            if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("Agent.ts - api() - get(/api/agent-retrieve) - Error", "Missing or invalid header.");
+                if (typeof mcpSessionId !== "string") {
+                    helperSrc.writeLog("Agent.ts - api() - get(/api/agent-retrieve) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-            } else {
-                const agentList = await this.tableSelect(mcpSessionId);
-
-                helperSrc.responseBody({ state: "ok", message: "", data: agentList }, response, 200);
-            }
-        });
-
-        this.app.post("/api/agent-delete", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelAgent.IapiDeleteBody;
-
-            const id = body.id;
-
-            if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("Agent.ts - api() - post(/api/agent-delete) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-            } else {
-                const isTableDelete = await this.tableDelete(mcpSessionId, id);
-
-                if (!isTableDelete) {
-                    helperSrc.writeLog("Agent.ts - api() - post(/api/agent-delete) - tableDelete()", "Failed to delete.");
-
-                    helperSrc.responseBody({ state: "ko", message: "Failed to delete." }, response, 500);
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
                 } else {
-                    helperSrc.responseBody({ state: "ok", message: "" }, response, 200);
+                    const agentList = await this.tableSelect(mcpSessionId);
+
+                    helperSrc.responseBody({ state: "ok", message: "", data: agentList }, response, 200);
                 }
             }
-        });
+        );
+
+        this.app.post(
+            "/api/agent-delete",
+            this.limiter,
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            async (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
+                const body = request.body as modelAgent.IapiDeleteBody;
+
+                const id = body.id;
+
+                if (typeof mcpSessionId !== "string") {
+                    helperSrc.writeLog("Agent.ts - api() - post(/api/agent-delete) - Error", "Missing or invalid header.");
+
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
+                } else {
+                    const isTableDelete = await this.tableDelete(mcpSessionId, id);
+
+                    if (!isTableDelete) {
+                        helperSrc.writeLog("Agent.ts - api() - post(/api/agent-delete) - tableDelete()", "Failed to delete.");
+
+                        helperSrc.responseBody({ state: "ko", message: "Failed to delete." }, response, 500);
+                    } else {
+                        helperSrc.responseBody({ state: "ok", message: "" }, response, 200);
+                    }
+                }
+            }
+        );
     };
 }

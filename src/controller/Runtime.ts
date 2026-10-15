@@ -72,6 +72,10 @@ export default class Runtime {
     }
 
     async browserChrome(mcpSessionId: string, url: string): Promise<string> {
+        if (typeof url !== "string" || (url !== "" && !/^https?:\/\/\S+$/i.test(url))) {
+            return "Invalid url.";
+        }
+
         return this.callRuntimeWorker(mcpSessionId, "browserChrome", [url]).catch((error: Error) => {
             helperSrc.writeLog("Runtime.ts - browserChrome() - callRuntimeWorker() - catch()", error.message);
 

@@ -27,99 +27,118 @@ export default class Rag {
     }
 
     api = (): void => {
-        this.app.post("/api/rag-start", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
+        this.app.post(
+            "/api/rag-start",
+            this.limiter,
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            async (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
 
-            if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("Rag.ts - api() - post(/api/rag-start) - Error", "Missing or invalid header.");
+                if (typeof mcpSessionId !== "string") {
+                    helperSrc.writeLog("Rag.ts - api() - post(/api/rag-start) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-            } else {
-                const pathFileList = await helperSrc.readAllLevelPathFileRecursive(
-                    `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/`
-                );
-
-                const documentList: string[] = [];
-
-                for (const pathFile of pathFileList) {
-                    const fileDetail = await helperSrc.fileDetail(pathFile);
-
-                    if (fileDetail.category === "document") {
-                        documentList.push(pathFile);
-
-                        this.toolRag.store().content({ pathFile }, { sessionId: mcpSessionId });
-                    }
-                }
-
-                if (documentList.length === 0) {
-                    helperSrc.responseBody({ state: "ko", message: "No documents found for RAG." }, response, 200);
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
                 } else {
-                    helperSrc.responseBody({ state: "ok", message: "", data: documentList }, response, 200);
-                }
-            }
-        });
+                    const pathFileList = await helperSrc.readAllLevelPathFileRecursive(
+                        `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/`
+                    );
 
-        this.app.post("/api/rag-check", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelRag.IapiCheckBody;
+                    const documentList: string[] = [];
 
-            const pathFile = body.pathFile;
+                    for (const pathFile of pathFileList) {
+                        const fileDetail = await helperSrc.fileDetail(pathFile);
 
-            const pathWorkspace = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/`;
+                        if (fileDetail.category === "document") {
+                            documentList.push(pathFile);
 
-            if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("Rag.ts - api() - post(/api/rag-check) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-            } else {
-                const fileDetail = await helperSrc.fileDetail(pathFile);
-
-                const pathCurrent = fileDetail.baseName ? `${pathWorkspace}${Path.dirname(pathFile)}/` : `${pathWorkspace}${pathFile}`;
-
-                helperSrc.findPathFileRecursive(pathCurrent, "*").then((pathFileList) => {
-                    let state = "ongoing";
-                    let message = "";
-
-                    for (let a = 0; a < pathFileList.length; a++) {
-                        const pathFile = pathFileList[a];
-
-                        if (pathFile.endsWith(".rag_done")) {
-                            state = "success";
-
-                            break;
-                        } else if (pathFile.endsWith(".fail")) {
-                            state = "failed";
-                            message = "Failed to process the document.";
-
-                            break;
+                            this.toolRag.store().content({ pathFile }, { sessionId: mcpSessionId });
                         }
                     }
 
-                    helperSrc.responseBody({ state, message }, response, 200);
-                });
-            }
-        });
-
-        this.app.get("/api/rag-graph", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
-
-            if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("Rag.ts - api() - get(/api/rag-graph) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-            } else {
-                const pathFile = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/rag_graph.html`;
-
-                helperSrc.fileReadStream(pathFile).then((resultFileReadStream) => {
-                    if (!Buffer.isBuffer(resultFileReadStream)) {
-                        helperSrc.writeLog("Rag.ts - api() - get(/api/rag-graph) - fileReadStream()", resultFileReadStream.toString());
-
-                        helperSrc.responseBody({ state: "ko", message: "Failed to read." }, response, 500);
+                    if (documentList.length === 0) {
+                        helperSrc.responseBody({ state: "ko", message: "No documents found for RAG." }, response, 200);
                     } else {
-                        helperSrc.responseBody({ state: "ok", message: "", data: resultFileReadStream.toString("utf-8") }, response, 200);
+                        helperSrc.responseBody({ state: "ok", message: "", data: documentList }, response, 200);
                     }
-                });
+                }
             }
-        });
+        );
+
+        this.app.post(
+            "/api/rag-check",
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            async (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
+                const body = request.body as modelRag.IapiCheckBody;
+
+                const pathFile = body.pathFile;
+
+                const pathWorkspace = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/`;
+
+                if (typeof mcpSessionId !== "string") {
+                    helperSrc.writeLog("Rag.ts - api() - post(/api/rag-check) - Error", "Missing or invalid header.");
+
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
+                } else if (!helperSrc.checkPath(pathWorkspace, pathFile)) {
+                    helperSrc.responseBody({ state: "ko", message: "Invalid path." }, response, 200);
+                } else {
+                    const fileDetail = await helperSrc.fileDetail(pathFile);
+
+                    const pathCurrent = fileDetail.baseName ? `${pathWorkspace}${Path.dirname(pathFile)}/` : `${pathWorkspace}${pathFile}`;
+
+                    helperSrc.findPathFileRecursive(pathCurrent, "*").then((pathFileList) => {
+                        let state = "ongoing";
+                        let message = "";
+
+                        for (let a = 0; a < pathFileList.length; a++) {
+                            const pathFile = pathFileList[a];
+
+                            if (pathFile.endsWith(".rag_done")) {
+                                state = "success";
+
+                                break;
+                            } else if (pathFile.endsWith(".fail")) {
+                                state = "failed";
+                                message = "Failed to process the document.";
+
+                                break;
+                            }
+                        }
+
+                        helperSrc.responseBody({ state, message }, response, 200);
+                    });
+                }
+            }
+        );
+
+        this.app.get(
+            "/api/rag-graph",
+            this.limiter,
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
+
+                if (typeof mcpSessionId !== "string") {
+                    helperSrc.writeLog("Rag.ts - api() - get(/api/rag-graph) - Error", "Missing or invalid header.");
+
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
+                } else {
+                    const pathFile = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/rag_graph.html`;
+
+                    helperSrc.fileReadStream(pathFile).then((resultFileReadStream) => {
+                        if (!Buffer.isBuffer(resultFileReadStream)) {
+                            helperSrc.writeLog("Rag.ts - api() - get(/api/rag-graph) - fileReadStream()", resultFileReadStream.toString());
+
+                            helperSrc.responseBody({ state: "ko", message: "Failed to read." }, response, 500);
+                        } else {
+                            helperSrc.responseBody({ state: "ok", message: "", data: resultFileReadStream.toString("utf-8") }, response, 200);
+                        }
+                    });
+                }
+            }
+        );
     };
 }

@@ -73,25 +73,29 @@ export const execute = (mcpSessionId: string, fileName: string): Promise<string>
             fileDetail.name
         );
 
-        const fileReadStream = await helperSrc.fileReadStream(`${pathDirname}${fileDetail.name}`);
-
-        if (!Buffer.isBuffer(fileReadStream)) {
-            helperSrc.writeLog("Antivirus.ts - execute() - fileReadStream()", fileReadStream.toString());
-
+        if (pathDirname === "") {
             result = "The file was not found in the workspace, check the name and try again.";
         } else {
-            const buffer = Buffer.from(fileReadStream);
-            const blob = new Blob([buffer], { type: fileDetail.mimeType });
+            const fileReadStream = await helperSrc.fileReadStream(`${pathDirname}${fileDetail.name}`);
 
-            const formData = new FormData();
-            formData.append("file", blob, fileDetail.name);
+            if (!Buffer.isBuffer(fileReadStream)) {
+                helperSrc.writeLog("Antivirus.ts - execute() - fileReadStream()", fileReadStream.toString());
 
-            result = await apiCheck(formData);
+                result = "The file was not found in the workspace, check the name and try again.";
+            } else {
+                const buffer = Buffer.from(fileReadStream);
+                const blob = new Blob([buffer], { type: fileDetail.mimeType });
 
-            if (result === "ko") {
-                helperSrc.writeLog("Antivirus.ts - execute() - apiCheck()", "Service not available.");
+                const formData = new FormData();
+                formData.append("file", blob, fileDetail.name);
 
-                result = "Service not available.";
+                result = await apiCheck(formData);
+
+                if (result === "ko") {
+                    helperSrc.writeLog("Antivirus.ts - execute() - apiCheck()", "Service not available.");
+
+                    result = "Service not available.";
+                }
             }
         }
 

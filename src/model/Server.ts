@@ -13,6 +13,7 @@ export interface IapiLoginBody {
 
 export interface IdataLoginSession {
     message: string;
+    isError?: boolean;
     adUrl?: string;
     mcpSessionId?: string;
 }

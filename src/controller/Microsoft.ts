@@ -30,7 +30,7 @@ export default class Microsoft {
     private app: Express.Express;
     private limiter: RateLimitRequestHandler;
     private controllerUser: ControllerUser;
-    private loginRpc: (request: Request, response: Response, mcpSessionId: string) => Promise<void>;
+    private loginRpc: (mcpSessionId: string, cookieToken: string, response: Response) => Promise<void>;
 
     private userObject: Record<string, modelMicrosoft.Iuser>;
     private claimsJsonObject: string;
@@ -54,7 +54,7 @@ export default class Microsoft {
         app: Express.Express,
         limiter: RateLimitRequestHandler,
         controllerUser: ControllerUser,
-        loginRpc: (request: Request, response: Response, mcpSessionId: string) => Promise<void>
+        loginRpc: (mcpSessionId: string, cookieToken: string, response: Response) => Promise<void>
     ) {
         this.app = app;
         this.limiter = limiter;
@@ -132,8 +132,21 @@ export default class Microsoft {
         };
     };
 
+    private userError = (state: string, message: string): void => {
+        const bearerToken = state.split(":-:")[1];
+
+        if (bearerToken) {
+            this.userObject[bearerToken] = {
+                username: "",
+                accessToken: "",
+                mcpSessionId: "",
+                message
+            };
+        }
+    };
+
     logout = (bearerToken: string): void => {
-        if (bearerToken in this.userObject) {
+        if (Object.hasOwn(this.userObject, bearerToken)) {
             delete this.userObject[bearerToken];
         }
     };
@@ -152,6 +165,16 @@ export default class Microsoft {
                     .then(async (result) => {
                         const user = await this.controllerUser.tableSelect(result.username, "");
 
+                        if (!user) {
+                            helperSrc.writeLog("Microsoft.ts - api() - get(/ad-redirect) - tableSelect()", "Failed to read.");
+
+                            this.userError(state, "Failed to read.");
+
+                            helperSrc.responseBody({ state: "ko", message: "Failed to read." }, response, 500);
+
+                            return;
+                        }
+
                         let mcpSessionId = "";
 
                         if (user.id) {
@@ -160,7 +183,17 @@ export default class Microsoft {
                             } else {
                                 mcpSessionId = helperSrc.generateUniqueId();
 
-                                await this.controllerUser.tableUpdate(user.id, user.name, user.surname, "", mcpSessionId);
+                                const isTableUpdate = await this.controllerUser.tableUpdate(user.id, user.name, user.surname, "", mcpSessionId);
+
+                                if (!isTableUpdate) {
+                                    helperSrc.writeLog("Microsoft.ts - api() - get(/ad-redirect) - tableUpdate()", "Failed to update.");
+
+                                    this.userError(state, "Failed to update.");
+
+                                    helperSrc.responseBody({ state: "ko", message: "Failed to update." }, response, 500);
+
+                                    return;
+                                }
                             }
                         }
 
@@ -168,7 +201,8 @@ export default class Microsoft {
                             ...this.userObject[result.bearerToken],
                             username: result.username,
                             accessToken: result.accessToken,
-                            mcpSessionId: mcpSessionId
+                            mcpSessionId: mcpSessionId,
+                            message: ""
                         };
 
                         if (!request.accepts("html")) {
@@ -179,6 +213,8 @@ export default class Microsoft {
                     })
                     .catch((error: Error) => {
                         helperSrc.writeLog("Microsoft.ts - api() - get(/ad-redirect) - codeToToken() - catch()", error.message);
+
+                        this.userError(state, "Failed to get access token.");
 
                         helperSrc.responseBody({ state: "ko", message: "Failed to get access token." }, response, 500);
                     });
@@ -193,10 +229,20 @@ export default class Microsoft {
 
                 helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
             } else {
-                if (!(mcpBearerToken in this.userObject)) {
+                if (!Object.hasOwn(this.userObject, mcpBearerToken)) {
                     helperSrc.responseBody({ state: "ongoing", message: "" }, response, 200);
+                } else if (this.userObject[mcpBearerToken].message !== "") {
+                    const message = this.userObject[mcpBearerToken].message;
+
+                    delete this.userObject[mcpBearerToken];
+
+                    helperSrc.responseBody({ state: "ko", message }, response, 500);
                 } else {
-                    await this.loginRpc(request, response, this.userObject[mcpBearerToken].mcpSessionId);
+                    const mcpSessionId = this.userObject[mcpBearerToken].mcpSessionId;
+
+                    const cookieToken = Ca.writeIdentity(request, mcpSessionId);
+
+                    await this.loginRpc(mcpSessionId, cookieToken, response);
                 }
             }
         });

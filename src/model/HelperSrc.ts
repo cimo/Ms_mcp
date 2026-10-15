@@ -18,14 +18,16 @@ export interface IfileDetail {
     mimeType: string;
 }
 
+export interface IfileDetailMagicByte {
+    offset: number;
+    bytes: number[];
+}
+
 export interface IfileDetailSignature {
     extension: string;
     category: string;
     mimeType: string;
-    magicByteList?: {
-        offset: number;
-        bytes: number[];
-    }[];
+    magicByteList?: IfileDetailMagicByte[];
 }
 
 export interface Iexecution {

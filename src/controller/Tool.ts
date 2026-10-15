@@ -52,15 +52,9 @@ export default class Tool {
         this.toolPlaywright = new ToolPlaywright(this.sessionObject);
     }
 
-    loginRpc = async (request: Request, response: Response, mcpSessionId: string): Promise<string> => {
-        const cookie = response.getHeader("set-cookie") ?? request.headers["mcp-cookie"];
-
+    loginRpc = async (mcpSessionId: string, cookieToken: string): Promise<string> => {
         if (this.sessionObject[mcpSessionId] && this.sessionObject[mcpSessionId].rpc) {
             return "ok";
-        }
-
-        if (typeof cookie !== "string") {
-            return "ko";
         } else {
             return instance.api
                 .post<unknown>(
@@ -70,7 +64,7 @@ export default class Tool {
                             "Content-Type": "application/json",
                             Accept: "application/json, text/event-stream",
                             "mcp-session-id": mcpSessionId,
-                            "mcp-cookie": cookie
+                            Cookie: `${helperSrc.LABEL}_authentication=${cookieToken}`
                         }
                     },
                     {
@@ -120,7 +114,7 @@ export default class Tool {
     };
 
     rpc = (): void => {
-        this.app.post("/rpc", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.post("/rpc", Ca.authenticationMiddleware, Ca.identityMiddleware("mcp-session-id"), async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
             const body = request.body as modelTool.IapiRpcBody;
 
@@ -169,7 +163,7 @@ export default class Tool {
             }
         });
 
-        this.app.get("/rpc", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
+        this.app.get("/rpc", Ca.authenticationMiddleware, Ca.identityMiddleware("mcp-session-id"), async (request: Request, response: Response) => {
             const mcpSessionId = request.headers["mcp-session-id"];
 
             if (typeof mcpSessionId !== "string" || !this.sessionObject[mcpSessionId] || !this.sessionObject[mcpSessionId].rpc) {
@@ -183,161 +177,183 @@ export default class Tool {
     };
 
     api = (): void => {
-        this.app.get("/api/tool-retrieve", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
+        this.app.get(
+            "/api/tool-retrieve",
+            this.limiter,
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
 
-            if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("Tool.ts - api() - get(/api/tool-retrieve) - Error", "Missing or invalid header.");
+                if (typeof mcpSessionId !== "string") {
+                    helperSrc.writeLog("Tool.ts - api() - get(/api/tool-retrieve) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-            } else {
-                const toolList: modelTool.Itool[] = [
-                    {
-                        name: this.toolRag.search().name,
-                        argumentObject: this.toolRag.inputSchemaSearch.parse({}),
-                        icon: "rag.svg",
-                        description: this.toolRag.search().config.description,
-                        example: this.toolRag.search().config.example,
-                        inputInstruction: this.toolRag.search().config.inputInstruction
-                    },
-                    {
-                        name: this.toolDocument.execute().name,
-                        argumentObject: this.toolDocument.inputSchema.parse({}),
-                        icon: "document.svg",
-                        description: this.toolDocument.execute().config.description,
-                        example: this.toolDocument.execute().config.example,
-                        inputInstruction: this.toolDocument.execute().config.inputInstruction
-                    },
-                    {
-                        name: this.toolSecurity.execute().name,
-                        argumentObject: this.toolSecurity.inputSchema.parse({}),
-                        icon: "security.svg",
-                        description: this.toolSecurity.execute().config.description,
-                        example: this.toolSecurity.execute().config.example,
-                        inputInstruction: this.toolSecurity.execute().config.inputInstruction
-                    },
-                    {
-                        name: this.toolPlaywright.execute().name,
-                        argumentObject: this.toolPlaywright.inputSchema.parse({}),
-                        icon: "playwright.svg",
-                        description: this.toolPlaywright.execute().config.description,
-                        example: this.toolPlaywright.execute().config.example,
-                        inputInstruction: this.toolPlaywright.execute().config.inputInstruction
-                    },
-                    {
-                        name: this.toolMath.execute().name,
-                        argumentObject: this.toolMath.inputSchema.parse({}),
-                        icon: "math.svg",
-                        description: this.toolMath.execute().config.description,
-                        example: this.toolMath.execute().config.example,
-                        inputInstruction: this.toolMath.execute().config.inputInstruction
-                    }
-                ];
-
-                helperSrc.responseBody({ state: "ok", message: "", data: toolList }, response, 200);
-            }
-        });
-
-        this.app.post("/api/tool-call", Ca.authenticationMiddleware, (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
-            const mcpCookie = request.headers["mcp-cookie"];
-            const body = request.body as modelTool.IapiToolCallBody;
-
-            if (typeof mcpSessionId !== "string" || typeof mcpCookie !== "string") {
-                helperSrc.writeLog("Tool.ts - api() - post(/api/tool-call) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-            } else {
-                instance.api
-                    .post<unknown>(
-                        "/rpc",
-                        {
-                            headers: {
-                                "Content-Type": "application/json",
-                                Accept: "application/json, text/event-stream",
-                                "mcp-session-id": mcpSessionId,
-                                "mcp-cookie": mcpCookie
-                            }
-                        },
-                        body
-                    )
-                    .then((resultApi) => {
-                        const data = resultApi.data;
-
-                        helperSrc.responseBody({ state: "ok", message: "", data }, response, 200);
-                    })
-                    .catch((error: Error) => {
-                        helperSrc.writeLog("Tool.ts - api() - post(/api/tool-call) - post(/rpc) - catch()", error.message);
-
-                        helperSrc.responseBody({ state: "ko", message: "Failed to call tool." }, response, 500);
-                    });
-            }
-        });
-
-        this.app.get("/api/task-retrieve", this.limiter, Ca.authenticationMiddleware, (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
-
-            if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("Tool.ts - api() - get(/api/task-retrieve) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-            } else {
-                const taskList: modelTool.Itask[] = [
-                    {
-                        name: "automate_browser",
-                        argumentObject: { url: "..." },
-                        icon: "automate_browser.svg",
-                        description: "Interact with the browser and execute the instructions in a loop until the requests are completed.",
-                        example: [""].join("\n"),
-                        inputInstruction: [].join("\n")
-                    }
-                ];
-
-                helperSrc.responseBody({ state: "ok", message: "", data: taskList }, response, 200);
-            }
-        });
-
-        this.app.post("/api/task-call", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelTool.IapiTaskCallBody;
-
-            if (typeof mcpSessionId !== "string" || !this.sessionObject[mcpSessionId]) {
-                helperSrc.writeLog("Tool.ts - api() - post(/api/task-call) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-            } else {
-                const runtime = this.sessionObject[mcpSessionId].runtime;
-
-                if (!runtime) {
-                    helperSrc.writeLog("Tool.ts - api() - post(/api/task-call) - Error", "Runtime problem.");
-
-                    helperSrc.responseBody({ state: "ko", message: "Runtime problem." }, response, 500);
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
                 } else {
-                    const result = "";
+                    const toolList: modelTool.Itool[] = [
+                        {
+                            name: this.toolRag.search().name,
+                            argumentObject: this.toolRag.inputSchemaSearch.parse({}),
+                            icon: "rag.svg",
+                            description: this.toolRag.search().config.description,
+                            example: this.toolRag.search().config.example,
+                            inputInstruction: this.toolRag.search().config.inputInstruction
+                        },
+                        {
+                            name: this.toolDocument.execute().name,
+                            argumentObject: this.toolDocument.inputSchema.parse({}),
+                            icon: "document.svg",
+                            description: this.toolDocument.execute().config.description,
+                            example: this.toolDocument.execute().config.example,
+                            inputInstruction: this.toolDocument.execute().config.inputInstruction
+                        },
+                        {
+                            name: this.toolSecurity.execute().name,
+                            argumentObject: this.toolSecurity.inputSchema.parse({}),
+                            icon: "security.svg",
+                            description: this.toolSecurity.execute().config.description,
+                            example: this.toolSecurity.execute().config.example,
+                            inputInstruction: this.toolSecurity.execute().config.inputInstruction
+                        },
+                        {
+                            name: this.toolPlaywright.execute().name,
+                            argumentObject: this.toolPlaywright.inputSchema.parse({}),
+                            icon: "playwright.svg",
+                            description: this.toolPlaywright.execute().config.description,
+                            example: this.toolPlaywright.execute().config.example,
+                            inputInstruction: this.toolPlaywright.execute().config.inputInstruction
+                        },
+                        {
+                            name: this.toolMath.execute().name,
+                            argumentObject: this.toolMath.inputSchema.parse({}),
+                            icon: "math.svg",
+                            description: this.toolMath.execute().config.description,
+                            example: this.toolMath.execute().config.example,
+                            inputInstruction: this.toolMath.execute().config.inputInstruction
+                        }
+                    ];
 
-                    if (Array.isArray(body.list)) {
-                        for (let a = 0; a < body.list.length; a++) {
-                            const tool = body.list[a];
+                    helperSrc.responseBody({ state: "ok", message: "", data: toolList }, response, 200);
+                }
+            }
+        );
 
-                            if (tool.name === "browser_chrome") {
-                                await runtime.browserChrome(mcpSessionId, tool.argumentObject["url"] as string);
-                            }
+        this.app.post(
+            "/api/tool-call",
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
+                const cookie = request.headers["cookie"];
+                const body = request.body as modelTool.IapiToolCallBody;
 
-                            /*if (tool.name === "automate_mouse_move") {
+                if (typeof mcpSessionId !== "string" || typeof cookie !== "string") {
+                    helperSrc.writeLog("Tool.ts - api() - post(/api/tool-call) - Error", "Missing or invalid header.");
+
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
+                } else {
+                    instance.api
+                        .post<unknown>(
+                            "/rpc",
+                            {
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    Accept: "application/json, text/event-stream",
+                                    "mcp-session-id": mcpSessionId,
+                                    Cookie: cookie
+                                }
+                            },
+                            body
+                        )
+                        .then((resultApi) => {
+                            const data = resultApi.data;
+
+                            helperSrc.responseBody({ state: "ok", message: "", data }, response, 200);
+                        })
+                        .catch((error: Error) => {
+                            helperSrc.writeLog("Tool.ts - api() - post(/api/tool-call) - post(/rpc) - catch()", error.message);
+
+                            helperSrc.responseBody({ state: "ko", message: "Failed to call tool." }, response, 500);
+                        });
+                }
+            }
+        );
+
+        this.app.get(
+            "/api/task-retrieve",
+            this.limiter,
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
+
+                if (typeof mcpSessionId !== "string") {
+                    helperSrc.writeLog("Tool.ts - api() - get(/api/task-retrieve) - Error", "Missing or invalid header.");
+
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
+                } else {
+                    const taskList: modelTool.Itask[] = [
+                        {
+                            name: "automate_browser",
+                            argumentObject: { url: "..." },
+                            icon: "automate_browser.svg",
+                            description: "Interact with the browser and execute the instructions in a loop until the requests are completed.",
+                            example: [""].join("\n"),
+                            inputInstruction: [].join("\n")
+                        }
+                    ];
+
+                    helperSrc.responseBody({ state: "ok", message: "", data: taskList }, response, 200);
+                }
+            }
+        );
+
+        this.app.post(
+            "/api/task-call",
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            async (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
+                const body = request.body as modelTool.IapiTaskCallBody;
+
+                if (typeof mcpSessionId !== "string" || !this.sessionObject[mcpSessionId]) {
+                    helperSrc.writeLog("Tool.ts - api() - post(/api/task-call) - Error", "Missing or invalid header.");
+
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
+                } else {
+                    const runtime = this.sessionObject[mcpSessionId].runtime;
+
+                    if (!runtime) {
+                        helperSrc.writeLog("Tool.ts - api() - post(/api/task-call) - Error", "Runtime problem.");
+
+                        helperSrc.responseBody({ state: "ko", message: "Runtime problem." }, response, 500);
+                    } else {
+                        const result = "";
+
+                        if (Array.isArray(body.list)) {
+                            for (let a = 0; a < body.list.length; a++) {
+                                const tool = body.list[a];
+
+                                if (tool.name === "browser_chrome") {
+                                    await runtime.browserChrome(mcpSessionId, tool.argumentObject["url"] as string);
+                                }
+
+                                /*if (tool.name === "automate_mouse_move") {
                                 await runtime.automateMouseMove(mcpSessionId, parseInt(tool.argumentObject["x"]), parseInt(tool.argumentObject["y"]));
                             }
  
                             if (tool.name === "automate_mouse_click") {
                                 await runtime.automateMouseClick(mcpSessionId, parseInt(tool.argumentObject["button"]));
                             }*/
+                            }
+
+                            // Todo: screenshot reading, the removed ocr tool returned the item list of the extracted text.
                         }
 
-                        // Todo: screenshot reading, the removed ocr tool returned the item list of the extracted text.
+                        helperSrc.responseBody({ state: "ok", message: "", data: result }, response, 200);
                     }
-
-                    helperSrc.responseBody({ state: "ok", message: "", data: result }, response, 200);
                 }
             }
-        });
+        );
     };
 }

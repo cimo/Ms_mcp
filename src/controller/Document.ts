@@ -28,7 +28,7 @@ export default class Document {
             });
     };
 
-    private apiToPdf = async (formData: FormData): Promise<string> => {
+    private apiToPdf = async (formData: FormData): Promise<modelHelperSrc.IactionOperation> => {
         return instance.apiFileConverter
             .post<modelHelperSrc.IapiResponse>("/api/toPdf", {}, formData)
             .then((resultApi) => {
@@ -36,16 +36,14 @@ export default class Document {
 
                 if (data.response.state !== "ok") {
                     helperSrc.writeLog("Document.ts - apiToPdf() - Error", data.response.message as string);
-
-                    return "ko";
                 }
 
-                return data.response.data as string;
+                return data.response;
             })
             .catch((error: Error) => {
                 helperSrc.writeLog("Document.ts - apiToPdf() - catch()", error.message);
 
-                return "ko";
+                return { state: "error", message: "Service not available." };
             });
     };
 
@@ -87,7 +85,7 @@ export default class Document {
             });
     };
 
-    private apiExtract = async (formData: FormData): Promise<string> => {
+    private apiExtract = async (formData: FormData): Promise<modelHelperSrc.IactionOperation> => {
         return instance.apiFileDataExtractor
             .post<modelHelperSrc.IapiResponse>("/api/extract", {}, formData)
             .then((resultApi) => {
@@ -95,17 +93,54 @@ export default class Document {
 
                 if (data.response.state !== "ok") {
                     helperSrc.writeLog("Document.ts - apiExtract() - Error", data.response.message as string);
-
-                    return "ko";
                 }
 
-                return data.response.data as string;
+                return data.response;
             })
             .catch((error: Error) => {
                 helperSrc.writeLog("Document.ts - apiExtract() - catch()", error.message);
 
-                return "ko";
+                return { state: "error", message: "Service not available." };
             });
+    };
+
+    private apiExtractCheck = async (uniqueId: string): Promise<modelHelperSrc.IactionOperation> => {
+        return instance.apiFileDataExtractor
+            .post<modelHelperSrc.IapiResponse>(
+                "/api/extract-check",
+                {
+                    headers: {
+                        "Content-Type": "application/json"
+                    }
+                },
+                { uniqueId }
+            )
+            .then((resultApi) => {
+                const data = resultApi.data;
+
+                return data.response;
+            })
+            .catch((error: Error) => {
+                helperSrc.writeLog("Document.ts - apiExtractCheck() - catch()", error.message);
+
+                return { state: "error", message: "Service not available." };
+            });
+    };
+
+    private apiExtractResult = async (uniqueId: string): Promise<modelHelperSrc.IactionOperation> => {
+        let resultExtractCheck = await this.apiExtractCheck(uniqueId);
+
+        while (resultExtractCheck.state === "queued" || resultExtractCheck.state === "running") {
+            await new Promise((resolve) => setTimeout(resolve, 3 * 1000));
+
+            resultExtractCheck = await this.apiExtractCheck(uniqueId);
+        }
+
+        if (resultExtractCheck.state !== "ok") {
+            helperSrc.writeLog("Document.ts - apiExtractResult() - Error", resultExtractCheck.message as string);
+        }
+
+        return resultExtractCheck;
     };
 
     private apiFileDataExtractorLogout = async (): Promise<string> => {
@@ -127,18 +162,28 @@ export default class Document {
             });
     };
 
-    private resultZipWrite = (buffer: Buffer, pathCurrent: string): Promise<void> => {
-        return new Promise<void>((resolve) => {
+    private zipWrite = (buffer: Buffer, pathCurrent: string): Promise<boolean> => {
+        return new Promise<boolean>((resolve) => {
             unzip(buffer, async (error: Error | null, zip: Record<string, Uint8Array>) => {
                 if (error) {
-                    helperSrc.writeLog("Document.ts - resultZipWrite() - unzip()", error.message);
+                    helperSrc.writeLog("Document.ts - zipWrite() - unzip()", error.message);
 
-                    resolve();
+                    resolve(false);
 
                     return;
                 }
 
                 const entryList = Object.keys(zip);
+
+                for (let a = 0; a < entryList.length; a++) {
+                    if (!helperSrc.checkPathChild(pathCurrent, entryList[a])) {
+                        helperSrc.writeLog("Document.ts - zipWrite() - checkPathChild()", entryList[a]);
+
+                        resolve(false);
+
+                        return;
+                    }
+                }
 
                 for (let a = 0; a < entryList.length; a++) {
                     const entry = entryList[a];
@@ -150,25 +195,25 @@ export default class Document {
                     const fileWriteStream = await helperSrc.fileWriteStream(`${pathCurrent}${entry}`, Buffer.from(zip[entry]));
 
                     if (typeof fileWriteStream !== "boolean") {
-                        helperSrc.writeLog("Document.ts - resultZipWrite() - fileWriteStream()", fileWriteStream.toString());
+                        helperSrc.writeLog("Document.ts - zipWrite() - fileWriteStream()", fileWriteStream.toString());
                     }
                 }
 
-                resolve();
+                resolve(true);
             });
         });
     };
 
     constructor() {}
 
-    execute = (fileDetail: modelHelperSrc.IfileDetail, pathCurrent: string): Promise<string> => {
+    execute = (fileDetail: modelHelperSrc.IfileDetail, pathCurrent: string): Promise<modelHelperSrc.IactionOperation> => {
         return instance.runWithContext(async () => {
             const fileReadStream = await helperSrc.fileReadStream(`${pathCurrent}${fileDetail.name}`);
 
             if (!Buffer.isBuffer(fileReadStream)) {
                 helperSrc.writeLog("Document.ts - execute() - fileReadStream()", fileReadStream.toString());
 
-                return "The file was not found in the workspace, check the name and try again.";
+                return { state: "ko", message: "The file was not found in the workspace, check the name and try again." };
             }
 
             const buffer = Buffer.from(fileReadStream);
@@ -184,13 +229,14 @@ export default class Document {
 
                 await this.apiFileConverterLogout();
 
-                if (resultToPdf === "ko") {
-                    helperSrc.writeLog("Document.ts - execute() - apiToPdf()", "Service not available.");
-
-                    return "Service not available.";
+                if (resultToPdf.state !== "ok") {
+                    return resultToPdf;
                 }
 
-                const fileWriteStream = await helperSrc.fileWriteStream(`${pathCurrent}converted.pdf`, Buffer.from(resultToPdf, "base64"));
+                const fileWriteStream = await helperSrc.fileWriteStream(
+                    `${pathCurrent}converted.pdf`,
+                    Buffer.from(resultToPdf.data as string, "base64")
+                );
 
                 if (typeof fileWriteStream !== "boolean") {
                     helperSrc.writeLog("Document.ts - execute() - fileWriteStream()", fileWriteStream.toString());
@@ -202,19 +248,25 @@ export default class Document {
 
             await this.apiFileDataExtractorLogin();
 
-            const resultExtract = await this.apiExtract(formDataFileDataExtractor);
+            let resultExtract = await this.apiExtract(formDataFileDataExtractor);
+
+            if (resultExtract.state === "ok") {
+                resultExtract = await this.apiExtractResult(resultExtract.data as string);
+            }
 
             await this.apiFileDataExtractorLogout();
 
-            if (resultExtract === "ko") {
-                helperSrc.writeLog("Document.ts - execute() - apiExtract()", "Service not available.");
-
-                return "Service not available.";
+            if (resultExtract.state !== "ok") {
+                return resultExtract;
             }
 
-            await this.resultZipWrite(Buffer.from(resultExtract, "base64"), pathCurrent);
+            const isZipWrite = await this.zipWrite(Buffer.from(resultExtract.data as string, "base64"), pathCurrent);
 
-            return "";
+            if (!isZipWrite) {
+                return { state: "error", message: "Service not available." };
+            }
+
+            return { state: "ok", message: "" };
         });
     };
 }

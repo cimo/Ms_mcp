@@ -159,65 +159,77 @@ export default class Setting {
     };
 
     api = (): void => {
-        this.app.get("/api/setting-query", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
+        this.app.get(
+            "/api/setting-query",
+            this.limiter,
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            async (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
 
-            if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("Setting.ts - api() - get(/api/setting-query) - Error", "Missing or invalid header.");
+                if (typeof mcpSessionId !== "string") {
+                    helperSrc.writeLog("Setting.ts - api() - get(/api/setting-query) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-            } else {
-                const setting = await this.tableSelect(mcpSessionId);
-
-                if (Object.keys(setting).length === 0) {
-                    helperSrc.writeLog("Setting.ts - api() - get(/api/setting-query) - tableSelect()", "Failed to read.");
-
-                    helperSrc.responseBody({ state: "ko", message: "Failed to read." }, response, 500);
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
                 } else {
-                    helperSrc.responseBody(
-                        {
-                            state: "ok",
-                            message: "",
-                            data: {
-                                id: setting.id,
-                                llm: setting.llm
-                            }
-                        },
-                        response,
-                        200
-                    );
-                }
-            }
-        });
+                    const setting = await this.tableSelect(mcpSessionId);
 
-        this.app.post("/api/setting-update", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelSetting.IapiUpdateBody;
+                    if (Object.keys(setting).length === 0) {
+                        helperSrc.writeLog("Setting.ts - api() - get(/api/setting-query) - tableSelect()", "Failed to read.");
 
-            const id = body.id;
-            const llm = body.llm;
-
-            if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("Setting.ts - api() - post(/api/setting-update) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-            } else {
-                const errorMessageList = this.checkField(llm);
-
-                if (errorMessageList.length > 0) {
-                    helperSrc.responseBody({ state: "ko", message: errorMessageList }, response, 200);
-                } else {
-                    const isTableUpdate = await this.tableUpdate(mcpSessionId, id, llm);
-
-                    if (!isTableUpdate) {
-                        helperSrc.writeLog("Setting.ts - api() - post(/api/setting-update) - tableUpdate()", "Failed to update.");
-
-                        helperSrc.responseBody({ state: "ko", message: "Failed to update." }, response, 500);
+                        helperSrc.responseBody({ state: "ko", message: "Failed to read." }, response, 500);
                     } else {
-                        helperSrc.responseBody({ state: "ok", message: "Setting updated successfully." }, response, 200);
+                        helperSrc.responseBody(
+                            {
+                                state: "ok",
+                                message: "",
+                                data: {
+                                    id: setting.id,
+                                    llm: setting.llm
+                                }
+                            },
+                            response,
+                            200
+                        );
                     }
                 }
             }
-        });
+        );
+
+        this.app.post(
+            "/api/setting-update",
+            this.limiter,
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            async (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
+                const body = request.body as modelSetting.IapiUpdateBody;
+
+                const id = body.id;
+                const llm = body.llm;
+
+                if (typeof mcpSessionId !== "string") {
+                    helperSrc.writeLog("Setting.ts - api() - post(/api/setting-update) - Error", "Missing or invalid header.");
+
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
+                } else {
+                    const errorMessageList = this.checkField(llm);
+
+                    if (errorMessageList.length > 0) {
+                        helperSrc.responseBody({ state: "ko", message: errorMessageList }, response, 200);
+                    } else {
+                        const isTableUpdate = await this.tableUpdate(mcpSessionId, id, llm);
+
+                        if (!isTableUpdate) {
+                            helperSrc.writeLog("Setting.ts - api() - post(/api/setting-update) - tableUpdate()", "Failed to update.");
+
+                            helperSrc.responseBody({ state: "ko", message: "Failed to update." }, response, 500);
+                        } else {
+                            helperSrc.responseBody({ state: "ok", message: "Setting updated successfully." }, response, 200);
+                        }
+                    }
+                }
+            }
+        );
     };
 }

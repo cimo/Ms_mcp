@@ -35,8 +35,8 @@ export default class Server {
     private controllerAgent: ControllerAgent;
 
     // Method
-    private loginRpc = async (request: Request, response: Response, mcpSessionId: string): Promise<void> => {
-        const loginRpc = await this.controllerTool.loginRpc(request, response, mcpSessionId);
+    private loginRpc = async (mcpSessionId: string, cookieToken: string, response: Response): Promise<void> => {
+        const loginRpc = await this.controllerTool.loginRpc(mcpSessionId, cookieToken);
 
         if (loginRpc === "ko") {
             helperSrc.writeLog("Server.ts - api() - post(/login) - Error", "Failed to login.");
@@ -81,7 +81,7 @@ export default class Server {
     }
 
     createSetting = (): void => {
-        Ca.setCookieNameCustom("mcp-cookie");
+        Ca.setCookieName(`${helperSrc.LABEL}_authentication`);
 
         this.app.set("trust proxy", "loopback");
         this.app.use(Compression());
@@ -173,8 +173,6 @@ export default class Server {
             });
 
             this.app.post("/login", this.limiter, async (request: Request, response: Response) => {
-                Ca.writeCookie(`${helperSrc.LABEL}_authentication`, response);
-
                 const mcpBearerToken = request.headers["mcp-bearer-token"];
                 const body = request.body as modelServer.IapiLoginBody;
 
@@ -195,39 +193,74 @@ export default class Server {
                         loginSession = await controllerMicrosoft.loginWithAuthenticationCode(mcpBearerToken);
                     }
 
-                    if (loginSession.message !== "") {
+                    if (loginSession.isError) {
+                        helperSrc.responseBody({ state: "ko", message: loginSession.message }, response, 500);
+
+                        return;
+                    } else if (loginSession.message !== "") {
                         helperSrc.responseBody({ state: "ko", message: loginSession.message }, response, 200);
 
                         return;
                     } else if (loginSession.mcpSessionId && loginSession.mcpSessionId !== "") {
-                        await this.loginRpc(request, response, loginSession.mcpSessionId);
+                        const cookieToken = Ca.writeCookie(loginSession.mcpSessionId, response);
+
+                        await this.loginRpc(loginSession.mcpSessionId, cookieToken, response);
                     } else if (loginSession.adUrl && loginSession.adUrl !== "") {
+                        Ca.writeCookie("", response);
+
                         helperSrc.responseBody({ state: "ok", message: "", data: loginSession.adUrl }, response, 200);
                     }
                 }
             });
 
-            this.app.get("/logout", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-                const mcpSessionId = request.headers["mcp-session-id"];
-                const mcpBearerToken = request.headers["mcp-bearer-token"];
-
-                if (typeof mcpSessionId !== "string" || typeof mcpBearerToken !== "string") {
-                    helperSrc.writeLog("Server.ts - api() - get(/logout) - Error", "Missing or invalid header.");
-
-                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-                } else {
-                    controllerMicrosoft.logout(mcpBearerToken);
-
-                    this.controllerTool.logoutRpc(mcpSessionId);
-
-                    Ca.deleteCookie(`${helperSrc.LABEL}_authentication`, request, response);
-
-                    await this.controllerXvfb.stop(mcpSessionId);
-
-                    delete this.sessionObject[mcpSessionId];
-
+            this.app.post(
+                "/api/session-check",
+                Ca.authenticationMiddleware,
+                Ca.identityMiddleware("mcp-session-id"),
+                (_: Request, response: Response) => {
                     helperSrc.responseBody({ state: "ok", message: "" }, response, 200);
                 }
+            );
+
+            this.app.get(
+                "/logout",
+                this.limiter,
+                Ca.authenticationMiddleware,
+                Ca.identityMiddleware("mcp-session-id"),
+                async (request: Request, response: Response) => {
+                    const mcpSessionId = request.headers["mcp-session-id"];
+                    const mcpBearerToken = request.headers["mcp-bearer-token"];
+
+                    if (typeof mcpSessionId !== "string" || typeof mcpBearerToken !== "string") {
+                        helperSrc.writeLog("Server.ts - api() - get(/logout) - Error", "Missing or invalid header.");
+
+                        helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
+                    } else {
+                        controllerMicrosoft.logout(mcpBearerToken);
+
+                        this.controllerTool.logoutRpc(mcpSessionId);
+
+                        Ca.deleteCookie(request, response);
+
+                        await this.controllerXvfb.stop(mcpSessionId);
+
+                        delete this.sessionObject[mcpSessionId];
+
+                        helperSrc.responseBody({ state: "ok", message: "" }, response, 200);
+                    }
+                }
+            );
+
+            this.app.use((error: Error, _: Request, response: Response, next: NextFunction) => {
+                helperSrc.writeLog("Server.ts - createServer() - listen() - use()", error.message);
+
+                if (response.headersSent) {
+                    next(error);
+
+                    return;
+                }
+
+                helperSrc.responseBody({ state: "ko", message: "Internal error." }, response, 500);
             });
         });
     };

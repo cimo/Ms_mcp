@@ -12,6 +12,10 @@ export const execute = async (mcpSessionId: string, fileNameList: string[]): Pro
 
         const pathDirname = await helperSrc.findPathDirnameRecursive(pathWorkspace, fileDetail.name);
 
+        if (pathDirname === "") {
+            return { documentList: [], message: "The file was not found in the workspace, check the name and try again." };
+        }
+
         const fileReadStream = await helperSrc.fileReadStream(`${pathDirname}result.md`);
 
         if (!Buffer.isBuffer(fileReadStream)) {

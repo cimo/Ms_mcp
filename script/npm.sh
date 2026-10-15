@@ -12,5 +12,12 @@ fi
 parameter1="${p1}"
 
 rm -rf "${PATH_ROOT}node_modules/" "${PATH_ROOT}package-lock.json"
-npm install
+
+if ! npm install
+then
+    echo -e "\n❌ npm.sh - npm install failed."
+
+    exit 1
+fi
+
 npm run "${parameter1}"

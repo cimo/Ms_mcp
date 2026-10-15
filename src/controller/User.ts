@@ -163,7 +163,7 @@ export default class User {
             });
     };
 
-    tableSelect = (email: string, mcpSessionId: string): Promise<modelUser.Idata> => {
+    tableSelect = (email: string, mcpSessionId: string): Promise<modelUser.Idata | null> => {
         return database.pool
             .query(
                 `SELECT id, email, name, surname, password, mcp_session_id FROM "user" WHERE (LOWER(email) = LOWER($1) OR mcp_session_id = $2) AND NOT delete ORDER BY id ASC;`,
@@ -188,7 +188,7 @@ export default class User {
             .catch((error: Error) => {
                 helperSrc.writeLog("User.ts - tableSelect() - catch()", error.message);
 
-                return {} as modelUser.Idata;
+                return null;
             });
     };
 
@@ -201,7 +201,11 @@ export default class User {
         } else {
             const user = await this.tableSelect(username, "");
 
-            if (!user.id) {
+            if (!user) {
+                resultObject.mcpSessionId = "";
+                resultObject.message = "Failed to read.";
+                resultObject.isError = true;
+            } else if (!user.id) {
                 resultObject.mcpSessionId = "";
                 resultObject.message = "Incorrect username.";
             } else {
@@ -213,10 +217,18 @@ export default class User {
                         resultObject.mcpSessionId = user.mcpSessionId;
                         resultObject.message = "";
                     } else {
-                        resultObject.mcpSessionId = helperSrc.generateUniqueId();
-                        resultObject.message = "";
+                        const mcpSessionId = helperSrc.generateUniqueId();
 
-                        await this.tableUpdate(user.id, user.name, user.surname, "", resultObject.mcpSessionId);
+                        const isTableUpdate = await this.tableUpdate(user.id, user.name, user.surname, "", mcpSessionId);
+
+                        if (!isTableUpdate) {
+                            resultObject.mcpSessionId = "";
+                            resultObject.message = "Failed to update.";
+                            resultObject.isError = true;
+                        } else {
+                            resultObject.mcpSessionId = mcpSessionId;
+                            resultObject.message = "";
+                        }
                     }
                 }
             }
@@ -226,69 +238,97 @@ export default class User {
     };
 
     api = (): void => {
-        this.app.get("/api/user-query", Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
+        this.app.get(
+            "/api/user-query",
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            async (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
 
-            if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("User.ts - api() - get(/api/user-query) - Error", "Missing or invalid header.");
+                if (typeof mcpSessionId !== "string") {
+                    helperSrc.writeLog("User.ts - api() - get(/api/user-query) - Error", "Missing or invalid header.");
 
-                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-            } else {
-                const user = await this.tableSelect("", mcpSessionId);
-
-                if (Object.keys(user).length === 0) {
-                    helperSrc.writeLog("User.ts - api() - get(/api/user-query) - tableSelect()", "Failed to read.");
-
-                    helperSrc.responseBody({ state: "ko", message: "Failed to read." }, response, 500);
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
                 } else {
-                    helperSrc.responseBody(
-                        {
-                            state: "ok",
-                            message: "",
-                            data: {
-                                id: user.id,
-                                email: user.email,
-                                name: user.name,
-                                surname: user.surname
-                            }
-                        },
-                        response,
-                        200
-                    );
-                }
-            }
-        });
+                    const user = await this.tableSelect("", mcpSessionId);
 
-        this.app.post("/api/user-update", this.limiter, Ca.authenticationMiddleware, async (request: Request, response: Response) => {
-            const mcpSessionId = request.headers["mcp-session-id"];
-            const body = request.body as modelUser.IapiUpdateBody;
+                    if (!user) {
+                        helperSrc.writeLog("User.ts - api() - get(/api/user-query) - tableSelect()", "Failed to read.");
 
-            const id = body.id;
-            const name = body.name;
-            const surname = body.surname;
-            const password = body.password;
-
-            if (typeof mcpSessionId !== "string") {
-                helperSrc.writeLog("User.ts - api() - post(/api/user-update) - Error", "Missing or invalid header.");
-
-                helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
-            } else {
-                const errorMessageList = this.checkField(name, surname);
-
-                if (errorMessageList.length > 0) {
-                    helperSrc.responseBody({ state: "ko", message: errorMessageList }, response, 200);
-                } else {
-                    const isTableUpdate = await this.tableUpdate(id, name, surname, password, mcpSessionId);
-
-                    if (!isTableUpdate) {
-                        helperSrc.writeLog("User.ts - api() - post(/api/user-update) - tableUpdate()", "Failed to update.");
-
-                        helperSrc.responseBody({ state: "ko", message: "Failed to update." }, response, 500);
+                        helperSrc.responseBody({ state: "ko", message: "Failed to read." }, response, 500);
+                    } else if (!user.id) {
+                        helperSrc.responseBody({ state: "ko", message: "User not found." }, response, 200);
                     } else {
-                        helperSrc.responseBody({ state: "ok", message: "User updated successfully." }, response, 200);
+                        helperSrc.responseBody(
+                            {
+                                state: "ok",
+                                message: "",
+                                data: {
+                                    id: user.id,
+                                    email: user.email,
+                                    name: user.name,
+                                    surname: user.surname
+                                }
+                            },
+                            response,
+                            200
+                        );
                     }
                 }
             }
-        });
+        );
+
+        this.app.post(
+            "/api/user-update",
+            this.limiter,
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            async (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
+                const body = request.body as modelUser.IapiUpdateBody;
+
+                const name = body.name;
+                const surname = body.surname;
+                const password = body.password;
+
+                if (typeof mcpSessionId !== "string") {
+                    helperSrc.writeLog("User.ts - api() - post(/api/user-update) - Error", "Missing or invalid header.");
+
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
+                } else {
+                    const errorMessageList = this.checkField(name, surname);
+
+                    if (errorMessageList.length > 0) {
+                        helperSrc.responseBody({ state: "ko", message: errorMessageList }, response, 200);
+                    } else {
+                        const user = await this.tableSelect("", mcpSessionId);
+
+                        if (!user) {
+                            helperSrc.writeLog("User.ts - api() - post(/api/user-update) - tableSelect()", "Failed to read.");
+
+                            helperSrc.responseBody({ state: "ko", message: "Failed to read." }, response, 500);
+
+                            return;
+                        }
+
+                        if (!user.id) {
+                            helperSrc.responseBody({ state: "ko", message: "User not found." }, response, 200);
+
+                            return;
+                        }
+
+                        const isTableUpdate = await this.tableUpdate(user.id, name, surname, password, mcpSessionId);
+
+                        if (!isTableUpdate) {
+                            helperSrc.writeLog("User.ts - api() - post(/api/user-update) - tableUpdate()", "Failed to update.");
+
+                            helperSrc.responseBody({ state: "ko", message: "Failed to update." }, response, 500);
+                        } else {
+                            helperSrc.responseBody({ state: "ok", message: "User updated successfully." }, response, 200);
+                        }
+                    }
+                }
+            }
+        );
     };
 }

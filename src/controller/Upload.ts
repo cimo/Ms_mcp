@@ -4,6 +4,7 @@ import { Cfdp, CfdpModel } from "@cimo/form-data_parser/dist/src/Main.js";
 
 // Source
 import * as helperSrc from "../HelperSrc.js";
+import * as modelUpload from "../model/Upload.js";
 
 export default class Upload {
     // Variable
@@ -22,11 +23,11 @@ export default class Upload {
             if (formData.name === "file") {
                 const fileDetail = await helperSrc.fileDetail(formData.fileName, formData.buffer);
 
-                if (fileDetail.name === "" || fileDetail.mimeType === "" || fileDetail.size === "") {
+                if (fileDetail.name === "" || fileDetail.mimeType === "" || formData.buffer.length === 0) {
                     result += "File input empty.";
                 } else if (!helperSrc.fileCheckMimeType(fileDetail.mimeType)) {
                     result += "Mime type are not allowed.";
-                } else if (!helperSrc.fileCheckSize(parseInt(fileDetail.size))) {
+                } else if (!helperSrc.fileCheckSize(formData.buffer.length)) {
                     result += "File size exceeds limit.";
                 }
             }
@@ -41,19 +42,37 @@ export default class Upload {
 
     constructor() {}
 
-    execute = (request: Request, isFileExists: boolean, isDecode: boolean, pathValue: string): Promise<CfdpModel.Iinput[]> => {
+    execute = (request: Request, isFileExists: boolean, isDecode: boolean, pathValue: string): Promise<modelUpload.Iresult> => {
         return new Promise((resolve, reject) => {
             const contentType = request.headers["content-type"];
 
             const chunkList: Buffer[] = [];
 
+            let bodySize = 0;
+            let isBodySizeExceeded = false;
+
             request.on("data", (data: Buffer) => {
-                chunkList.push(data);
+                bodySize += data.length;
+
+                if (!helperSrc.fileCheckSize(bodySize)) {
+                    isBodySizeExceeded = true;
+                    chunkList.length = 0;
+                }
+
+                if (!isBodySizeExceeded) {
+                    chunkList.push(data);
+                }
             });
 
             request.on("end", async () => {
+                if (isBodySizeExceeded) {
+                    resolve({ formDataList: [], message: "File size exceeds limit." });
+
+                    return;
+                }
+
                 if (typeof contentType !== "string") {
-                    reject(new Error("Content-type missing."));
+                    resolve({ formDataList: [], message: "Content-type missing." });
 
                     return;
                 }
@@ -64,7 +83,7 @@ export default class Upload {
                 const resultCheckRequest = await this.checkRequest(formDataList);
 
                 if (resultCheckRequest !== "") {
-                    reject(new Error(resultCheckRequest));
+                    resolve({ formDataList: [], message: resultCheckRequest });
 
                     return;
                 } else {
@@ -72,6 +91,12 @@ export default class Upload {
                         const formData = formDataList[a];
 
                         if (formData.name === "file" && formData.fileName && formData.buffer) {
+                            if (isDecode && !helperSrc.checkUriComponent(formData.fileName)) {
+                                resolve({ formDataList: [], message: "Invalid file name." });
+
+                                return;
+                            }
+
                             const fileNameDecode = isDecode ? decodeURIComponent(formData.fileName) : formData.fileName;
                             const fileDetail = await helperSrc.fileDetail(fileNameDecode, formData.buffer);
                             const path = `${pathValue}${fileDetail.baseName}/`;
@@ -88,7 +113,7 @@ export default class Upload {
                                     const isExists = await helperSrc.fileOrFolderExists(pathFile);
 
                                     if (isFileExists && isExists) {
-                                        resolve([]);
+                                        resolve({ formDataList: [], message: "File already exists." });
                                     } else {
                                         helperSrc.fileWriteStream(pathFile, formData.buffer).then((resultFileWriteStream) => {
                                             if (typeof resultFileWriteStream !== "boolean" || !resultFileWriteStream) {
@@ -96,7 +121,7 @@ export default class Upload {
 
                                                 return;
                                             } else {
-                                                resolve(formDataList);
+                                                resolve({ formDataList, message: "" });
 
                                                 return;
                                             }
