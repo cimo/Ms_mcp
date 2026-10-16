@@ -106,7 +106,8 @@ export default class Workspace {
             async (request: Request, response: Response) => {
                 const mcpSessionId = request.headers["mcp-session-id"];
                 const fileNameEncode = request.headers["filenameencode"];
-                const folderJoin = request.headers["folderjoin"];
+                const folderJoinHeader = request.headers["folderjoin"];
+                const folderJoin = typeof folderJoinHeader === "string" ? folderJoinHeader.replace(/\/+$/, "") : folderJoinHeader;
 
                 let pathWorkspace = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/`;
 
@@ -196,7 +197,7 @@ export default class Workspace {
                 const mcpSessionId = request.headers["mcp-session-id"];
                 const body = request.body as modelWorkspace.IapiBody;
 
-                const folderJoin = body.folderJoin;
+                const folderJoin = body.folderJoin ? body.folderJoin.replace(/\/+$/, "") : body.folderJoin;
 
                 const pathWorkspace = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/`;
 
@@ -484,7 +485,7 @@ export default class Workspace {
                 const body = request.body as modelWorkspace.IapiFolderCreateBody;
 
                 const folderName = body.folderName;
-                const folderJoin = body.folderJoin;
+                const folderJoin = body.folderJoin ? body.folderJoin.replace(/\/+$/, "") : body.folderJoin;
 
                 let pathWorkspace = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/`;
 
@@ -542,7 +543,8 @@ export default class Workspace {
                 const body = request.body as modelWorkspace.IapiFolderMoveBody;
 
                 const pathList = body.pathList;
-                const folderJoin = body.folderJoin ? `${body.folderJoin}/` : "";
+                const folderJoinNormalize = body.folderJoin ? body.folderJoin.replace(/\/+$/, "") : "";
+                const folderJoin = folderJoinNormalize ? `${folderJoinNormalize}/` : "";
 
                 const pathWorkspace = `${helperSrc.PATH_ROOT}${helperSrc.PATH_FILE}input/${mcpSessionId}/workspace/`;
 
@@ -571,7 +573,7 @@ export default class Workspace {
 
                     const errorMessageList: string[] = [];
 
-                    const targetFolder = Path.normalize(body.folderJoin || ".");
+                    const targetFolder = Path.normalize(folderJoinNormalize || ".");
 
                     const pathListSlice = pathList.slice();
 
