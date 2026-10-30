@@ -33,6 +33,7 @@ export default class Server {
     private controllerXvfb: ControllerXvfb;
     private controllerSetting: ControllerSetting;
     private controllerAgent: ControllerAgent;
+    private controllerWorkspace: ControllerWorkspace;
 
     // Method
     private loginRpc = async (mcpSessionId: string, cookieToken: string, response: Response): Promise<void> => {
@@ -47,6 +48,7 @@ export default class Server {
 
             await this.controllerSetting.tableCreate(mcpSessionId);
             await this.controllerAgent.tableCreate(mcpSessionId);
+            await this.controllerWorkspace.tableCreate(mcpSessionId);
 
             helperSrc.responseBody({ state: "ok", message: "", data: mcpSessionId }, response, 200);
         }
@@ -78,6 +80,7 @@ export default class Server {
         this.controllerXvfb = {} as ControllerXvfb;
         this.controllerSetting = {} as ControllerSetting;
         this.controllerAgent = {} as ControllerAgent;
+        this.controllerWorkspace = {} as ControllerWorkspace;
     }
 
     createSetting = (): void => {
@@ -146,8 +149,8 @@ export default class Server {
             this.controllerTool.api();
             this.controllerTool.rpc();
 
-            const controllerWorkspace = new ControllerWorkspace(this.app, this.limiter, this.sessionObject);
-            controllerWorkspace.api();
+            this.controllerWorkspace = new ControllerWorkspace(this.app, this.limiter, this.sessionObject);
+            this.controllerWorkspace.api();
 
             const controllerRag = new ControllerRag(this.app, this.limiter, this.sessionObject);
             controllerRag.api();

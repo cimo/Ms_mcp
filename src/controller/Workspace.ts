@@ -27,11 +27,23 @@ export default class Workspace {
     private toolRag: ToolRag;
 
     // Method
-    private checkField = (name: string): string[] => {
+    private checkField = (name: string | null, documentType: string | null, tag: string | null, note: string | null): string[] => {
         const resultList: string[] = [];
 
-        if (!/^[A-Za-z0-9_]+$/.test(name)) {
+        if (name !== null && !/^[A-Za-z0-9_]+$/.test(name)) {
             resultList.push("Name: Can only contain uppercase, lowercase, number and underscore.");
+        }
+
+        if (documentType !== null && !/^[A-Za-z0-9_ ]+$/.test(documentType)) {
+            resultList.push("Document type: Can only contain letter, number, underscore and space.");
+        }
+
+        if (tag !== null && !/^[A-Za-z0-9_ ]+$/.test(tag)) {
+            resultList.push("Tag: Can only contain letter, number, underscore and space.");
+        }
+
+        if (note !== null && !/^[A-Za-z0-9_,. ]+$/.test(note)) {
+            resultList.push("Note: Can only contain letter, number, underscore, comma, dot and space.");
         }
 
         return resultList;
@@ -86,6 +98,108 @@ export default class Workspace {
         return result;
     };
 
+    private tableInsert = async (mcpSessionId: string, name: string): Promise<boolean> => {
+        let isResult = false;
+
+        if (mcpSessionId !== "") {
+            isResult = await database.pool
+                .query(`INSERT INTO "${mcpSessionId}_document" (name, delete) VALUES ($1, false);`, [name])
+                .then(() => {
+                    return true;
+                })
+                .catch((error: Error) => {
+                    helperSrc.writeLog("Workspace.ts - tableInsert() - catch()", error.message);
+
+                    return false;
+                });
+        }
+
+        return isResult;
+    };
+
+    private tableUpdate = async (
+        mcpSessionId: string,
+        id: number,
+        name: string | null,
+        documentType: string | null,
+        tag: string | null,
+        note: string | null
+    ): Promise<boolean> => {
+        let isResult = false;
+
+        if (mcpSessionId !== "") {
+            isResult = await database.pool
+                .query(
+                    `UPDATE "${mcpSessionId}_document" SET name = COALESCE($1, name), document_type = COALESCE($2, document_type), tag = COALESCE($3, tag), note = COALESCE($4, note) WHERE id = $5;`,
+                    [name, documentType, tag, note, id]
+                )
+                .then(() => {
+                    return true;
+                })
+                .catch((error: Error) => {
+                    helperSrc.writeLog("Workspace.ts - tableUpdate() - catch()", error.message);
+
+                    return false;
+                });
+        }
+
+        return isResult;
+    };
+
+    private tableSelect = (mcpSessionId: string, name: string): Promise<modelWorkspace.Idata | null> => {
+        return database.pool
+            .query(`SELECT id, name, document_type, tag, note FROM "${mcpSessionId}_document" WHERE name = $1 AND NOT delete;`, [name])
+            .then((queryResult: Pg.QueryResult<modelWorkspace.IdatabaseQuery>) => {
+                const resultObject = {} as modelWorkspace.Idata;
+
+                if (queryResult.rows.length > 0) {
+                    const queryRow = queryResult.rows[0];
+
+                    resultObject.id = queryRow.id;
+                    resultObject.name = queryRow.name;
+                    resultObject.documentType = queryRow.document_type;
+                    resultObject.tag = queryRow.tag;
+                    resultObject.note = queryRow.note;
+                }
+
+                return resultObject;
+            })
+            .catch((error: Error) => {
+                helperSrc.writeLog("Workspace.ts - tableSelect() - catch()", error.message);
+
+                return null;
+            });
+    };
+
+    private tableDelete = async (mcpSessionId: string, id: number): Promise<boolean> => {
+        let isResult = false;
+
+        if (mcpSessionId !== "") {
+            isResult = await database.pool
+                .query(`UPDATE "${mcpSessionId}_document" SET delete = true WHERE id = $1;`, [id])
+                .then(() => {
+                    return true;
+                })
+                .catch((error: Error) => {
+                    helperSrc.writeLog("Workspace.ts - tableDelete() - catch()", error.message);
+
+                    return false;
+                });
+        }
+
+        return isResult;
+    };
+
+    private fileDelete = async (mcpSessionId: string, fileName: string): Promise<void> => {
+        await this.toolRag.delete().content({ fileName }, { sessionId: mcpSessionId });
+
+        const fileData = await this.tableSelect(mcpSessionId, fileName);
+
+        if (fileData && fileData.id) {
+            await this.tableDelete(mcpSessionId, fileData.id);
+        }
+    };
+
     constructor(app: Express.Express, limiter: RateLimitRequestHandler, sessionObject: Record<string, modelServer.Isession>) {
         this.app = app;
         this.limiter = limiter;
@@ -96,6 +210,27 @@ export default class Workspace {
 
         this.toolRag = new ToolRag(this.sessionObject);
     }
+
+    tableCreate = async (mcpSessionId: string): Promise<boolean> => {
+        let isResult = false;
+
+        if (mcpSessionId !== "") {
+            isResult = await database.pool
+                .query(
+                    `CREATE TABLE IF NOT EXISTS "${mcpSessionId}_document" (id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, name TEXT NOT NULL, document_type TEXT, tag TEXT, note TEXT, delete BOOLEAN NOT NULL);`
+                )
+                .then(() => {
+                    return true;
+                })
+                .catch((error: Error) => {
+                    helperSrc.writeLog("Workspace.ts - tableCreate() - catch()", error.message);
+
+                    return false;
+                });
+        }
+
+        return isResult;
+    };
 
     api = (): void => {
         this.app.post(
@@ -170,7 +305,15 @@ export default class Workspace {
                                         resultDocument.state === "error" ? 500 : 200
                                     );
                                 } else {
-                                    helperSrc.responseBody({ state: "ok", message: "", data: pathFile }, response, 200);
+                                    const isTableInsert = await this.tableInsert(mcpSessionId, fileDetail.name);
+
+                                    if (!isTableInsert) {
+                                        helperSrc.writeLog("Workspace.ts - api() - post(/api/workspace-upload) - tableInsert()", "Failed to insert.");
+
+                                        helperSrc.responseBody({ state: "ko", message: "Failed to insert." }, response, 500);
+                                    } else {
+                                        helperSrc.responseBody({ state: "ok", message: "", data: pathFile }, response, 200);
+                                    }
                                 }
 
                                 const indexPathProcess = this.pathProcessList.indexOf(pathItem);
@@ -360,14 +503,14 @@ export default class Workspace {
                         } else {
                             if (itemDetail.baseName) {
                                 if ((await helperSrc.findPathDirnameRecursive(pathWorkspace, itemDetail.name)) === "") {
-                                    await this.toolRag.delete().content({ fileName: itemDetail.name }, { sessionId: mcpSessionId });
+                                    await this.fileDelete(mcpSessionId, itemDetail.name);
                                 }
                             } else {
                                 for (const pathFile of pathFileList) {
                                     const fileDetail = await helperSrc.fileDetail(pathFile);
 
                                     if ((await helperSrc.findPathDirnameRecursive(pathWorkspace, fileDetail.name)) === "") {
-                                        await this.toolRag.delete().content({ fileName: fileDetail.name }, { sessionId: mcpSessionId });
+                                        await this.fileDelete(mcpSessionId, fileDetail.name);
                                     }
                                 }
                             }
@@ -424,7 +567,7 @@ export default class Workspace {
                         return;
                     }
 
-                    const errorMessageList = this.checkField(name);
+                    const errorMessageList = this.checkField(name, null, null, null);
 
                     if (await helperSrc.fileOrFolderExists(`${pathWorkspace}${pathTargetNew}`)) {
                         errorMessageList.push("Name already exists.");
@@ -468,7 +611,28 @@ export default class Workspace {
 
                             helperSrc.responseBody({ state: "ko", message: "Failed to rename." }, response, 500);
                         } else {
-                            helperSrc.responseBody({ state: "ok", message: "" }, response, 200);
+                            let isTableUpdate = false;
+
+                            const fileData = await this.tableSelect(mcpSessionId, fileDetailOld.name);
+
+                            if (fileData && fileData.id) {
+                                isTableUpdate = await this.tableUpdate(
+                                    mcpSessionId,
+                                    fileData.id,
+                                    `${name}.${fileDetailOld.extension}`,
+                                    null,
+                                    null,
+                                    null
+                                );
+                            }
+
+                            if (!isTableUpdate) {
+                                helperSrc.writeLog("Workspace.ts - api() - post(/api/workspace-rename) - tableUpdate()", "Failed to update.");
+
+                                helperSrc.responseBody({ state: "ko", message: "Failed to update." }, response, 500);
+                            } else {
+                                helperSrc.responseBody({ state: "ok", message: "" }, response, 200);
+                            }
                         }
                     }
                 }
@@ -508,7 +672,7 @@ export default class Workspace {
                         return;
                     }
 
-                    const errorMessageList = this.checkField(folderName);
+                    const errorMessageList = this.checkField(folderName, null, null, null);
 
                     if (errorMessageList.length === 0 && (await helperSrc.fileOrFolderExists(pathTarget))) {
                         errorMessageList.push("Name already exists.");
@@ -637,6 +801,87 @@ export default class Workspace {
                         }
 
                         helperSrc.responseBody({ state: "ok", message: "" }, response, 200);
+                    }
+                }
+            }
+        );
+
+        this.app.post(
+            "/api/workspace-info-query",
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            async (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
+                const body = request.body as modelWorkspace.IapiInfoQueryBody;
+
+                const name = body.name;
+
+                if (typeof mcpSessionId !== "string") {
+                    helperSrc.writeLog("Workspace.ts - api() - post(/api/workspace-info-query) - Error", "Missing or invalid header.");
+
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
+                } else {
+                    const info = await this.tableSelect(mcpSessionId, name);
+
+                    if (!info) {
+                        helperSrc.writeLog("Workspace.ts - api() - post(/api/workspace-info-query) - tableSelect()", "Failed to read.");
+
+                        helperSrc.responseBody({ state: "ko", message: "Failed to read." }, response, 500);
+                    } else if (!info.id) {
+                        helperSrc.responseBody({ state: "ko", message: "Item info not found." }, response, 200);
+                    } else {
+                        helperSrc.responseBody(
+                            {
+                                state: "ok",
+                                message: "",
+                                data: {
+                                    id: info.id,
+                                    documentType: info.documentType,
+                                    tag: info.tag,
+                                    note: info.note
+                                }
+                            },
+                            response,
+                            200
+                        );
+                    }
+                }
+            }
+        );
+
+        this.app.post(
+            "/api/workspace-info-update",
+            this.limiter,
+            Ca.authenticationMiddleware,
+            Ca.identityMiddleware("mcp-session-id"),
+            async (request: Request, response: Response) => {
+                const mcpSessionId = request.headers["mcp-session-id"];
+                const body = request.body as modelWorkspace.IapiInfoUpdateBody;
+
+                const id = body.id;
+                const documentType = body.documentType;
+                const tag = body.tag;
+                const note = body.note;
+
+                if (typeof mcpSessionId !== "string") {
+                    helperSrc.writeLog("Workspace.ts - api() - post(/api/workspace-info-update) - Error", "Missing or invalid header.");
+
+                    helperSrc.responseBody({ state: "ko", message: "Missing or invalid header." }, response, 500);
+                } else {
+                    const errorMessageList = this.checkField(null, documentType, tag, note);
+
+                    if (errorMessageList.length > 0) {
+                        helperSrc.responseBody({ state: "ko", message: errorMessageList }, response, 200);
+                    } else {
+                        const isTableUpdate = await this.tableUpdate(mcpSessionId, id, null, documentType, tag, note);
+
+                        if (!isTableUpdate) {
+                            helperSrc.writeLog("Workspace.ts - api() - post(/api/workspace-info-update) - tableUpdate()", "Failed to update.");
+
+                            helperSrc.responseBody({ state: "ko", message: "Failed to update." }, response, 500);
+                        } else {
+                            helperSrc.responseBody({ state: "ok", message: "Info updated successfully." }, response, 200);
+                        }
                     }
                 }
             }

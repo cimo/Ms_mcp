@@ -25,6 +25,33 @@ export interface IapiFolderMoveBody {
     folderJoin: string;
 }
 
+export interface IapiInfoQueryBody {
+    name: string;
+}
+
+export interface IapiInfoUpdateBody {
+    id: number;
+    documentType: string;
+    tag: string;
+    note: string;
+}
+
 export interface IragDatabaseQuery {
     id: number;
+}
+
+export interface Idata {
+    id: number;
+    name: string;
+    documentType: string;
+    tag: string;
+    note: string;
+}
+
+export interface IdatabaseQuery {
+    id: number;
+    name: string;
+    document_type: string;
+    tag: string;
+    note: string;
 }
