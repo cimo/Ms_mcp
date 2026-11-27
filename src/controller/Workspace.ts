@@ -286,7 +286,12 @@ export default class Workspace {
                                 if (fileDetail.category === "document" || fileDetail.category === "image") {
                                     this.pathProcessList.push(pathItem);
 
-                                    resultDocument = await this.controllerDocument.execute(fileDetail, pathItem, abortController.signal);
+                                    resultDocument = await this.controllerDocument.execute(
+                                        fileDetail,
+                                        pathItem,
+                                        abortController.signal,
+                                        mcpSessionId
+                                    );
                                 }
 
                                 if (resultDocument.state !== "ok") {

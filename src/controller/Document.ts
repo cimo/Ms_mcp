@@ -1,5 +1,3 @@
-import { unzip } from "fflate";
-
 // Source
 import * as helperSrc from "../HelperSrc.js";
 import * as instance from "../Instance.js";
@@ -197,51 +195,14 @@ export default class Document {
             });
     };
 
-    private zipWrite = (buffer: Buffer, pathCurrent: string): Promise<boolean> => {
-        return new Promise<boolean>((resolve) => {
-            unzip(buffer, async (error: Error | null, zip: Record<string, Uint8Array>) => {
-                if (error) {
-                    helperSrc.writeLog("Document.ts - zipWrite() - unzip()", error.message);
-
-                    resolve(false);
-
-                    return;
-                }
-
-                const entryList = Object.keys(zip);
-
-                for (let a = 0; a < entryList.length; a++) {
-                    if (!helperSrc.checkPathChild(pathCurrent, entryList[a])) {
-                        helperSrc.writeLog("Document.ts - zipWrite() - checkPathChild()", entryList[a]);
-
-                        resolve(false);
-
-                        return;
-                    }
-                }
-
-                for (let a = 0; a < entryList.length; a++) {
-                    const entry = entryList[a];
-
-                    if (entry.endsWith("/")) {
-                        continue;
-                    }
-
-                    const fileWriteStream = await helperSrc.fileWriteStream(`${pathCurrent}${entry}`, Buffer.from(zip[entry]));
-
-                    if (typeof fileWriteStream !== "boolean") {
-                        helperSrc.writeLog("Document.ts - zipWrite() - fileWriteStream()", fileWriteStream.toString());
-                    }
-                }
-
-                resolve(true);
-            });
-        });
-    };
-
     constructor() {}
 
-    execute = (fileDetail: modelHelperSrc.IfileDetail, pathCurrent: string, signal: AbortSignal): Promise<modelHelperSrc.IactionOperation> => {
+    execute = (
+        fileDetail: modelHelperSrc.IfileDetail,
+        pathCurrent: string,
+        signal: AbortSignal,
+        mcpSessionId: string
+    ): Promise<modelHelperSrc.IactionOperation> => {
         return instance.runWithContext(async () => {
             const fileReadStream = await helperSrc.fileReadStream(`${pathCurrent}${fileDetail.name}`);
 
@@ -288,6 +249,7 @@ export default class Document {
 
             const formDataFileDataExtractor = new FormData();
             formDataFileDataExtractor.append("file", blob, fileDetail.name);
+            formDataFileDataExtractor.append("owner", mcpSessionId);
 
             await this.apiFileDataExtractorLogin();
 
@@ -307,9 +269,11 @@ export default class Document {
                 return resultExtract;
             }
 
-            const isZipWrite = await this.zipWrite(Buffer.from(resultExtract.data as string, "base64"), pathCurrent);
+            const fileWriteStreamResult = await helperSrc.fileWriteStream(`${pathCurrent}result.md`, Buffer.from(resultExtract.data as string));
 
-            if (!isZipWrite) {
+            if (typeof fileWriteStreamResult !== "boolean") {
+                helperSrc.writeLog("Document.ts - execute() - fileWriteStream()", fileWriteStreamResult.toString());
+
                 return { state: "error", message: "Service not available." };
             }
 
