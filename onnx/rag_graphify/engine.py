@@ -2070,9 +2070,9 @@ class Engine:
         PATH_FILE = os.environ["MS_M_PATH_FILE"]
 
         self.pathOsDirName = f"{os.path.dirname(__file__)}/"
-        self.pathModelEmbedding = f"{self.pathOsDirName}model/embeddinggemma-300m/"
-        self.pathModelGliner = f"{self.pathOsDirName}model/gliner_multi-v2.1/"
-        self.pathModelReranker = f"{self.pathOsDirName}model/bge-reranker-v2-m3/"
+        self.pathModelEmbedding = f"{self.pathOsDirName}model/google/embeddinggemma-300m/"
+        self.pathModelGliner = f"{self.pathOsDirName}model/urchade/gliner_multi-v2.1/"
+        self.pathModelReranker = f"{self.pathOsDirName}model/baai/bge-reranker-v2-m3/"
         self.pathFileInput = f"{PATH_ROOT}{PATH_FILE}input/"
 
         self.embeddinggemmaTokenMax = 2048

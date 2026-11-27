@@ -25,18 +25,15 @@ then
 fi
 
 # Onnx - rag_graphify - embeddinggemma-300m
-pathModel="/home/app/onnx/rag_graphify/model/embeddinggemma-300m/"
-urlModel="https://huggingface.co/cimo001/embeddinggemma-300m/resolve/main/"
+pathModel="/home/app/onnx/rag_graphify/model/google/embeddinggemma-300m/"
+urlModel="https://huggingface.co/cimo001/google/resolve/main/embeddinggemma-300m/"
 
 mkdir -p "${pathModel}"
 
 modelList=(
     "onnx/model.onnx"
     "onnx/model.onnx_data"
-    "tokenizer.model"
-    "tokenizer_config.json"
-    "special_tokens_map.json"
-    "config.json"
+    "onnx/tokenizer.model"
 )
 
 for model in "${modelList[@]}"
@@ -57,19 +54,14 @@ do
 done
 
 # Onnx - rag_graphify - gliner_multi-v2.1
-pathModel="/home/app/onnx/rag_graphify/model/gliner_multi-v2.1/"
-urlModel="https://huggingface.co/cimo001/gliner_multi-v2.1/resolve/main/"
+pathModel="/home/app/onnx/rag_graphify/model/urchade/gliner_multi-v2.1/"
+urlModel="https://huggingface.co/cimo001/urchade/resolve/main/gliner_multi-v2.1/"
 
 mkdir -p "${pathModel}"
 
 modelList=(
     "onnx/model.onnx"
-    "gliner_config.json"
-    "config.json"
-    "tokenizer_config.json"
-    "spm.model"
-    "special_tokens_map.json"
-    "added_tokens.json"
+    "onnx/spm.model"
 )
 
 for model in "${modelList[@]}"
@@ -90,18 +82,15 @@ do
 done
 
 # Onnx - rag_graphify - bge-reranker-v2-m3
-pathModel="/home/app/onnx/rag_graphify/model/bge-reranker-v2-m3/"
-urlModel="https://huggingface.co/cimo001/bge-reranker-v2-m3/resolve/main/"
+pathModel="/home/app/onnx/rag_graphify/model/baai/bge-reranker-v2-m3/"
+urlModel="https://huggingface.co/cimo001/baai/resolve/main/bge-reranker-v2-m3/"
 
 mkdir -p "${pathModel}"
 
 modelList=(
     "onnx/model.onnx"
     "onnx/model.onnx_data"
-    "tokenizer_config.json"
-    "special_tokens_map.json"
-    "config.json"
-    "sentencepiece.bpe.model"
+    "onnx/sentencepiece.bpe.model"
 )
 
 for model in "${modelList[@]}"
